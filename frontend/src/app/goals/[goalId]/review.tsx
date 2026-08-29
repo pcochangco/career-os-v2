@@ -52,8 +52,24 @@ export default function ReviewRoute() {
       <Heading>{roadmap.title}</Heading>
       <Body>{roadmap.summary}</Body>
       <View style={styles.notice}>
-        <Text style={styles.noticeTitle}>Built as a clear starting path</Text>
-        <Text style={styles.noticeBody}>You can review every stage now. Accepting it makes this your active roadmap.</Text>
+        <Text style={styles.noticeTitle}>
+          {roadmap.generation_source === "openai" ? "AI-generated and quality checked" : "Preview path quality checked"}
+        </Text>
+        <Text style={styles.noticeBody}>
+          CareerOS validated the structure, sequence, actions, and completion evidence before showing this draft.
+        </Text>
+      </View>
+      <View style={styles.contextCard}>
+        <Text style={styles.contextLabel}>Starting point</Text>
+        <Text style={styles.contextText}>{roadmap.starting_state_summary}</Text>
+        {roadmap.assumptions.length ? (
+          <>
+            <Text style={styles.assumptionsLabel}>Assumptions to review</Text>
+            {roadmap.assumptions.map((assumption) => (
+              <Text key={assumption} style={styles.assumption}>• {assumption}</Text>
+            ))}
+          </>
+        ) : null}
       </View>
       <View style={styles.milestones}>
         {roadmap.milestones.map((milestone) => (
@@ -86,6 +102,11 @@ const styles = StyleSheet.create({
   notice: { backgroundColor: colors.forestSoft, borderRadius: 18, marginBottom: 24, padding: 18 },
   noticeTitle: { color: colors.forestDark, fontSize: 16, fontWeight: "800", marginBottom: 5 },
   noticeBody: { color: colors.forestDark, fontSize: 14, lineHeight: 21 },
+  contextCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 24, padding: 18 },
+  contextLabel: { color: colors.forest, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  contextText: { color: colors.ink, fontSize: 14, lineHeight: 21, marginTop: 6 },
+  assumptionsLabel: { color: colors.ink, fontSize: 13, fontWeight: "800", marginTop: 16 },
+  assumption: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
   milestones: { gap: 16, marginBottom: 24 },
   milestone: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 20, borderWidth: 1, padding: 20 },
   milestoneNumber: { color: colors.forest, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },

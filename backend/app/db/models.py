@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -84,7 +84,20 @@ class RoadmapVersion(Base):
     status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
     title: Mapped[str] = mapped_column(String(180))
     summary: Mapped[str] = mapped_column(Text)
+    goal_outcome: Mapped[str] = mapped_column(Text, default="")
+    starting_state_summary: Mapped[str] = mapped_column(Text, default="")
+    assumptions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    schema_version: Mapped[str] = mapped_column(String(20), default="1.0")
     generation_source: Mapped[str] = mapped_column(String(40), default="fixture")
+    provider_model: Mapped[str] = mapped_column(String(120), default="deterministic-fixture")
+    prompt_version: Mapped[str] = mapped_column(String(120), default="")
+    provider_response_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    input_snapshot: Mapped[dict[str, str]] = mapped_column(JSON, default=dict)
+    quality_report: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    quality_score: Mapped[int] = mapped_column(Integer, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    generation_duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -107,6 +120,7 @@ class RoadmapMilestone(Base):
     position: Mapped[int] = mapped_column(Integer)
     title: Mapped[str] = mapped_column(String(180))
     outcome: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[str] = mapped_column(Text, default="")
 
     roadmap: Mapped[RoadmapVersion] = relationship(back_populates="milestones")
     steps: Mapped[list[RoadmapStep]] = relationship(
@@ -125,11 +139,31 @@ class RoadmapStep(Base):
         ForeignKey("roadmap_milestones.id", ondelete="CASCADE"), index=True
     )
     position: Mapped[int] = mapped_column(Integer)
+    stable_key: Mapped[str] = mapped_column(String(64), index=True)
     kind: Mapped[str] = mapped_column(String(24))
     title: Mapped[str] = mapped_column(String(180))
     objective: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[str] = mapped_column(Text, default="")
     action: Mapped[str] = mapped_column(Text)
     completion_condition: Mapped[str] = mapped_column(Text)
-    effort_label: Mapped[str] = mapped_column(String(40))
+    effort_label: Mapped[str] = mapped_column(String(80))
+    evidence_suggestion: Mapped[str] = mapped_column(Text, default="")
+    prerequisite_step_keys: Mapped[list[str]] = mapped_column(JSON, default=list)
+    resource_queries: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     milestone: Mapped[RoadmapMilestone] = relationship(back_populates="steps")
+
+
+class RoadmapStepDependency(Base):
+    __tablename__ = "roadmap_step_dependencies"
+    __table_args__ = (
+        UniqueConstraint("step_id", "prerequisite_step_id", name="uq_step_prerequisite"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    prerequisite_step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )

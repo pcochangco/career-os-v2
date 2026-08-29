@@ -10,12 +10,17 @@ export type Goal = {
 export type RoadmapStep = {
   id: string;
   position: number;
+  stable_key: string;
   kind: "learn" | "practice" | "prove";
   title: string;
   objective: string;
+  rationale: string;
   action: string;
   completion_condition: string;
   effort_label: string;
+  evidence_suggestion: string;
+  prerequisite_step_keys: string[];
+  resource_queries: string[];
 };
 
 export type RoadmapMilestone = {
@@ -23,7 +28,25 @@ export type RoadmapMilestone = {
   position: number;
   title: string;
   outcome: string;
+  rationale: string;
   steps: RoadmapStep[];
+};
+
+export type QualityIssue = {
+  severity: "warning" | "error";
+  code: string;
+  message: string;
+  path: string;
+  repair_instruction: string;
+};
+
+export type QualityReport = {
+  passed: boolean;
+  final_score: number;
+  structural_score: number;
+  critic_score: number;
+  repair_attempts: number;
+  issues: QualityIssue[];
 };
 
 export type Roadmap = {
@@ -33,7 +56,18 @@ export type Roadmap = {
   status: "draft" | "accepted" | "superseded";
   title: string;
   summary: string;
-  generation_source: "fixture" | "ai";
+  goal_outcome: string;
+  starting_state_summary: string;
+  assumptions: string[];
+  schema_version: string;
+  generation_source: "fixture" | "openai";
+  provider_model: string;
+  prompt_version: string;
+  quality_report: QualityReport;
+  quality_score: number;
+  input_tokens: number;
+  output_tokens: number;
+  generation_duration_ms: number;
   created_at: string;
   accepted_at: string | null;
   milestones: RoadmapMilestone[];

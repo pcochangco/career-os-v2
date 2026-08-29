@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.ai.dependencies import GenerationService
+from app.ai.schema import RoadmapGenerationInput
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import DiscoveryWrite, GoalCreate, GoalRead, RoadmapRead
 from app.db.models import (
@@ -11,10 +13,10 @@ from app.db.models import (
     GoalDiscoveryAnswer,
     RoadmapMilestone,
     RoadmapStep,
+    RoadmapStepDependency,
     RoadmapVersion,
     User,
 )
-from app.services.roadmap_generator import generate_fixture_roadmap
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -91,9 +93,7 @@ def save_discovery(
 ) -> GoalRead:
     goal = get_owned_goal(db, user, goal_id)
     latest_revision = db.scalar(
-        select(func.max(GoalDiscoveryAnswer.revision)).where(
-            GoalDiscoveryAnswer.goal_id == goal.id
-        )
+        select(func.max(GoalDiscoveryAnswer.revision)).where(GoalDiscoveryAnswer.goal_id == goal.id)
     )
     revision = (latest_revision or 0) + 1
     for question_key, answer in payload.model_dump().items():
@@ -113,9 +113,7 @@ def save_discovery(
 
 def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
     latest_revision = db.scalar(
-        select(func.max(GoalDiscoveryAnswer.revision)).where(
-            GoalDiscoveryAnswer.goal_id == goal.id
-        )
+        select(func.max(GoalDiscoveryAnswer.revision)).where(GoalDiscoveryAnswer.goal_id == goal.id)
     )
     if latest_revision is None:
         raise HTTPException(
@@ -136,43 +134,82 @@ def generate_roadmap(
     goal_id: UUID,
     user: CurrentUser,
     db: DbSession,
+    generation_service: GenerationService,
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
     discovery = latest_discovery(db, goal)
-    generated = generate_fixture_roadmap(goal.title, discovery)
+    generation_input = RoadmapGenerationInput(
+        goal_title=goal.title,
+        **discovery.model_dump(),
+    )
+    generated = generation_service.generate(generation_input)
+    draft = generated.draft
     latest_version = db.scalar(
         select(func.max(RoadmapVersion.version)).where(RoadmapVersion.goal_id == goal.id)
     )
     roadmap = RoadmapVersion(
         goal_id=goal.id,
         version=(latest_version or 0) + 1,
-        title=generated.title,
-        summary=generated.summary,
+        title=draft.title,
+        summary=draft.summary,
+        goal_outcome=draft.goal_outcome,
+        starting_state_summary=draft.starting_state_summary,
+        assumptions=draft.assumptions,
+        schema_version=draft.schema_version,
         status="draft",
-        generation_source="fixture",
+        generation_source=generated.provider,
+        provider_model=generated.model,
+        prompt_version=generated.prompt_version,
+        provider_response_ids=list(generated.response_ids),
+        input_snapshot=generation_input.model_dump(),
+        quality_report=generated.quality.model_dump(),
+        quality_score=generated.quality.final_score,
+        input_tokens=generated.input_tokens,
+        output_tokens=generated.output_tokens,
+        generation_duration_ms=generated.duration_ms,
     )
     db.add(roadmap)
     db.flush()
-    for milestone_position, fixture_milestone in enumerate(generated.milestones, start=1):
+    step_by_key: dict[str, RoadmapStep] = {}
+    pending_dependencies: list[tuple[RoadmapStep, list[str]]] = []
+    for milestone_position, draft_milestone in enumerate(draft.milestones, start=1):
         milestone = RoadmapMilestone(
             roadmap_id=roadmap.id,
             position=milestone_position,
-            title=fixture_milestone.title,
-            outcome=fixture_milestone.outcome,
+            title=draft_milestone.title,
+            outcome=draft_milestone.outcome,
+            rationale=draft_milestone.rationale,
         )
         db.add(milestone)
         db.flush()
-        for step_position, fixture_step in enumerate(fixture_milestone.steps, start=1):
+        for step_position, draft_step in enumerate(draft_milestone.steps, start=1):
+            step = RoadmapStep(
+                milestone_id=milestone.id,
+                position=step_position,
+                stable_key=draft_step.stable_key,
+                kind=draft_step.kind,
+                title=draft_step.title,
+                objective=draft_step.objective,
+                rationale=draft_step.rationale,
+                action=draft_step.action,
+                completion_condition=draft_step.completion_condition,
+                effort_label=draft_step.effort_label,
+                evidence_suggestion=draft_step.evidence_suggestion,
+                prerequisite_step_keys=draft_step.prerequisite_step_keys,
+                resource_queries=draft_step.resource_queries,
+            )
+            db.add(step)
+            db.flush()
+            step_by_key[draft_step.stable_key] = step
+            pending_dependencies.append((step, draft_step.prerequisite_step_keys))
+
+    for step, prerequisite_keys in pending_dependencies:
+        for prerequisite_key in prerequisite_keys:
+            prerequisite = step_by_key[prerequisite_key]
             db.add(
-                RoadmapStep(
-                    milestone_id=milestone.id,
-                    position=step_position,
-                    kind=fixture_step.kind,
-                    title=fixture_step.title,
-                    objective=fixture_step.objective,
-                    action=fixture_step.action,
-                    completion_condition=fixture_step.completion_condition,
-                    effort_label=fixture_step.effort_label,
+                RoadmapStepDependency(
+                    step_id=step.id,
+                    prerequisite_step_id=prerequisite.id,
                 )
             )
     goal.status = "roadmap_review"

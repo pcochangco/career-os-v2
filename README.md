@@ -39,18 +39,20 @@ Android and iOS use the same backend, domain contracts, and navigation model.
 
 ## Current vertical slice
 
-Sprint 1 implements the complete first-run path:
+The implemented product slice covers the complete first-run path:
 
 1. Start an anonymous authenticated session.
 2. Create a user-owned goal.
 3. Answer five focused discovery questions, one at a time.
-4. Generate and review a deterministic roadmap through the production domain boundary.
+4. Generate, quality-check, and review a structured roadmap.
 5. Accept the roadmap and open it as a mobile-first vertical path.
 
-The deterministic generator is intentional. It lets the product validate
-ownership, persistence, contracts, and the roadmap UX before live LLM behavior is
-introduced. Live generation, resource verification, and roadmap evaluation are
-the next core slice.
+Generation runs behind a provider-independent boundary. The default deterministic
+provider keeps local development and CI reliable. The opt-in OpenAI provider uses
+the same strict schema, a separate critic pass, deterministic structural checks,
+and one bounded repair attempt. Only roadmaps that pass the quality contract are
+persisted. Resource retrieval and verification are the next core slice; models
+produce search queries but never final resource URLs.
 
 ## Local development
 
@@ -82,6 +84,11 @@ Start PostgreSQL and the API:
 docker compose up --build
 ```
 
+The default `fixture` provider requires no API credentials. To exercise live
+generation, copy `.env.example` to `.env`, set `CAREEROS_AI_PROVIDER=openai`, and
+set `CAREEROS_OPENAI_API_KEY` locally. Never commit the key. The configured model
+defaults to `gpt-5.6-terra` and can be changed with `CAREEROS_AI_MODEL`.
+
 Start the universal client in a separate terminal:
 
 ```bash
@@ -94,5 +101,7 @@ Run all available foundation checks:
 ./scripts/check.sh
 ```
 
-The backend health endpoint is `GET /api/v1/health`, and local API
-documentation is available at `/api/docs`.
+The backend health endpoint is `GET /api/v1/health`, and local API documentation
+is available at `/api/docs`. Representative roadmap evaluations live in
+`backend/evals/cases.json` and run as part of the backend test suite without
+network access.

@@ -141,6 +141,20 @@ The application-level generation service coordinates:
 
 Live providers are replaceable. Automated tests use deterministic fixtures.
 
+### Implemented AI boundary
+
+The backend selects either a deterministic fixture provider or an OpenAI
+provider through environment configuration. Both return schema `1.0` objects
+through the same typed interface. Provider text is never persisted directly:
+Pydantic rejects unexpected structure, deterministic checks enforce domain
+invariants, and an independent critic can trigger one bounded repair attempt.
+
+Roadmap versions retain the exact normalized generation input, assumptions,
+provider and model identifiers, prompt version, response identifiers, quality
+report, token totals, and generation duration. Explicit step dependencies are
+stored as relationships in addition to the ordered path. Resource queries are
+stored for the upcoming retrieval slice; model-generated URLs are rejected.
+
 ## Scaling path
 
 The MVP uses one API deployment and one PostgreSQL database. Prepare for growth
@@ -174,19 +188,20 @@ Before public beta, anonymous users can upgrade to a verified account without
 changing ownership IDs. Native persistent secure-token storage and session
 revocation UI are added with the mobile release boundary.
 
-## First vertical slice
+## Implemented vertical slice
 
 The first implemented slice is deliberately narrow:
 
 1. Create an authenticated goal.
 2. Complete adaptive discovery.
-3. Generate a deterministic fixture roadmap through the real domain boundary.
+3. Generate a structured, quality-checked roadmap through a replaceable provider.
 4. Review and accept it.
 5. Open the accepted roadmap in a mobile-first vertical path.
 
-Progress, evidence, showcases, live AI providers, and notifications follow in
-later vertical slices.
+The live provider boundary is implemented but opt-in; deterministic generation
+remains the default for local development and CI. Progress, evidence, showcases,
+resource verification, and notifications follow in later vertical slices.
 
 This slice is implemented through the `/api/v1/auth`, `/api/v1/goals`, and
-`/api/v1/roadmaps` resource families. The fixture generator deliberately uses the
-same persistence and response contracts that the live AI generator will use.
+`/api/v1/roadmaps` resource families. Both providers use the same persistence and
+response contracts.

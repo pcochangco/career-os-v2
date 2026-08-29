@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -36,12 +37,17 @@ class RoadmapStepRead(BaseModel):
 
     id: UUID
     position: int
+    stable_key: str
     kind: str
     title: str
     objective: str
+    rationale: str
     action: str
     completion_condition: str
     effort_label: str
+    evidence_suggestion: str
+    prerequisite_step_keys: list[str]
+    resource_queries: list[str]
 
 
 class RoadmapMilestoneRead(BaseModel):
@@ -51,6 +57,7 @@ class RoadmapMilestoneRead(BaseModel):
     position: int
     title: str
     outcome: str
+    rationale: str
     steps: list[RoadmapStepRead]
 
 
@@ -63,7 +70,18 @@ class RoadmapRead(BaseModel):
     status: str
     title: str
     summary: str
+    goal_outcome: str
+    starting_state_summary: str
+    assumptions: list[str]
+    schema_version: str
     generation_source: str
+    provider_model: str
+    prompt_version: str
+    quality_report: dict[str, Any]
+    quality_score: int
+    input_tokens: int
+    output_tokens: int
+    generation_duration_ms: int
     created_at: datetime
     accepted_at: datetime | None
     milestones: list[RoadmapMilestoneRead]

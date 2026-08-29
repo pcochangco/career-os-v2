@@ -43,12 +43,20 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     roadmap = generated.json()
     assert roadmap["status"] == "draft"
     assert roadmap["generation_source"] == "fixture"
+    assert roadmap["provider_model"] == "deterministic-fixture"
+    assert roadmap["schema_version"] == "1.0"
+    assert roadmap["quality_score"] >= 80
+    assert roadmap["quality_report"]["passed"] is True
+    assert roadmap["assumptions"]
     assert len(roadmap["milestones"]) == 3
     assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 6
     assert all(
         step["completion_condition"]
         for milestone in roadmap["milestones"]
         for step in milestone["steps"]
+    )
+    assert all(
+        step["stable_key"] for milestone in roadmap["milestones"] for step in milestone["steps"]
     )
 
     accepted = client.post(f"/api/v1/roadmaps/{roadmap['id']}/accept", headers=headers)

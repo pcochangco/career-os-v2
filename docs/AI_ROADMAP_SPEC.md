@@ -45,6 +45,19 @@ Material assumptions must be reviewable before generation.
 10. **Validate structure** — accept only output matching the versioned schema.
 11. **Persist a draft version** — retain generation provenance for review.
 
+### Implemented generation boundary
+
+Schema `1.0` is the current canonical provider output. Generation is a bounded
+generate → deterministic validation → model critique → repair loop. One repair
+attempt is allowed by default, and a failing result is rejected rather than
+persisted. The default quality threshold is 80.
+
+The deterministic checks reject unknown or forward prerequisites, duplicate
+keys or titles, missing practice or proof, unverified URLs, required schedules,
+weak completion conditions, and visibly unpersonalized output. The separate
+critic scores realism and semantic completeness. The final score weights the
+structural evaluator at 55% and the critic at 45%; every error must be resolved.
+
 ## Roadmap structure
 
 A roadmap contains:
@@ -77,6 +90,7 @@ A step contains:
 - Optional prerequisite step references
 - Verified resource references
 - Suggested evidence type when relevant
+- Resource search queries to be resolved by the retrieval layer
 
 ## Quality contract
 
@@ -135,6 +149,12 @@ treated as untrusted input.
 
 Tests must run without network or live model calls using deterministic fixtures.
 
+The live provider uses strict structured output parsed directly into the
+canonical Pydantic schema. Provider response identifiers, model name, prompt
+version, input snapshot, quality report, token usage, repair count, and request
+duration are stored with each roadmap version for auditability and later
+evaluation. Secrets remain backend-only.
+
 ## Evaluation
 
 Before production expansion, maintain a representative evaluation set covering:
@@ -150,3 +170,8 @@ Before production expansion, maintain a representative evaluation set covering:
 Quality measurements should include schema validity, prerequisite correctness,
 goal coverage, actionable-step rate, completion-condition quality, resource
 validity, duplication, and human reviewer usefulness.
+
+The checked-in evaluation set covers beginner and experienced starting states,
+a credential, a communication goal, an overly broad goal, and prompt injection
+inside user content. It runs against the deterministic provider in CI. Live-model
+evaluation is an explicit opt-in operation and must never be required for CI.
