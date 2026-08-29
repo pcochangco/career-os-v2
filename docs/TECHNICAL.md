@@ -163,6 +163,17 @@ only in response to measured bottlenecks.
 - Do not send private notes or evidence to an AI provider without an explicit
   feature need and clear user understanding.
 
+### Sprint 1 identity boundary
+
+The first vertical slice creates an anonymous bearer session automatically. The
+raw opaque token is returned once, stored by the web client, and only its SHA-256
+digest is persisted. Every goal and roadmap query is scoped to the session's
+user. This removes sign-up friction without weakening server-side ownership.
+
+Before public beta, anonymous users can upgrade to a verified account without
+changing ownership IDs. Native persistent secure-token storage and session
+revocation UI are added with the mobile release boundary.
+
 ## First vertical slice
 
 The first implemented slice is deliberately narrow:
@@ -175,3 +186,7 @@ The first implemented slice is deliberately narrow:
 
 Progress, evidence, showcases, live AI providers, and notifications follow in
 later vertical slices.
+
+This slice is implemented through the `/api/v1/auth`, `/api/v1/goals`, and
+`/api/v1/roadmaps` resource families. The fixture generator deliberately uses the
+same persistence and response contracts that the live AI generator will use.

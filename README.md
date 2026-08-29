@@ -37,6 +37,21 @@ implementation.
 The first release target is the web experience from the universal frontend.
 Android and iOS use the same backend, domain contracts, and navigation model.
 
+## Current vertical slice
+
+Sprint 1 implements the complete first-run path:
+
+1. Start an anonymous authenticated session.
+2. Create a user-owned goal.
+3. Answer five focused discovery questions, one at a time.
+4. Generate and review a deterministic roadmap through the production domain boundary.
+5. Accept the roadmap and open it as a mobile-first vertical path.
+
+The deterministic generator is intentional. It lets the product validate
+ownership, persistence, contracts, and the roadmap UX before live LLM behavior is
+introduced. Live generation, resource verification, and roadmap evaluation are
+the next core slice.
+
 ## Local development
 
 Requirements:

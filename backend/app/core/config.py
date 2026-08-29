@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: str = "local"
     database_url: str = "postgresql+psycopg://careeros:careeros_local@localhost:5432/careeros"
+    cors_origins: str = "http://localhost:8081,http://localhost:19006"
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -1,0 +1,33 @@
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+type ApiOptions = Omit<RequestInit, "body"> & {
+  body?: unknown;
+  token?: string | null;
+};
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+export async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  headers.set("Accept", "application/json");
+  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
+
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new ApiError(payload?.detail ?? "Something went wrong. Please try again.", response.status);
+  }
+  return (await response.json()) as T;
+}
