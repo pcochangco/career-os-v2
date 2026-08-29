@@ -1,14 +1,13 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import RoadmapRead
 from app.db.models import Goal, RoadmapMilestone, RoadmapVersion, User
-from app.db.session import get_db
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
@@ -30,8 +29,8 @@ def get_owned_roadmap(db: Session, user: User, roadmap_id: UUID) -> RoadmapVersi
 @router.get("/{roadmap_id}", response_model=RoadmapRead)
 def read_roadmap(
     roadmap_id: UUID,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> RoadmapVersion:
     return get_owned_roadmap(db, user, roadmap_id)
 
@@ -39,8 +38,8 @@ def read_roadmap(
 @router.post("/{roadmap_id}/accept", response_model=RoadmapRead)
 def accept_roadmap(
     roadmap_id: UUID,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> RoadmapVersion:
     roadmap = get_owned_roadmap(db, user, roadmap_id)
     if roadmap.status != "draft":

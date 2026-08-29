@@ -1,10 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_current_user
+from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import DiscoveryWrite, GoalCreate, GoalRead, RoadmapRead
 from app.db.models import (
     Goal,
@@ -14,7 +14,6 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
-from app.db.session import get_db
 from app.services.roadmap_generator import generate_fixture_roadmap
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -52,7 +51,8 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
 
 @router.get("", response_model=list[GoalRead])
 def list_goals(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    user: CurrentUser,
+    db: DbSession,
 ) -> list[GoalRead]:
     goals = db.scalars(
         select(Goal).where(Goal.user_id == user.id).order_by(Goal.updated_at.desc())
@@ -63,8 +63,8 @@ def list_goals(
 @router.post("", response_model=GoalRead, status_code=status.HTTP_201_CREATED)
 def create_goal(
     payload: GoalCreate,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> GoalRead:
     goal = Goal(user_id=user.id, title=payload.title.strip())
     db.add(goal)
@@ -76,8 +76,8 @@ def create_goal(
 @router.get("/{goal_id}", response_model=GoalRead)
 def read_goal(
     goal_id: UUID,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> GoalRead:
     return to_goal_read(db, get_owned_goal(db, user, goal_id))
 
@@ -86,8 +86,8 @@ def read_goal(
 def save_discovery(
     goal_id: UUID,
     payload: DiscoveryWrite,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> GoalRead:
     goal = get_owned_goal(db, user, goal_id)
     latest_revision = db.scalar(
@@ -134,8 +134,8 @@ def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
 @router.post("/{goal_id}/roadmaps", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
 def generate_roadmap(
     goal_id: UUID,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    user: CurrentUser,
+    db: DbSession,
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
     discovery = latest_discovery(db, goal)
