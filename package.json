@@ -1,0 +1,11 @@
+{
+  "name": "careeros",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "frontend:start": "pnpm --dir frontend start",
+    "frontend:web": "pnpm --dir frontend web",
+    "frontend:typecheck": "pnpm --dir frontend typecheck",
+    "frontend:export": "pnpm --dir frontend export:web"
+  }
+}

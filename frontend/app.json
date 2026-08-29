@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "CareerOS",
+    "slug": "careeros",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "careeros",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.careeros.app"
+    },
+    "android": {
+      "package": "com.careeros.app"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
