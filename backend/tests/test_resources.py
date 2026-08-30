@@ -22,6 +22,13 @@ class RecordingProvider:
         return self.candidates
 
 
+class PermissiveResolver(ResourceResolver):
+    @classmethod
+    def is_relevant(cls, candidate: ResourceCandidate, query: str) -> bool:
+        del candidate, query
+        return True
+
+
 class StubResponse:
     def __init__(self, payload: dict) -> None:
         self.payload = payload
@@ -35,12 +42,13 @@ class StubResponse:
 
 def candidate(
     *,
+    provider: str = "test",
     url: str = "https://en.wikipedia.org/wiki/Intelligent_agent",
     title: str = "Intelligent agent",
     resource_type: str = "article",
 ) -> ResourceCandidate:
     return ResourceCandidate(
-        provider="test",
+        provider=provider,
         resource_type=resource_type,
         title=title,
         url=url,
@@ -118,6 +126,36 @@ def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> N
     assert response.json()["available"] is False
     assert response.json()["resources"] == []
     assert response.json()["message"]
+
+
+def test_unrelated_wikipedia_results_and_stale_cache_are_rejected(
+    client: TestClient,
+) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    unrelated = candidate(
+        provider="wikipedia",
+        title="Robert Englund",
+        url="https://en.wikipedia.org/wiki/Robert_Englund",
+    )
+    provider = RecordingProvider([unrelated])
+    app.dependency_overrides[get_resource_resolver] = lambda: PermissiveResolver([provider])
+    stored = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    assert stored.json()["available"] is True
+
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    cleaned = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    assert cleaned.status_code == 200
+    assert cleaned.json()["available"] is False
+    assert cleaned.json()["resources"] == []
 
 
 def test_resources_cannot_be_loaded_early_or_by_another_user(client: TestClient) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from urllib.parse import urlparse
 
 from app.resources.providers import ResourceProvider, ResourceProviderError
@@ -7,6 +8,32 @@ from app.resources.schema import ResourceCandidate
 
 
 class ResourceResolver:
+    generic_query_words = {
+        "beginner",
+        "build",
+        "capstone",
+        "complete",
+        "concepts",
+        "create",
+        "essential",
+        "framework",
+        "guide",
+        "how",
+        "ideas",
+        "learn",
+        "master",
+        "portfolio",
+        "practical",
+        "practice",
+        "present",
+        "project",
+        "roadmap",
+        "rubric",
+        "the",
+        "to",
+        "tutorial",
+        "work",
+    }
     allowed_hosts = {
         "en.wikipedia.org",
         "www.youtube.com",
@@ -35,13 +62,54 @@ class ResourceResolver:
                 except ResourceProviderError:
                     continue
                 for candidate in candidates:
-                    if not self.is_safe(candidate) or candidate.url in seen_urls:
+                    if (
+                        not self.is_safe(candidate)
+                        or not self.is_relevant(candidate, clean_query)
+                        or candidate.url in seen_urls
+                    ):
                         continue
                     accepted.append(candidate)
                     seen_urls.add(candidate.url)
                     if len(accepted) >= self.max_results:
                         return accepted
         return accepted
+
+    @classmethod
+    def is_relevant(cls, candidate: ResourceCandidate, query: str) -> bool:
+        return cls.is_relevant_text(
+            provider=candidate.provider,
+            query=query,
+            title=candidate.title,
+            description=candidate.description,
+        )
+
+    @classmethod
+    def is_relevant_text(
+        cls,
+        *,
+        provider: str,
+        query: str,
+        title: str,
+        description: str,
+    ) -> bool:
+        if provider != "wikipedia":
+            return True
+        topic_tokens = cls.topic_tokens(query)
+        content_tokens = cls.normalized_tokens(f"{title} {description}")
+        return bool(topic_tokens & content_tokens)
+
+    @classmethod
+    def topic_tokens(cls, value: str) -> set[str]:
+        return cls.normalized_tokens(value) - cls.generic_query_words
+
+    @staticmethod
+    def normalized_tokens(value: str) -> set[str]:
+        tokens = set(re.findall(r"[a-z0-9+#.]+", value.lower()))
+        return tokens | {
+            token[:-1]
+            for token in tokens
+            if token.endswith("s") and len(token) > 4
+        }
 
     @classmethod
     def is_safe(cls, candidate: ResourceCandidate) -> bool:

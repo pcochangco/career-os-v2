@@ -47,6 +47,31 @@ def to_resource_response(
     )
 
 
+def remove_irrelevant_cached_resources(
+    db: DbSession,
+    resolver: ResourceResolver,
+    resources: list[RoadmapStepResource],
+    queries: list[str],
+) -> bool:
+    removed = False
+    for resource in resources:
+        if any(
+            resolver.is_relevant_text(
+                provider=resource.provider,
+                query=query,
+                title=resource.title,
+                description=resource.description,
+            )
+            for query in queries
+        ):
+            continue
+        db.delete(resource)
+        removed = True
+    if removed:
+        db.commit()
+    return removed
+
+
 @router.post("/{step_id}/resources/resolve", response_model=StepResourcesRead)
 def resolve_step_resources(
     step_id: UUID,
@@ -63,10 +88,18 @@ def resolve_step_resources(
         )
 
     cached = read_cached_resources(db, step.id)
-    if cached:
+    cache_changed = remove_irrelevant_cached_resources(
+        db,
+        resolver,
+        cached,
+        step.resource_queries,
+    )
+    cached = read_cached_resources(db, step.id) if cache_changed else cached
+    if cached and not cache_changed:
         return to_resource_response(step.id, cached, cached=True)
 
     candidates = resolver.resolve(step.resource_queries)
+    existing_urls = {resource.url for resource in cached}
     resources = [
         RoadmapStepResource(
             step_id=step.id,
@@ -81,6 +114,7 @@ def resolve_step_resources(
             verified_at=candidate.verified_at,
         )
         for candidate in candidates
+        if candidate.url not in existing_urls
     ]
     db.add_all(resources)
     try:
