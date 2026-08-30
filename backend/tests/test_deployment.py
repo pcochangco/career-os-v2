@@ -3,7 +3,22 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.core.config import Settings
 from app.web import mount_frontend
+
+
+def test_render_postgres_url_uses_installed_psycopg_driver() -> None:
+    settings = Settings(database_url="postgresql://user:password@database.example/careeros")
+
+    assert settings.database_url == (
+        "postgresql+psycopg://user:password@database.example/careeros"
+    )
+
+
+def test_explicit_database_driver_is_preserved() -> None:
+    database_url = "postgresql+psycopg://user:password@database.example/careeros"
+
+    assert Settings(database_url=database_url).database_url == database_url
 
 
 def test_exported_frontend_serves_routes_without_masking_api_404s(
