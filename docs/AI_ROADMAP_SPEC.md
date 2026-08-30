@@ -149,11 +149,12 @@ treated as untrusted input.
 
 Tests must run without network or live model calls using deterministic fixtures.
 
-The live provider uses strict structured output parsed directly into the
-canonical Pydantic schema. Provider response identifiers, model name, prompt
-version, input snapshot, quality report, token usage, repair count, and request
-duration are stored with each roadmap version for auditability and later
-evaluation. Secrets remain backend-only.
+The live provider uses either strict JSON Schema output or provider-compatible
+JSON Object mode, then parses every response into the same canonical Pydantic
+schema. Provider response identifiers, model name, prompt version, input snapshot,
+quality report, token usage, repair count, and request duration are stored with
+each roadmap version for auditability and later evaluation. Secrets remain
+backend-only.
 
 Production provider selection is fail-safe. `auto` mode uses the live provider
 only when its server-side secret exists. If the provider request or the bounded

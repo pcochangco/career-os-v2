@@ -146,11 +146,12 @@ Live providers are replaceable. Automated tests use deterministic fixtures.
 ### Implemented AI boundary
 
 The backend selects either a deterministic fixture provider or a configurable
-OpenAI-compatible provider. Provider identity, base URL, model, optional reasoning
-effort, and key are independent environment settings. Both return schema `1.0`
-objects through the same typed interface. Provider text is never persisted directly:
-Pydantic rejects unexpected structure, deterministic checks enforce domain
-invariants, and an independent critic can trigger one bounded repair attempt.
+OpenAI-compatible provider. Provider identity, base URL, model, response-format
+capability, optional reasoning effort, and key are independent environment settings.
+Strict JSON Schema and JSON Object modes both return schema `1.0` objects through
+the same typed interface. Provider text is never persisted directly: Pydantic rejects
+unexpected structure, deterministic checks enforce domain invariants, and an
+independent critic can trigger one bounded repair attempt.
 
 Roadmap versions retain the exact normalized generation input, assumptions,
 provider and model identifiers, prompt version, response identifiers, quality

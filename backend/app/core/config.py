@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     ai_provider: str = "openai"
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = "gpt-5.6-terra"
+    ai_response_format: Literal["json_schema", "json_object"] = "json_schema"
     ai_reasoning_effort: Literal["low", "medium", "high"] | None = None
     ai_request_timeout_seconds: float = Field(default=60.0, ge=10.0, le=180.0)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)

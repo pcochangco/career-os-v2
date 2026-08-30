@@ -1,5 +1,5 @@
 import json
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from openai import OpenAI, OpenAIError
 from pydantic import BaseModel
@@ -96,7 +96,7 @@ passes only when a user could follow it without inventing missing intermediate s
 
 
 class OpenAICompatibleRoadmapProvider:
-    prompt_version = "roadmap-schema-1.0-compatible-2"
+    prompt_version = "roadmap-schema-1.0-compatible-3"
 
     def __init__(
         self,
@@ -105,12 +105,14 @@ class OpenAICompatibleRoadmapProvider:
         api_key: str,
         base_url: str,
         model: str,
+        response_format_mode: Literal["json_schema", "json_object"] = "json_schema",
         reasoning_effort: str | None = None,
         timeout_seconds: float = 90,
         client: OpenAI | None = None,
     ) -> None:
         self.source = provider_name
         self.model = model
+        self.response_format_mode = response_format_mode
         self.reasoning_effort = reasoning_effort
         self.client = client or OpenAI(
             api_key=api_key,
@@ -124,10 +126,26 @@ class OpenAICompatibleRoadmapProvider:
         messages: list[dict[str, str]],
         response_format: type[T],
     ) -> ProviderResult[T]:
+        schema_format = strict_response_format(response_format)
+        request_messages = messages
+        provider_response_format: dict[str, object] = schema_format
+        if self.response_format_mode == "json_object":
+            schema = schema_format["json_schema"]["schema"]
+            schema_json = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
+            schema_instruction = {
+                "role": "system",
+                "content": (
+                    "Return exactly one valid JSON object matching this JSON Schema. "
+                    f"Do not add keys or prose outside the JSON object: {schema_json}"
+                ),
+            }
+            request_messages = [messages[0], schema_instruction, *messages[1:]]
+            provider_response_format = {"type": "json_object"}
+
         request: dict[str, object] = {
             "model": self.model,
-            "messages": messages,
-            "response_format": strict_response_format(response_format),
+            "messages": request_messages,
+            "response_format": provider_response_format,
         }
         if self.reasoning_effort is not None:
             request["reasoning_effort"] = self.reasoning_effort

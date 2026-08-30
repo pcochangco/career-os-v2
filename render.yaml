@@ -26,7 +26,9 @@ services:
       - key: CAREEROS_AI_BASE_URL
         value: https://api.groq.com/openai/v1
       - key: CAREEROS_AI_MODEL
-        value: openai/gpt-oss-20b
+        value: openai/gpt-oss-120b
+      - key: CAREEROS_AI_RESPONSE_FORMAT
+        value: json_object
       - key: CAREEROS_AI_REASONING_EFFORT
         value: ""
       - key: CAREEROS_AI_REQUEST_TIMEOUT_SECONDS

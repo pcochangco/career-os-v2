@@ -64,6 +64,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         ai_provider="groq",
         ai_base_url="https://api.groq.com/openai/v1/",
         ai_model="openai/gpt-oss-20b",
+        ai_response_format="json_object",
         ai_reasoning_effort="",
         ai_api_key="server-secret",
     )
@@ -71,6 +72,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert settings.ai_provider == "groq"
     assert settings.ai_base_url == "https://api.groq.com/openai/v1"
     assert settings.ai_model == "openai/gpt-oss-20b"
+    assert settings.ai_response_format == "json_object"
     assert settings.ai_reasoning_effort is None
     assert settings.ai_configured is True
     assert settings.ai_generation_mode == "live_ai"
@@ -81,6 +83,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
     provider = service.primary.provider
     assert provider.source == "groq"
     assert provider.model == "openai/gpt-oss-20b"
+    assert provider.response_format_mode == "json_object"
     assert provider.reasoning_effort is None
     assert client_config["base_url"] == "https://api.groq.com/openai/v1"
 
@@ -165,7 +168,10 @@ def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() 
     assert portable_strict_schema(full_schema) == schema
 
 
-def test_compatible_provider_parses_with_portable_strict_schema() -> None:
+@pytest.mark.parametrize("response_format_mode", ["json_schema", "json_object"])
+def test_compatible_provider_parses_with_portable_strict_schema(
+    response_format_mode: str,
+) -> None:
     fixture = FixtureRoadmapProvider().generate(generation_input()).value
     request: dict[str, object] = {}
 
@@ -201,6 +207,7 @@ def test_compatible_provider_parses_with_portable_strict_schema() -> None:
         api_key="unused-test-key",
         base_url="https://api.groq.com/openai/v1",
         model="openai/gpt-oss-20b",
+        response_format_mode=response_format_mode,
         client=Client(),
     )
 
@@ -210,7 +217,11 @@ def test_compatible_provider_parses_with_portable_strict_schema() -> None:
     assert result.response_id == "groq-test-response"
     assert result.input_tokens == 12
     assert result.output_tokens == 34
-    assert request["response_format"]["json_schema"]["strict"] is True
+    assert request["response_format"]["type"] == response_format_mode
+    if response_format_mode == "json_schema":
+        assert request["response_format"]["json_schema"]["strict"] is True
+    else:
+        assert "matching this JSON Schema" in request["messages"][1]["content"]
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:

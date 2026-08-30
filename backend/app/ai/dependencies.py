@@ -28,6 +28,7 @@ def live_service(settings: Settings) -> RoadmapGenerationService:
         api_key=api_key.get_secret_value(),
         base_url=settings.ai_base_url,
         model=settings.ai_model,
+        response_format_mode=settings.ai_response_format,
         reasoning_effort=settings.ai_reasoning_effort,
         timeout_seconds=settings.ai_request_timeout_seconds,
     )
