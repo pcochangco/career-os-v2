@@ -191,9 +191,17 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         usage = Usage()
         id = "groq-test-response"
 
+    class JsonValidationFailure(ValueError):
+        code = "json_validate_failed"
+
     class Completions:
+        calls = 0
+
         def create(self, **kwargs: object) -> Completion:
+            self.calls += 1
             request.update(kwargs)
+            if response_format_mode == "json_object" and self.calls == 1:
+                raise JsonValidationFailure("provider response content must not be logged")
             return Completion()
 
     class Chat:
@@ -222,6 +230,8 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         assert request["response_format"]["json_schema"]["strict"] is True
     else:
         assert "matching this JSON Schema" in request["messages"][1]["content"]
+        assert request["temperature"] == 0
+        assert provider.client.chat.completions.calls == 2
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:

@@ -96,7 +96,7 @@ passes only when a user could follow it without inventing missing intermediate s
 
 
 class OpenAICompatibleRoadmapProvider:
-    prompt_version = "roadmap-schema-1.0-compatible-3"
+    prompt_version = "roadmap-schema-1.0-compatible-4"
 
     def __init__(
         self,
@@ -147,16 +147,23 @@ class OpenAICompatibleRoadmapProvider:
             "messages": request_messages,
             "response_format": provider_response_format,
         }
+        if self.response_format_mode == "json_object":
+            request["temperature"] = 0
         if self.reasoning_effort is not None:
             request["reasoning_effort"] = self.reasoning_effort
 
-        try:
-            completion = self.client.chat.completions.create(**request)
-        except (OpenAIError, ValueError) as error:
-            raise RoadmapProviderError(
-                "The roadmap provider request failed",
-                diagnostic_code=safe_provider_diagnostic(error),
-            ) from error
+        for attempt in range(2):
+            try:
+                completion = self.client.chat.completions.create(**request)
+                break
+            except (OpenAIError, ValueError) as error:
+                if attempt == 0 and getattr(error, "code", None) == "json_validate_failed":
+                    request["temperature"] = 0
+                    continue
+                raise RoadmapProviderError(
+                    "The roadmap provider request failed",
+                    diagnostic_code=safe_provider_diagnostic(error),
+                ) from error
 
         if not completion.choices:
             raise RoadmapProviderError("The roadmap provider returned no choices")
