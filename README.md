@@ -46,13 +46,16 @@ The implemented product slice covers the complete first-run path:
 3. Answer five focused discovery questions, one at a time.
 4. Generate, quality-check, and review a structured roadmap.
 5. Accept the roadmap and open it as a mobile-first vertical path.
+6. Complete the current step and advance to the next unblocked step.
+7. Return later to the same position with truthful goal progress.
 
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI provider uses
 the same strict schema, a separate critic pass, deterministic structural checks,
 and one bounded repair attempt. Only roadmaps that pass the quality contract are
 persisted. Resource retrieval and verification are the next core slice; models
-produce search queries but never final resource URLs.
+produce search queries but never final resource URLs. The current step exposes
+those queries as optional searches until verified resource records are added.
 
 The production container serves the exported Expo web application and FastAPI
 from the same origin. This keeps the browser flow simple while preserving the

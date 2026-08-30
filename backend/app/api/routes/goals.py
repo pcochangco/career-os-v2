@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.ai.dependencies import GenerationService
 from app.ai.schema import RoadmapGenerationInput
@@ -19,6 +19,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -31,11 +32,14 @@ def get_owned_goal(db: Session, user: User, goal_id: UUID) -> Goal:
 
 
 def to_goal_read(db: Session, goal: Goal) -> GoalRead:
-    active_id = db.scalar(
-        select(RoadmapVersion.id)
+    active_roadmap = db.scalar(
+        select(RoadmapVersion)
         .where(RoadmapVersion.goal_id == goal.id, RoadmapVersion.status == "accepted")
         .order_by(RoadmapVersion.version.desc())
         .limit(1)
+        .options(
+            selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps)
+        )
     )
     draft_id = db.scalar(
         select(RoadmapVersion.id)
@@ -43,13 +47,17 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
         .order_by(RoadmapVersion.version.desc())
         .limit(1)
     )
+    progress = calculate_roadmap_progress(db, goal.user, active_roadmap) if active_roadmap else None
     return GoalRead(
         id=goal.id,
         title=goal.title,
         status=goal.status,
         created_at=goal.created_at,
-        active_roadmap_id=active_id,
+        active_roadmap_id=active_roadmap.id if active_roadmap else None,
         latest_draft_roadmap_id=draft_id,
+        completed_steps=progress.completed_steps if progress else 0,
+        total_steps=progress.total_steps if progress else 0,
+        progress_percent=progress.progress_percent if progress else 0,
     )
 
 

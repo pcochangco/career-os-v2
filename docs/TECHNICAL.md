@@ -87,7 +87,7 @@ Canonical retrieved resource metadata and verification status.
 
 Ordered relationship between a verified resource and a roadmap step.
 
-### StepProgress
+### RoadmapStepProgress
 
 User-owned completion state for a step. Completion is explicit and timestamped.
 
@@ -208,7 +208,7 @@ Before public beta, anonymous users can upgrade to a verified account without
 changing ownership IDs. Native persistent secure-token storage and session
 revocation UI are added with the mobile release boundary.
 
-## Implemented vertical slice
+## Implemented vertical slices
 
 The first implemented slice is deliberately narrow:
 
@@ -217,11 +217,14 @@ The first implemented slice is deliberately narrow:
 3. Generate a structured, quality-checked roadmap through a replaceable provider.
 4. Review and accept it.
 5. Open the accepted roadmap in a mobile-first vertical path.
+6. Record explicit step completion.
+7. Enforce prerequisites and advance to the next unblocked step.
+8. Derive roadmap and goal progress from completed accepted-roadmap steps.
 
 The live provider boundary is implemented but opt-in; deterministic generation
-remains the default for local development and CI. Progress, evidence, showcases,
-resource verification, and notifications follow in later vertical slices.
+remains the default for local development and CI. Notes, evidence, showcases,
+verified resource retrieval, and notifications follow in later vertical slices.
 
-This slice is implemented through the `/api/v1/auth`, `/api/v1/goals`, and
-`/api/v1/roadmaps` resource families. Both providers use the same persistence and
-response contracts.
+These slices are implemented through the `/api/v1/auth`, `/api/v1/goals`,
+`/api/v1/roadmaps`, and `/api/v1/roadmap-steps/{step_id}/progress` resource
+families. Both providers use the same persistence and response contracts.

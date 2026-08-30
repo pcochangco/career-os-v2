@@ -129,3 +129,4 @@ def test_openapi_contains_sprint_1_paths(client: TestClient) -> None:
     assert "/api/v1/goals/{goal_id}/discovery" in paths
     assert "/api/v1/goals/{goal_id}/roadmaps" in paths
     assert "/api/v1/roadmaps/{roadmap_id}/accept" in paths
+    assert "/api/v1/roadmap-steps/{step_id}/progress" in paths

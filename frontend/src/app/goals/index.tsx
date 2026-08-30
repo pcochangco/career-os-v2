@@ -61,8 +61,22 @@ export default function GoalsRoute() {
               <Text style={styles.chevron}>›</Text>
             </View>
             <Text style={styles.status}>
-              {goal.active_roadmap_id ? "Roadmap ready · 0% complete" : "Finish setting up your roadmap"}
+              {goal.status === "completed"
+                ? `Goal complete · ${goal.completed_steps} steps`
+                : goal.active_roadmap_id
+                  ? `${goal.completed_steps} of ${goal.total_steps} steps · ${goal.progress_percent}% complete`
+                  : "Finish setting up your roadmap"}
             </Text>
+            {goal.active_roadmap_id ? (
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${goal.progress_percent}%` as `${number}%` },
+                  ]}
+                />
+              </View>
+            ) : null}
           </Pressable>
         ))}
       </View>
@@ -87,4 +101,12 @@ const styles = StyleSheet.create({
   goalTitle: { color: colors.ink, flex: 1, fontSize: 19, fontWeight: "800", lineHeight: 26 },
   chevron: { color: colors.forest, fontSize: 30, lineHeight: 30 },
   status: { color: colors.muted, fontSize: 14, marginTop: 10 },
+  progressTrack: {
+    backgroundColor: colors.line,
+    borderRadius: 4,
+    height: 6,
+    marginTop: 12,
+    overflow: "hidden",
+  },
+  progressFill: { backgroundColor: colors.forest, borderRadius: 4, height: 6 },
 });

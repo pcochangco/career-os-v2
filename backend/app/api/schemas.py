@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +30,13 @@ class GoalRead(BaseModel):
     created_at: datetime
     active_roadmap_id: UUID | None = None
     latest_draft_roadmap_id: UUID | None = None
+    completed_steps: int = 0
+    total_steps: int = 0
+    progress_percent: int = 0
+
+
+class StepProgressWrite(BaseModel):
+    completed: bool
 
 
 class RoadmapStepRead(BaseModel):
@@ -48,6 +55,8 @@ class RoadmapStepRead(BaseModel):
     evidence_suggestion: str
     prerequisite_step_keys: list[str]
     resource_queries: list[str]
+    progress_status: Literal["completed", "current", "upcoming", "blocked"] = "upcoming"
+    completed_at: datetime | None = None
 
 
 class RoadmapMilestoneRead(BaseModel):
@@ -84,4 +93,8 @@ class RoadmapRead(BaseModel):
     generation_duration_ms: int
     created_at: datetime
     accepted_at: datetime | None
+    completed_steps: int = 0
+    total_steps: int = 0
+    progress_percent: int = 0
+    current_step_id: UUID | None = None
     milestones: list[RoadmapMilestoneRead]

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import RoadmapRead
 from app.db.models import Goal, RoadmapMilestone, RoadmapVersion, User
+from app.services.progress import to_roadmap_read
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
@@ -31,8 +32,8 @@ def read_roadmap(
     roadmap_id: UUID,
     user: CurrentUser,
     db: DbSession,
-) -> RoadmapVersion:
-    return get_owned_roadmap(db, user, roadmap_id)
+) -> RoadmapRead:
+    return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap_id))
 
 
 @router.post("/{roadmap_id}/accept", response_model=RoadmapRead)
@@ -40,7 +41,7 @@ def accept_roadmap(
     roadmap_id: UUID,
     user: CurrentUser,
     db: DbSession,
-) -> RoadmapVersion:
+) -> RoadmapRead:
     roadmap = get_owned_roadmap(db, user, roadmap_id)
     if roadmap.status != "draft":
         raise HTTPException(
@@ -62,4 +63,4 @@ def accept_roadmap(
     if goal is not None:
         goal.status = "active"
     db.commit()
-    return get_owned_roadmap(db, user, roadmap.id)
+    return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))

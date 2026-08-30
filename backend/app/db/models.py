@@ -23,6 +23,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     goals: Mapped[list[Goal]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    step_progress: Mapped[list[RoadmapStepProgress]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -152,6 +155,9 @@ class RoadmapStep(Base):
     resource_queries: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     milestone: Mapped[RoadmapMilestone] = relationship(back_populates="steps")
+    progress_records: Mapped[list[RoadmapStepProgress]] = relationship(
+        back_populates="step", cascade="all, delete-orphan"
+    )
 
 
 class RoadmapStepDependency(Base):
@@ -167,3 +173,18 @@ class RoadmapStepDependency(Base):
     prerequisite_step_id: Mapped[UUID] = mapped_column(
         ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
     )
+
+
+class RoadmapStepProgress(Base):
+    __tablename__ = "roadmap_step_progress"
+    __table_args__ = (UniqueConstraint("user_id", "step_id", name="uq_user_step_progress"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped[User] = relationship(back_populates="step_progress")
+    step: Mapped[RoadmapStep] = relationship(back_populates="progress_records")

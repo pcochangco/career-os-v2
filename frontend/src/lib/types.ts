@@ -1,10 +1,13 @@
 export type Goal = {
   id: string;
   title: string;
-  status: "discovery" | "ready_to_generate" | "roadmap_review" | "active";
+  status: "discovery" | "ready_to_generate" | "roadmap_review" | "active" | "completed";
   created_at: string;
   active_roadmap_id: string | null;
   latest_draft_roadmap_id: string | null;
+  completed_steps: number;
+  total_steps: number;
+  progress_percent: number;
 };
 
 export type RoadmapStep = {
@@ -21,6 +24,8 @@ export type RoadmapStep = {
   evidence_suggestion: string;
   prerequisite_step_keys: string[];
   resource_queries: string[];
+  progress_status: "completed" | "current" | "upcoming" | "blocked";
+  completed_at: string | null;
 };
 
 export type RoadmapMilestone = {
@@ -70,6 +75,10 @@ export type Roadmap = {
   generation_duration_ms: number;
   created_at: string;
   accepted_at: string | null;
+  completed_steps: number;
+  total_steps: number;
+  progress_percent: number;
+  current_step_id: string | null;
   milestones: RoadmapMilestone[];
 };
 
