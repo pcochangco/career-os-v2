@@ -261,6 +261,7 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         assert request["response_format"]["json_schema"]["strict"] is True
     else:
         assert "matching this JSON Schema" in request["messages"][1]["content"]
+        assert "maxItems" in request["messages"][1]["content"]
         assert request["temperature"] == 0
         assert provider.client.chat.completions.calls == 2
         if first_failure == "local_validation":

@@ -106,7 +106,7 @@ passes only when a user could follow it without inventing missing intermediate s
 
 
 class OpenAICompatibleRoadmapProvider:
-    prompt_version = "roadmap-schema-1.0-compatible-5"
+    prompt_version = "roadmap-schema-1.0-compatible-6"
 
     def __init__(
         self,
@@ -140,7 +140,7 @@ class OpenAICompatibleRoadmapProvider:
         request_messages = messages
         provider_response_format: dict[str, object] = schema_format
         if self.response_format_mode == "json_object":
-            schema = schema_format["json_schema"]["schema"]
+            schema = response_format.model_json_schema()
             schema_json = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
             schema_instruction = {
                 "role": "system",
