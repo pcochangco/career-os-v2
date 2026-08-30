@@ -1,4 +1,8 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+import { Platform } from "react-native";
+
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (Platform.OS === "web" ? "/api/v1" : "http://localhost:8000/api/v1");
 
 type ApiOptions = Omit<RequestInit, "body"> & {
   body?: unknown;

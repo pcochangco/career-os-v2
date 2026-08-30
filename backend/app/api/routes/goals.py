@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -8,6 +9,7 @@ from app.ai.dependencies import GenerationService
 from app.ai.schema import RoadmapGenerationInput
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import DiscoveryWrite, GoalCreate, GoalRead, RoadmapRead
+from app.core.config import get_settings
 from app.db.models import (
     Goal,
     GoalDiscoveryAnswer,
@@ -129,6 +131,25 @@ def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
     return DiscoveryWrite(**{answer.question_key: answer.answer for answer in answers})
 
 
+def enforce_generation_limit(db: Session, user: User) -> None:
+    settings = get_settings()
+    window_start = datetime.now(UTC) - timedelta(hours=1)
+    recent_generations = db.scalar(
+        select(func.count(RoadmapVersion.id))
+        .join(Goal, Goal.id == RoadmapVersion.goal_id)
+        .where(
+            Goal.user_id == user.id,
+            RoadmapVersion.created_at >= window_start,
+        )
+    )
+    if (recent_generations or 0) >= settings.ai_generation_limit_per_hour:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Roadmap generation limit reached. Please try again later.",
+            headers={"Retry-After": "3600"},
+        )
+
+
 @router.post("/{goal_id}/roadmaps", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
 def generate_roadmap(
     goal_id: UUID,
@@ -138,6 +159,7 @@ def generate_roadmap(
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
     discovery = latest_discovery(db, goal)
+    enforce_generation_limit(db, user)
     generation_input = RoadmapGenerationInput(
         goal_title=goal.title,
         **discovery.model_dump(),

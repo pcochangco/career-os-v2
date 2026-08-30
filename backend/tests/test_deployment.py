@@ -1,0 +1,27 @@
+from pathlib import Path
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from app.web import mount_frontend
+
+
+def test_exported_frontend_serves_routes_without_masking_api_404s(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "index.html").write_text("<html><title>CareerOS</title></html>")
+    (tmp_path / "asset.txt").write_text("deployed")
+    application = FastAPI()
+
+    @application.get("/api/v1/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    mount_frontend(application, str(tmp_path))
+
+    with TestClient(application) as client:
+        assert client.get("/").status_code == 200
+        assert "CareerOS" in client.get("/goals/example/roadmap").text
+        assert client.get("/asset.txt").text == "deployed"
+        assert client.get("/api/v1/health").json() == {"status": "ok"}
+        assert client.get("/api/v1/missing").status_code == 404

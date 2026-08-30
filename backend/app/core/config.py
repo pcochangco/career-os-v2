@@ -18,11 +18,13 @@ class Settings(BaseSettings):
     environment: str = "local"
     database_url: str = "postgresql+psycopg://careeros:careeros_local@localhost:5432/careeros"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
+    static_directory: str | None = None
     ai_provider: Literal["fixture", "openai"] = "fixture"
     ai_model: str = "gpt-5.6-terra"
     ai_reasoning_effort: Literal["low", "medium", "high"] = "medium"
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
+    ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)
     openai_api_key: SecretStr | None = None
 
     @property

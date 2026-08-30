@@ -54,6 +54,10 @@ and one bounded repair attempt. Only roadmaps that pass the quality contract are
 persisted. Resource retrieval and verification are the next core slice; models
 produce search queries but never final resource URLs.
 
+The production container serves the exported Expo web application and FastAPI
+from the same origin. This keeps the browser flow simple while preserving the
+same `/api/v1` contracts for future native clients.
+
 ## Local development
 
 Requirements:
@@ -105,3 +109,24 @@ The backend health endpoint is `GET /api/v1/health`, and local API documentation
 is available at `/api/docs`. Representative roadmap evaluations live in
 `backend/evals/cases.json` and run as part of the backend test suite without
 network access.
+
+## Deployment
+
+`render.yaml` defines the MVP deployment as one Docker web service and one
+managed PostgreSQL database in Render's Singapore region. The web service:
+
+- Builds the universal Expo web export and FastAPI into one image.
+- Applies Alembic migrations before starting each release.
+- Uses `/api/v1/health` for deployment health checks.
+- Deploys from `main` only after GitHub CI passes.
+- Limits each user to three roadmap generations per hour.
+
+Create the Blueprint from this repository to receive an `onrender.com` URL. The
+checked-in configuration uses the deterministic roadmap provider so a public
+preview cannot incur model charges. To enable live generation, add
+`CAREEROS_OPENAI_API_KEY` as a secret in Render, change
+`CAREEROS_AI_PROVIDER` to `openai`, and redeploy. Never place the key in this
+repository or send it through application requests.
+
+The free Render database is suitable only for an MVP preview and expires after
+30 days. Upgrade the database before storing data that must persist long-term.

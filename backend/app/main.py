@@ -6,6 +6,7 @@ from app.ai.providers.base import RoadmapProviderError
 from app.ai.service import RoadmapQualityError
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.web import mount_frontend
 
 
 def create_app() -> FastAPI:
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
         )
 
     application.include_router(api_router, prefix="/api/v1")
+    mount_frontend(application, settings.static_directory)
     return application
 
 

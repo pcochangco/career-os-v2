@@ -165,6 +165,26 @@ Add a queue and generation worker only when request duration, retries, or mobile
 background behavior requires it. Add caches, read replicas, or service splits
 only in response to measured bottlenecks.
 
+## MVP deployment
+
+The web MVP is packaged as one multi-stage Docker image. The build stage exports
+the Expo frontend; the runtime stage serves those files and `/api/v1` from the
+same FastAPI process. Unknown browser routes fall back to the application shell,
+while unknown API routes retain proper `404` responses. Native applications
+continue to call the same API through a configured absolute URL.
+
+The initial Render Blueprint provisions a Singapore web service and PostgreSQL
+database, runs migrations before application startup, checks
+`/api/v1/health`, and deploys only after GitHub checks pass. The free plans are
+appropriate for an expendable preview, not durable production data. Upgrading
+PostgreSQL is required before the 30-day free-database expiration.
+
+Public AI safeguards start with a persistent per-user generation ceiling. The
+preview deploys with the deterministic provider, and the OpenAI provider is
+enabled only after its key is stored as a backend secret. Before a wider beta,
+add account upgrades, abuse-resistant rate limits, usage budgets, request
+tracing, and asynchronous generation if measured latency requires it.
+
 ## Security baseline
 
 - Validate authentication and ownership server-side.

@@ -90,6 +90,37 @@ def test_goal_endpoints_require_authentication(client: TestClient) -> None:
     assert response.status_code == 401
 
 
+def test_roadmap_generation_is_rate_limited_per_user(client: TestClient) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Learn secure API design"},
+    ).json()
+    discovery = {
+        "desired_outcome": "Design and explain a secure production API",
+        "current_level": "Python backend developer",
+        "existing_experience": "FastAPI, SQLAlchemy, and PostgreSQL",
+        "relevant_constraints": "Prefer practical exercises",
+        "proof_of_completion": "A threat-modeled API with security tests",
+    }
+    response = client.put(
+        f"/api/v1/goals/{goal['id']}/discovery",
+        headers=headers,
+        json=discovery,
+    )
+    assert response.status_code == 200
+
+    for _ in range(3):
+        response = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+        assert response.status_code == 201
+
+    limited = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "3600"
+
+
 def test_openapi_contains_sprint_1_paths(client: TestClient) -> None:
     paths = client.get("/api/openapi.json").json()["paths"]
 
