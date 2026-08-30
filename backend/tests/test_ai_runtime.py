@@ -7,6 +7,7 @@ from app.ai.providers.compatible import (
     OpenAICompatibleRoadmapProvider,
     portable_strict_schema,
     safe_provider_diagnostic,
+    safe_validation_diagnostic,
     strict_response_format,
 )
 from app.ai.providers.fixture import FixtureRoadmapProvider
@@ -123,6 +124,18 @@ def test_provider_diagnostic_contains_only_bounded_metadata() -> None:
     assert "raw provider detail" not in safe_provider_diagnostic(error)
 
 
+def test_validation_diagnostic_excludes_generated_values() -> None:
+    generated_value = "private model output that must not be logged"
+    with pytest.raises(ValueError) as captured:
+        RoadmapDraft.model_validate({"title": generated_value})
+
+    diagnostic = safe_validation_diagnostic(captured.value)
+
+    assert diagnostic.startswith("validation_error;count=")
+    assert "schema_version:missing" in diagnostic
+    assert generated_value not in diagnostic
+
+
 def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() -> None:
     response_format = strict_response_format(RoadmapDraft)
     json_schema = response_format["json_schema"]
@@ -168,28 +181,41 @@ def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() 
     assert portable_strict_schema(full_schema) == schema
 
 
-@pytest.mark.parametrize("response_format_mode", ["json_schema", "json_object"])
+@pytest.mark.parametrize(
+    ("response_format_mode", "first_failure"),
+    [
+        ("json_schema", "none"),
+        ("json_object", "provider"),
+        ("json_object", "local_validation"),
+    ],
+)
 def test_compatible_provider_parses_with_portable_strict_schema(
     response_format_mode: str,
+    first_failure: str,
 ) -> None:
     fixture = FixtureRoadmapProvider().generate(generation_input()).value
     request: dict[str, object] = {}
 
     class Message:
-        content = fixture.model_dump_json()
         refusal = None
 
+        def __init__(self, content: str) -> None:
+            self.content = content
+
     class Choice:
-        message = Message()
+        def __init__(self, content: str) -> None:
+            self.message = Message(content)
 
     class Usage:
         prompt_tokens = 12
         completion_tokens = 34
 
     class Completion:
-        choices = [Choice()]
         usage = Usage()
         id = "groq-test-response"
+
+        def __init__(self, content: str) -> None:
+            self.choices = [Choice(content)]
 
     class JsonValidationFailure(ValueError):
         code = "json_validate_failed"
@@ -200,9 +226,14 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         def create(self, **kwargs: object) -> Completion:
             self.calls += 1
             request.update(kwargs)
-            if response_format_mode == "json_object" and self.calls == 1:
+            if first_failure == "provider" and self.calls == 1:
                 raise JsonValidationFailure("provider response content must not be logged")
-            return Completion()
+            content = (
+                "{}"
+                if first_failure == "local_validation" and self.calls == 1
+                else fixture.model_dump_json()
+            )
+            return Completion(content)
 
     class Chat:
         completions = Completions()
@@ -232,6 +263,8 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         assert "matching this JSON Schema" in request["messages"][1]["content"]
         assert request["temperature"] == 0
         assert provider.client.chat.completions.calls == 2
+        if first_failure == "local_validation":
+            assert "validation_error" in request["messages"][-1]["content"]
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:
