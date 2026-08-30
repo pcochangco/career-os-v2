@@ -43,3 +43,7 @@ class RoadmapProvider(Protocol):
 
 class RoadmapProviderError(RuntimeError):
     """A provider could not return a usable structured response."""
+
+    def __init__(self, message: str, *, diagnostic_code: str = "provider_error") -> None:
+        super().__init__(message)
+        self.diagnostic_code = diagnostic_code

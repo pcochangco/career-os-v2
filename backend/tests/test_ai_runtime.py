@@ -3,6 +3,7 @@ import pytest
 from app.ai.dependencies import create_generation_service
 from app.ai.evaluation import outcome_metrics, quality_delta
 from app.ai.providers.base import RoadmapProviderError
+from app.ai.providers.compatible import safe_provider_diagnostic
 from app.ai.providers.fixture import FixtureRoadmapProvider
 from app.ai.schema import RoadmapGenerationInput
 from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
@@ -96,6 +97,22 @@ def test_generic_ai_key_remains_redacted_in_settings() -> None:
     settings = Settings(ai_api_key="server-secret")
 
     assert "server-secret" not in repr(settings)
+
+
+def test_provider_diagnostic_contains_only_bounded_metadata() -> None:
+    class ProviderFailure(Exception):
+        status_code = 429
+        code = "rate_limit_exceeded"
+        type = "tokens"
+        param = "response_format"
+
+    error = ProviderFailure("raw provider detail that must never be logged")
+
+    assert safe_provider_diagnostic(error) == (
+        "ProviderFailure;status_code=429;code=rate_limit_exceeded;"
+        "type=tokens;param=response_format"
+    )
+    assert "raw provider detail" not in safe_provider_diagnostic(error)
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:

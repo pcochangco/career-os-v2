@@ -124,8 +124,11 @@ class FallbackRoadmapGenerationService:
         try:
             return self.primary.generate(generation_input)
         except (RoadmapProviderError, RoadmapQualityError) as error:
+            diagnostic_code = getattr(error, "diagnostic_code", type(error).__name__)
             logger.warning(
-                "Live roadmap generation failed; using deterministic fallback",
-                extra={"failure_type": type(error).__name__},
+                "Live roadmap generation failed; using deterministic fallback "
+                "failure_type=%s failure_code=%s",
+                type(error).__name__,
+                diagnostic_code,
             )
             return self.fallback.generate(generation_input)
