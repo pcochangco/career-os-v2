@@ -170,7 +170,9 @@ def start_generation_attempt(db: Session, user: User) -> RoadmapGenerationAttemp
 
     attempt = RoadmapGenerationAttempt(
         user_id=user.id,
-        requested_provider=settings.ai_provider,
+        requested_provider=(
+            "fixture" if settings.ai_mode == "fixture" else settings.ai_provider
+        ),
     )
     db.add(attempt)
     db.commit()
@@ -214,15 +216,15 @@ def generate_roadmap(
         raise
     settings = get_settings()
     used_live_fallback = (
-        settings.ai_provider in {"auto", "openai"}
-        and settings.openai_configured
+        settings.ai_mode in {"auto", "live"}
+        and settings.ai_configured
         and generated.provider == "fixture"
     )
     attempt_outcome = (
         "fallback"
         if used_live_fallback
         else "succeeded"
-        if generated.provider == "openai"
+        if generated.provider != "fixture"
         else "preview"
     )
     draft = generated.draft

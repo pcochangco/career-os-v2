@@ -53,12 +53,13 @@ The implemented product slice covers the complete first-run path:
 10. Open verified, cached learning-resource cards for the current step.
 
 Generation runs behind a provider-independent boundary. The default deterministic
-provider keeps local development and CI reliable. The opt-in OpenAI provider uses
-the same strict schema, a separate critic pass, deterministic structural checks,
-and one bounded repair attempt. Production `auto` mode uses OpenAI only when a
-server-side key exists and falls back to the quality-checked deterministic path
-when the provider is unavailable. Only roadmaps that pass the quality contract
-are persisted. Models produce resource search queries but never final URLs. The
+provider keeps local development and CI reliable. The opt-in OpenAI-compatible
+provider uses the same strict schema, a separate critic pass, deterministic
+structural checks, and one bounded repair attempt. Production `auto` mode uses the
+configured live provider only when a server-side key exists and falls back to the
+quality-checked deterministic path when the provider is unavailable. Only roadmaps
+that pass the quality contract are persisted. Models produce resource search queries
+but never final URLs. The
 resource resolver uses those queries to retrieve topic-specific Wikipedia
 articles and selected learning videos through provider APIs, accepts only safe
 HTTPS hosts with complete metadata, and caches the verified snapshot per step.
@@ -97,10 +98,23 @@ Start PostgreSQL and the API:
 docker compose up --build
 ```
 
-The default `fixture` provider requires no API credentials. To exercise live
-generation, copy `.env.example` to `.env`, set `CAREEROS_AI_PROVIDER=openai`, and
-set `CAREEROS_OPENAI_API_KEY` locally. Never commit the key. The configured model
-defaults to `gpt-5.6-terra` and can be changed with `CAREEROS_AI_MODEL`.
+The default `fixture` mode requires no API credentials. To exercise live
+generation, copy `.env.example` to `.env`, set `CAREEROS_AI_MODE=live`, and set
+`CAREEROS_AI_API_KEY` locally. Never commit the key. OpenAI-compatible providers
+are selected entirely through `CAREEROS_AI_PROVIDER`, `CAREEROS_AI_BASE_URL`,
+`CAREEROS_AI_MODEL`, and the optional `CAREEROS_AI_REASONING_EFFORT`; changing
+between compatible providers does not require application code changes.
+
+For example, Groq's free developer tier can be configured with:
+
+```dotenv
+CAREEROS_AI_MODE=auto
+CAREEROS_AI_PROVIDER=groq
+CAREEROS_AI_BASE_URL=https://api.groq.com/openai/v1
+CAREEROS_AI_MODEL=openai/gpt-oss-20b
+CAREEROS_AI_REASONING_EFFORT=
+CAREEROS_AI_API_KEY=
+```
 
 After configuring a local key, compare the live model with the deterministic
 baseline without printing roadmap text or prompts:
@@ -141,10 +155,10 @@ managed PostgreSQL database in Render's Singapore region. The web service:
 - Reports whether live AI or the deterministic preview is active through health metadata.
 
 Create the Blueprint from this repository to receive an `onrender.com` URL. The
-checked-in configuration uses `auto` mode. Without a key it remains a no-cost
-deterministic preview. To enable live generation, add `CAREEROS_OPENAI_API_KEY`
-as a secret directly in Render and redeploy. Never place the key in this
-repository, source-controlled Blueprint values, or application requests.
+checked-in configuration uses `auto` mode with Groq's OpenAI-compatible endpoint.
+Without a key it remains a no-cost deterministic preview. To enable live generation,
+add `CAREEROS_AI_API_KEY` as a secret directly in Render and redeploy. Never place
+the key in this repository, source-controlled Blueprint values, or application requests.
 
 The free Render database is suitable only for an MVP preview and expires after
 30 days. Upgrade the database before storing data that must persist long-term.

@@ -19,12 +19,16 @@ services:
         fromDatabase:
           name: career-os-db
           property: connectionString
-      - key: CAREEROS_AI_PROVIDER
+      - key: CAREEROS_AI_MODE
         value: auto
+      - key: CAREEROS_AI_PROVIDER
+        value: groq
+      - key: CAREEROS_AI_BASE_URL
+        value: https://api.groq.com/openai/v1
       - key: CAREEROS_AI_MODEL
-        value: gpt-5.6-terra
+        value: openai/gpt-oss-20b
       - key: CAREEROS_AI_REASONING_EFFORT
-        value: medium
+        value: ""
       - key: CAREEROS_AI_REQUEST_TIMEOUT_SECONDS
         value: 60
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
@@ -35,7 +39,7 @@ services:
         value: 3
       - key: CAREEROS_AI_GLOBAL_GENERATION_LIMIT_PER_HOUR
         value: 12
-      - key: CAREEROS_OPENAI_API_KEY
+      - key: CAREEROS_AI_API_KEY
         sync: false
 
 databases:

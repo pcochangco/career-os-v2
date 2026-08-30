@@ -145,9 +145,10 @@ Live providers are replaceable. Automated tests use deterministic fixtures.
 
 ### Implemented AI boundary
 
-The backend selects either a deterministic fixture provider or an OpenAI
-provider through environment configuration. Both return schema `1.0` objects
-through the same typed interface. Provider text is never persisted directly:
+The backend selects either a deterministic fixture provider or a configurable
+OpenAI-compatible provider. Provider identity, base URL, model, optional reasoning
+effort, and key are independent environment settings. Both return schema `1.0`
+objects through the same typed interface. Provider text is never persisted directly:
 Pydantic rejects unexpected structure, deterministic checks enforce domain
 invariants, and an independent critic can trigger one bounded repair attempt.
 
@@ -157,11 +158,11 @@ report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
 stored with each step; model-generated URLs are rejected.
 
-Production `auto` mode activates OpenAI only when the backend secret is present.
-A provider or quality failure switches the entire request to the deterministic
-quality-checked provider; partial live-provider drafts are never mixed with the
-fallback. Health metadata exposes the active mode and configured model without
-exposing the secret.
+Production `auto` mode activates the configured provider only when the generic
+backend secret is present. A provider or quality failure switches the entire request
+to the deterministic quality-checked provider; partial live-provider drafts are
+never mixed with the fallback. Health metadata exposes the active mode, provider,
+and model without exposing the secret or endpoint credentials.
 
 ### Implemented resource boundary
 
@@ -200,8 +201,8 @@ PostgreSQL is required before the 30-day free-database expiration.
 Public AI safeguards use a durable attempt ledger with both per-user and global
 hourly ceilings. Attempts are counted before the provider call, including failed
 requests and new anonymous sessions. The preview remains deterministic until the
-OpenAI key is stored as a backend secret; `auto` mode then enables live generation
-with deterministic failover. Before a wider beta, add account upgrades, usage
+configured provider key is stored as a backend secret; `auto` mode then enables live
+generation with deterministic failover. Before a wider beta, add account upgrades, usage
 budgets, request tracing, and asynchronous generation if measured latency requires it.
 
 ## Security baseline

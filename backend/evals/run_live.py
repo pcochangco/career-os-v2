@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 from app.ai.evaluation import outcome_metrics, quality_delta
+from app.ai.providers.compatible import OpenAICompatibleRoadmapProvider
 from app.ai.providers.fixture import FixtureRoadmapProvider
-from app.ai.providers.openai import OpenAIRoadmapProvider
 from app.ai.schema import RoadmapGenerationInput
 from app.ai.service import RoadmapGenerationService
 from app.core.config import get_settings
@@ -21,12 +21,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     settings = get_settings()
-    api_key = settings.openai_api_key
+    api_key = settings.ai_api_key
     if api_key is None or not api_key.get_secret_value().strip():
-        raise SystemExit("CAREEROS_OPENAI_API_KEY must be configured outside source control")
+        raise SystemExit("CAREEROS_AI_API_KEY must be configured outside source control")
 
-    provider = OpenAIRoadmapProvider(
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name=settings.ai_provider,
         api_key=api_key.get_secret_value(),
+        base_url=settings.ai_base_url,
         model=settings.ai_model,
         reasoning_effort=settings.ai_reasoning_effort,
         timeout_seconds=settings.ai_request_timeout_seconds,
