@@ -2,7 +2,7 @@ FROM node:22.13-alpine AS frontend-build
 
 WORKDIR /workspace
 
-RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
+RUN npm install --global pnpm@11.19.0
 
 COPY package.json pnpm-workspace.yaml ./
 COPY frontend/package.json ./frontend/package.json
