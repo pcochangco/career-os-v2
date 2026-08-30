@@ -155,6 +155,11 @@ version, input snapshot, quality report, token usage, repair count, and request
 duration are stored with each roadmap version for auditability and later
 evaluation. Secrets remain backend-only.
 
+Production provider selection is fail-safe. `auto` mode uses the live provider
+only when its server-side secret exists. If the provider request or the bounded
+quality loop fails, CareerOS discards that attempt and produces a complete
+deterministic fallback roadmap through the same schema and quality contract.
+
 ## Evaluation
 
 Before production expansion, maintain a representative evaluation set covering:
@@ -175,3 +180,6 @@ The checked-in evaluation set covers beginner and experienced starting states,
 a credential, a communication goal, an overly broad goal, and prompt injection
 inside user content. It runs against the deterministic provider in CI. Live-model
 evaluation is an explicit opt-in operation and must never be required for CI.
+The live evaluation runner reports only case names, scores, counts, latency, and
+token totals; it does not print prompts, roadmap text, raw provider payloads, or
+secrets.

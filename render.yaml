@@ -20,17 +20,23 @@ services:
           name: career-os-db
           property: connectionString
       - key: CAREEROS_AI_PROVIDER
-        value: fixture
+        value: auto
       - key: CAREEROS_AI_MODEL
         value: gpt-5.6-terra
       - key: CAREEROS_AI_REASONING_EFFORT
         value: medium
+      - key: CAREEROS_AI_REQUEST_TIMEOUT_SECONDS
+        value: 60
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_QUALITY_THRESHOLD
         value: 80
       - key: CAREEROS_AI_GENERATION_LIMIT_PER_HOUR
         value: 3
+      - key: CAREEROS_AI_GLOBAL_GENERATION_LIMIT_PER_HOUR
+        value: 12
+      - key: CAREEROS_OPENAI_API_KEY
+        sync: false
 
 databases:
   - name: career-os-db

@@ -9,6 +9,9 @@ def test_health_returns_service_metadata(client: TestClient) -> None:
         "status": "ok",
         "service": "CareerOS API",
         "version": "0.1.0",
+        "roadmap_generation": "deterministic_preview",
+        "ai_model": None,
+        "fallback_enabled": False,
     }
 
 

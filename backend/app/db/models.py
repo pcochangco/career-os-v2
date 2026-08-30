@@ -29,6 +29,9 @@ class User(Base):
     step_work: Mapped[list[RoadmapStepWork]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    generation_attempts: Mapped[list[RoadmapGenerationAttempt]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -78,6 +81,25 @@ class GoalDiscoveryAnswer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     goal: Mapped[Goal] = relationship(back_populates="discovery_answers")
+
+
+class RoadmapGenerationAttempt(Base):
+    __tablename__ = "roadmap_generation_attempts"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    requested_provider: Mapped[str] = mapped_column(String(24))
+    outcome: Mapped[str] = mapped_column(String(24), default="started", index=True)
+    resulting_source: Mapped[str] = mapped_column(String(40), default="")
+    provider_model: Mapped[str] = mapped_column(String(120), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    user: Mapped[User] = relationship(back_populates="generation_attempts")
 
 
 class RoadmapVersion(Base):

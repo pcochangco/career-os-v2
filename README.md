@@ -55,8 +55,10 @@ The implemented product slice covers the complete first-run path:
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI provider uses
 the same strict schema, a separate critic pass, deterministic structural checks,
-and one bounded repair attempt. Only roadmaps that pass the quality contract are
-persisted. Models produce resource search queries but never final URLs. The
+and one bounded repair attempt. Production `auto` mode uses OpenAI only when a
+server-side key exists and falls back to the quality-checked deterministic path
+when the provider is unavailable. Only roadmaps that pass the quality contract
+are persisted. Models produce resource search queries but never final URLs. The
 resource resolver uses those queries to retrieve topic-specific Wikipedia
 articles and selected learning videos through provider APIs, accepts only safe
 HTTPS hosts with complete metadata, and caches the verified snapshot per step.
@@ -100,6 +102,14 @@ generation, copy `.env.example` to `.env`, set `CAREEROS_AI_PROVIDER=openai`, an
 set `CAREEROS_OPENAI_API_KEY` locally. Never commit the key. The configured model
 defaults to `gpt-5.6-terra` and can be changed with `CAREEROS_AI_MODEL`.
 
+After configuring a local key, compare the live model with the deterministic
+baseline without printing roadmap text or prompts:
+
+```bash
+cd backend
+python evals/run_live.py --limit 2
+```
+
 Start the universal client in a separate terminal:
 
 ```bash
@@ -127,13 +137,14 @@ managed PostgreSQL database in Render's Singapore region. The web service:
 - Uses `/api/v1/health` for deployment health checks.
 - Deploys from `main` only after GitHub CI passes.
 - Limits each user to three roadmap generations per hour.
+- Caps total public generation attempts across anonymous sessions.
+- Reports whether live AI or the deterministic preview is active through health metadata.
 
 Create the Blueprint from this repository to receive an `onrender.com` URL. The
-checked-in configuration uses the deterministic roadmap provider so a public
-preview cannot incur model charges. To enable live generation, add
-`CAREEROS_OPENAI_API_KEY` as a secret in Render, change
-`CAREEROS_AI_PROVIDER` to `openai`, and redeploy. Never place the key in this
-repository or send it through application requests.
+checked-in configuration uses `auto` mode. Without a key it remains a no-cost
+deterministic preview. To enable live generation, add `CAREEROS_OPENAI_API_KEY`
+as a secret directly in Render and redeploy. Never place the key in this
+repository, source-controlled Blueprint values, or application requests.
 
 The free Render database is suitable only for an MVP preview and expires after
 30 days. Upgrade the database before storing data that must persist long-term.

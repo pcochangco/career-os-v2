@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from app.core.config import Settings
+
 
 def create_session(client: TestClient) -> str:
     response = client.post("/api/v1/auth/anonymous")
@@ -119,6 +121,45 @@ def test_roadmap_generation_is_rate_limited_per_user(client: TestClient) -> None
     limited = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
     assert limited.status_code == 429
     assert limited.headers["retry-after"] == "3600"
+
+
+def test_global_generation_capacity_applies_across_anonymous_sessions(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    settings = Settings(ai_global_generation_limit_per_hour=2)
+    monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
+    discovery = {
+        "desired_outcome": "Build and explain a reliable production service",
+        "current_level": "Python backend developer",
+        "existing_experience": "FastAPI, SQLAlchemy, and PostgreSQL",
+        "relevant_constraints": "Prefer practical exercises",
+        "proof_of_completion": "A deployed service with tests",
+    }
+
+    for attempt_number in range(3):
+        token = create_session(client)
+        headers = auth(token)
+        goal = client.post(
+            "/api/v1/goals",
+            headers=headers,
+            json={"title": f"Build production service {attempt_number}"},
+        ).json()
+        response = client.put(
+            f"/api/v1/goals/{goal['id']}/discovery",
+            headers=headers,
+            json=discovery,
+        )
+        assert response.status_code == 200
+        generated = client.post(
+            f"/api/v1/goals/{goal['id']}/roadmaps",
+            headers=headers,
+        )
+        if attempt_number < 2:
+            assert generated.status_code == 201
+        else:
+            assert generated.status_code == 503
+            assert generated.headers["retry-after"] == "3600"
 
 
 def test_openapi_contains_sprint_1_paths(client: TestClient) -> None:

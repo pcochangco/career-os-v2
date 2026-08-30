@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.db.models import (
     Goal,
     GoalDiscoveryAnswer,
+    RoadmapGenerationAttempt,
     RoadmapMilestone,
     RoadmapStep,
     RoadmapStepDependency,
@@ -139,23 +140,57 @@ def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
     return DiscoveryWrite(**{answer.question_key: answer.answer for answer in answers})
 
 
-def enforce_generation_limit(db: Session, user: User) -> None:
+def start_generation_attempt(db: Session, user: User) -> RoadmapGenerationAttempt:
     settings = get_settings()
     window_start = datetime.now(UTC) - timedelta(hours=1)
-    recent_generations = db.scalar(
-        select(func.count(RoadmapVersion.id))
-        .join(Goal, Goal.id == RoadmapVersion.goal_id)
+    user_attempts = db.scalar(
+        select(func.count(RoadmapGenerationAttempt.id))
         .where(
-            Goal.user_id == user.id,
-            RoadmapVersion.created_at >= window_start,
+            RoadmapGenerationAttempt.user_id == user.id,
+            RoadmapGenerationAttempt.created_at >= window_start,
         )
     )
-    if (recent_generations or 0) >= settings.ai_generation_limit_per_hour:
+    global_attempts = db.scalar(
+        select(func.count(RoadmapGenerationAttempt.id)).where(
+            RoadmapGenerationAttempt.created_at >= window_start
+        )
+    )
+    if (user_attempts or 0) >= settings.ai_generation_limit_per_hour:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Roadmap generation limit reached. Please try again later.",
             headers={"Retry-After": "3600"},
         )
+    if (global_attempts or 0) >= settings.ai_global_generation_limit_per_hour:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="CareerOS is at its roadmap generation capacity. Please try again later.",
+            headers={"Retry-After": "3600"},
+        )
+
+    attempt = RoadmapGenerationAttempt(
+        user_id=user.id,
+        requested_provider=settings.ai_provider,
+    )
+    db.add(attempt)
+    db.commit()
+    db.refresh(attempt)
+    return attempt
+
+
+def finish_generation_attempt(
+    db: Session,
+    attempt: RoadmapGenerationAttempt,
+    *,
+    outcome: str,
+    resulting_source: str = "",
+    provider_model: str = "",
+) -> None:
+    attempt.outcome = outcome
+    attempt.resulting_source = resulting_source
+    attempt.provider_model = provider_model
+    attempt.completed_at = datetime.now(UTC)
+    db.commit()
 
 
 @router.post("/{goal_id}/roadmaps", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
@@ -167,12 +202,29 @@ def generate_roadmap(
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
     discovery = latest_discovery(db, goal)
-    enforce_generation_limit(db, user)
+    attempt = start_generation_attempt(db, user)
     generation_input = RoadmapGenerationInput(
         goal_title=goal.title,
         **discovery.model_dump(),
     )
-    generated = generation_service.generate(generation_input)
+    try:
+        generated = generation_service.generate(generation_input)
+    except Exception:
+        finish_generation_attempt(db, attempt, outcome="failed")
+        raise
+    settings = get_settings()
+    used_live_fallback = (
+        settings.ai_provider in {"auto", "openai"}
+        and settings.openai_configured
+        and generated.provider == "fixture"
+    )
+    attempt_outcome = (
+        "fallback"
+        if used_live_fallback
+        else "succeeded"
+        if generated.provider == "openai"
+        else "preview"
+    )
     draft = generated.draft
     latest_version = db.scalar(
         select(func.max(RoadmapVersion.version)).where(RoadmapVersion.goal_id == goal.id)
@@ -244,4 +296,11 @@ def generate_roadmap(
             )
     goal.status = "roadmap_review"
     db.commit()
+    finish_generation_attempt(
+        db,
+        attempt,
+        outcome=attempt_outcome,
+        resulting_source=generated.provider,
+        provider_model=generated.model,
+    )
     return db.get(RoadmapVersion, roadmap.id)

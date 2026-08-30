@@ -1,7 +1,8 @@
+import logging
 from dataclasses import dataclass
 from time import perf_counter
 
-from app.ai.providers.base import ProviderResult, RoadmapProvider
+from app.ai.providers.base import ProviderResult, RoadmapProvider, RoadmapProviderError
 from app.ai.quality import combine_quality, evaluate_structure
 from app.ai.schema import QualityReport, RoadmapDraft, RoadmapGenerationInput
 
@@ -103,3 +104,28 @@ class RoadmapGenerationService:
         if result.response_id:
             response_ids.append(result.response_id)
         return input_tokens + result.input_tokens, output_tokens + result.output_tokens
+
+
+logger = logging.getLogger(__name__)
+
+
+class FallbackRoadmapGenerationService:
+    """Run the live provider first and preserve availability with a vetted fixture."""
+
+    def __init__(
+        self,
+        primary: RoadmapGenerationService,
+        fallback: RoadmapGenerationService,
+    ) -> None:
+        self.primary = primary
+        self.fallback = fallback
+
+    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+        try:
+            return self.primary.generate(generation_input)
+        except (RoadmapProviderError, RoadmapQualityError) as error:
+            logger.warning(
+                "Live roadmap generation failed; using deterministic fallback",
+                extra={"failure_type": type(error).__name__},
+            )
+            return self.fallback.generate(generation_input)

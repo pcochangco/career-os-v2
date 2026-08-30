@@ -157,6 +157,12 @@ report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
 stored with each step; model-generated URLs are rejected.
 
+Production `auto` mode activates OpenAI only when the backend secret is present.
+A provider or quality failure switches the entire request to the deterministic
+quality-checked provider; partial live-provider drafts are never mixed with the
+fallback. Health metadata exposes the active mode and configured model without
+exposing the secret.
+
 ### Implemented resource boundary
 
 The current accepted step resolves its stored queries through replaceable
@@ -191,11 +197,12 @@ database, runs migrations before application startup, checks
 appropriate for an expendable preview, not durable production data. Upgrading
 PostgreSQL is required before the 30-day free-database expiration.
 
-Public AI safeguards start with a persistent per-user generation ceiling. The
-preview deploys with the deterministic provider, and the OpenAI provider is
-enabled only after its key is stored as a backend secret. Before a wider beta,
-add account upgrades, abuse-resistant rate limits, usage budgets, request
-tracing, and asynchronous generation if measured latency requires it.
+Public AI safeguards use a durable attempt ledger with both per-user and global
+hourly ceilings. Attempts are counted before the provider call, including failed
+requests and new anonymous sessions. The preview remains deterministic until the
+OpenAI key is stored as a backend secret; `auto` mode then enables live generation
+with deterministic failover. Before a wider beta, add account upgrades, usage
+budgets, request tracing, and asynchronous generation if measured latency requires it.
 
 ## Security baseline
 
