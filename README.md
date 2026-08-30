@@ -50,14 +50,16 @@ The implemented product slice covers the complete first-run path:
 7. Return later to the same position with truthful goal progress.
 8. Save private notes, an output summary, and an optional evidence link.
 9. Confirm the concrete completion condition before progress is recorded.
+10. Open verified, cached learning-resource cards for the current step.
 
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI provider uses
 the same strict schema, a separate critic pass, deterministic structural checks,
 and one bounded repair attempt. Only roadmaps that pass the quality contract are
-persisted. Resource retrieval and verification are the next core slice; models
-produce search queries but never final resource URLs. The current step exposes
-those queries as optional searches until verified resource records are added.
+persisted. Models produce resource search queries but never final URLs. The
+resource resolver uses those queries to retrieve topic-specific Wikipedia
+articles and selected learning videos through provider APIs, accepts only safe
+HTTPS hosts with complete metadata, and caches the verified snapshot per step.
 
 The production container serves the exported Expo web application and FastAPI
 from the same origin. This keeps the browser flow simple while preserving the

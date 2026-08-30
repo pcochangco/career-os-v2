@@ -77,9 +77,11 @@ Opening a step presents one focused surface with:
 Approximate effort may be shown as guidance, but never as a commitment,
 deadline, or source of overdue status.
 
-External resources show available metadata such as source, content type,
-thumbnail, and duration or reading length. Resource previews must not crowd the
-primary action.
+External resources show source, content type, concise description, verification
+state, and why the result fits the step. Only the current step resolves new
+resources; accepted metadata is cached so returning is fast and stable. A
+temporary provider failure must leave the step usable and offer a calm retry.
+Resource previews must not crowd the primary action.
 
 ## Completion
 

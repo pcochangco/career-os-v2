@@ -79,13 +79,11 @@ Ordered learn, practice, or prove step with objective and completion condition.
 
 Explicit dependency between steps in the same roadmap version.
 
-### Resource
-
-Canonical retrieved resource metadata and verification status.
-
 ### RoadmapStepResource
 
-Ordered relationship between a verified resource and a roadmap step.
+Verified resource metadata snapshot attached to one exact roadmap step. The
+snapshot records provider, type, source, URL, relevance context, and verification
+time so reopening the step does not repeat retrieval or silently change links.
 
 ### RoadmapStepProgress
 
@@ -126,6 +124,7 @@ Initial resource families:
 - `/api/v1/roadmap-steps/{step_id}`
 - `/api/v1/roadmap-steps/{step_id}/work`
 - `/api/v1/roadmap-steps/{step_id}/progress`
+- `/api/v1/roadmap-steps/{step_id}/resources/resolve`
 - `/api/v1/goals/{goal_id}/showcase`
 - `/public/showcases/{public_id}`
 
@@ -156,7 +155,17 @@ Roadmap versions retain the exact normalized generation input, assumptions,
 provider and model identifiers, prompt version, response identifiers, quality
 report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
-stored for the upcoming retrieval slice; model-generated URLs are rejected.
+stored with each step; model-generated URLs are rejected.
+
+### Implemented resource boundary
+
+The current accepted step resolves its stored queries through replaceable
+providers. Wikipedia's read-only Action API supplies topic-specific articles,
+and a curated provider verifies selected learning videos through YouTube oEmbed.
+The resolver permits only known HTTPS content hosts, rejects incomplete or
+duplicate metadata, caps results, and stores the accepted snapshot. Locked or
+upcoming steps cannot retrieve resources early. Automated tests replace outbound
+providers with deterministic fixtures and never require public network access.
 
 ## Scaling path
 
@@ -225,12 +234,14 @@ The first implemented slice is deliberately narrow:
 8. Derive roadmap and goal progress from completed accepted-roadmap steps.
 9. Save private notes, output summaries, and evidence links independently of completion.
 10. Require explicit confirmation of the step's completion condition.
+11. Retrieve, verify, cache, and display resources for only the current step.
 
 The live provider boundary is implemented but opt-in; deterministic generation
-remains the default for local development and CI. Showcases, verified resource
-retrieval, and notifications follow in later vertical slices.
+remains the default for local development and CI. Showcases and notifications
+follow in later vertical slices.
 
 These slices are implemented through the `/api/v1/auth`, `/api/v1/goals`,
-`/api/v1/roadmaps`, `/api/v1/roadmap-steps/{step_id}/work`, and
-`/api/v1/roadmap-steps/{step_id}/progress` resource families. Both providers use
-the same persistence and response contracts.
+`/api/v1/roadmaps`, `/api/v1/roadmap-steps/{step_id}/work`,
+`/api/v1/roadmap-steps/{step_id}/progress`, and
+`/api/v1/roadmap-steps/{step_id}/resources/resolve` resource families. Both
+roadmap providers use the same persistence and response contracts.

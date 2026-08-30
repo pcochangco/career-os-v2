@@ -32,6 +32,26 @@ export type RoadmapStep = {
   work_updated_at: string | null;
 };
 
+export type LearningResource = {
+  id: string;
+  resource_type: "article" | "video";
+  title: string;
+  url: string;
+  source_name: string;
+  description: string;
+  why_relevant: string;
+  thumbnail_url: string;
+  verified_at: string;
+};
+
+export type StepResources = {
+  step_id: string;
+  resources: LearningResource[];
+  available: boolean;
+  cached: boolean;
+  message: string;
+};
+
 export type RoadmapMilestone = {
   id: string;
   position: number;

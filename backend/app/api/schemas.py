@@ -68,6 +68,28 @@ class StepWorkWrite(BaseModel):
         return value
 
 
+class LearningResourceRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    resource_type: Literal["article", "video"]
+    title: str
+    url: str
+    source_name: str
+    description: str
+    why_relevant: str
+    thumbnail_url: str
+    verified_at: datetime
+
+
+class StepResourcesRead(BaseModel):
+    step_id: UUID
+    resources: list[LearningResourceRead]
+    available: bool
+    cached: bool
+    message: str = ""
+
+
 class RoadmapStepRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

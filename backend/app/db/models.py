@@ -164,6 +164,9 @@ class RoadmapStep(Base):
     work_records: Mapped[list[RoadmapStepWork]] = relationship(
         back_populates="step", cascade="all, delete-orphan"
     )
+    resources: Mapped[list[RoadmapStepResource]] = relationship(
+        back_populates="step", cascade="all, delete-orphan"
+    )
 
 
 class RoadmapStepDependency(Base):
@@ -215,3 +218,25 @@ class RoadmapStepWork(Base):
 
     user: Mapped[User] = relationship(back_populates="step_work")
     step: Mapped[RoadmapStep] = relationship(back_populates="work_records")
+
+
+class RoadmapStepResource(Base):
+    __tablename__ = "roadmap_step_resources"
+    __table_args__ = (UniqueConstraint("step_id", "url", name="uq_step_resource_url"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    provider: Mapped[str] = mapped_column(String(40))
+    resource_type: Mapped[str] = mapped_column(String(20))
+    title: Mapped[str] = mapped_column(String(300))
+    url: Mapped[str] = mapped_column(String(2048))
+    source_name: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text, default="")
+    why_relevant: Mapped[str] = mapped_column(Text, default="")
+    thumbnail_url: Mapped[str] = mapped_column(String(2048), default="")
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    step: Mapped[RoadmapStep] = relationship(back_populates="resources")

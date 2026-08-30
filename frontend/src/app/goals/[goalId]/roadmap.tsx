@@ -13,7 +13,7 @@ import {
 } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { Roadmap, RoadmapStep } from "@/lib/types";
+import { Roadmap, RoadmapStep, StepResources } from "@/lib/types";
 
 const stateLabels: Record<RoadmapStep["progress_status"], string> = {
   completed: "Completed",
@@ -35,6 +35,10 @@ export default function RoadmapRoute() {
   const [evidenceUrl, setEvidenceUrl] = useState("");
   const [completionConfirmed, setCompletionConfirmed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [stepResources, setStepResources] = useState<StepResources | null>(null);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [resourcesError, setResourcesError] = useState<string | null>(null);
+  const [resourceAttempt, setResourceAttempt] = useState(0);
 
   useEffect(() => {
     if (!token || !roadmapId) return;
@@ -78,6 +82,35 @@ export default function RoadmapRoute() {
     setEvidenceUrl(currentStep?.evidence_url ?? "");
     setCompletionConfirmed(false);
   }, [currentStep?.id]);
+
+  useEffect(() => {
+    if (!token || !currentStep || currentStep.resource_queries.length === 0) {
+      setStepResources(null);
+      setResourcesError(null);
+      setResourcesLoading(false);
+      return;
+    }
+    let active = true;
+    setStepResources(null);
+    setResourcesError(null);
+    setResourcesLoading(true);
+    apiRequest<StepResources>(`/roadmap-steps/${currentStep.id}/resources/resolve`, {
+      method: "POST",
+      token,
+    })
+      .then((value) => active && setStepResources(value))
+      .catch(
+        (caught) =>
+          active &&
+          setResourcesError(
+            caught instanceof Error ? caught.message : "Resources could not be verified.",
+          ),
+      )
+      .finally(() => active && setResourcesLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [currentStep?.id, resourceAttempt, token]);
 
   const workDirty = Boolean(
     currentStep &&
@@ -132,10 +165,6 @@ export default function RoadmapRoute() {
     } finally {
       setSavingAction(null);
     }
-  }
-
-  function openResourceSearch(query: string) {
-    void Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(query)}`);
   }
 
   if (error) {
@@ -264,20 +293,64 @@ export default function RoadmapRoute() {
                         </View>
                         {step.resource_queries.length ? (
                           <View style={styles.resources}>
-                            <Text style={styles.resourceLabel}>Find useful material</Text>
-                            {step.resource_queries.map((query) => (
-                              <Pressable
-                                accessibilityRole="link"
-                                key={query}
-                                onPress={() => openResourceSearch(query)}
-                                style={({ pressed }) => [
-                                  styles.resourceLink,
-                                  pressed && styles.resourceLinkPressed,
-                                ]}
-                              >
-                                <Text style={styles.resourceLinkText}>Search “{query}” ↗</Text>
-                              </Pressable>
-                            ))}
+                            <View style={styles.resourceHeading}>
+                              <Text style={styles.resourceLabel}>Verified resources</Text>
+                              <Text style={styles.verifiedLabel}>Checked links</Text>
+                            </View>
+                            {resourcesLoading ? (
+                              <View style={styles.resourceNotice}>
+                                <Text style={styles.resourceNoticeText}>
+                                  Finding and checking useful material…
+                                </Text>
+                              </View>
+                            ) : null}
+                            {!resourcesLoading && stepResources?.available
+                              ? stepResources.resources.map((resource) => (
+                                  <Pressable
+                                    accessibilityHint="Opens this verified resource"
+                                    accessibilityRole="link"
+                                    key={resource.id}
+                                    onPress={() => void Linking.openURL(resource.url)}
+                                    style={({ pressed }) => [
+                                      styles.resourceCard,
+                                      pressed && styles.resourceLinkPressed,
+                                    ]}
+                                  >
+                                    <View style={styles.resourceMeta}>
+                                      <Text style={styles.resourceType}>
+                                        {resource.resource_type}
+                                      </Text>
+                                      <Text style={styles.resourceSource}>
+                                        {resource.source_name}
+                                      </Text>
+                                    </View>
+                                    <Text style={styles.resourceTitle}>{resource.title}</Text>
+                                    {resource.description ? (
+                                      <Text numberOfLines={3} style={styles.resourceDescription}>
+                                        {resource.description}
+                                      </Text>
+                                    ) : null}
+                                    <Text style={styles.resourceReason}>
+                                      Why this fits: {resource.why_relevant}
+                                    </Text>
+                                    <Text style={styles.resourceOpen}>Open resource ↗</Text>
+                                  </Pressable>
+                                ))
+                              : null}
+                            {!resourcesLoading &&
+                            (resourcesError || (stepResources && !stepResources.available)) ? (
+                              <View style={styles.resourceNotice}>
+                                <Text style={styles.resourceNoticeText}>
+                                  {resourcesError ?? stepResources?.message}
+                                </Text>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  onPress={() => setResourceAttempt((value) => value + 1)}
+                                >
+                                  <Text style={styles.resourceRetry}>Try again</Text>
+                                </Pressable>
+                              </View>
+                            ) : null}
                           </View>
                         ) : null}
                         <Text style={styles.completeLabel}>Complete when</Text>
@@ -480,24 +553,60 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   actionText: { color: colors.forestDark, fontSize: 14, lineHeight: 21, marginTop: 5 },
-  resources: { gap: 8, marginTop: 16 },
+  resources: { gap: 10, marginTop: 18 },
+  resourceHeading: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   resourceLabel: {
     color: colors.ink,
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
-  resourceLink: {
+  verifiedLabel: { color: colors.forest, fontSize: 11, fontWeight: "700" },
+  resourceCard: {
+    backgroundColor: colors.background,
+    borderColor: colors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  resourceLinkPressed: { opacity: 0.72 },
+  resourceMeta: { alignItems: "center", flexDirection: "row", gap: 8 },
+  resourceType: {
+    backgroundColor: colors.forestSoft,
+    borderRadius: 99,
+    color: colors.forestDark,
+    fontSize: 10,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textTransform: "uppercase",
+  },
+  resourceSource: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  resourceTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 21,
+    marginTop: 9,
+  },
+  resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
+  resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800", marginTop: 10 },
+  resourceNotice: {
     backgroundColor: colors.background,
     borderColor: colors.line,
     borderRadius: 12,
     borderWidth: 1,
-    minHeight: 44,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
+    gap: 7,
+    padding: 13,
   },
-  resourceLinkPressed: { opacity: 0.72 },
-  resourceLinkText: { color: colors.forest, fontSize: 13, fontWeight: "700", lineHeight: 19 },
+  resourceNoticeText: { color: colors.muted, fontSize: 13, lineHeight: 19 },
+  resourceRetry: { color: colors.forest, fontSize: 13, fontWeight: "800" },
   completeLabel: {
     color: colors.ink,
     fontSize: 12,

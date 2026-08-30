@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
     ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)
+    resource_request_timeout_seconds: float = Field(default=4.0, ge=1.0, le=15.0)
+    resource_max_results_per_step: int = Field(default=3, ge=1, le=6)
     openai_api_key: SecretStr | None = None
 
     @field_validator("database_url", mode="before")
