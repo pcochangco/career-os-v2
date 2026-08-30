@@ -3,9 +3,14 @@ import pytest
 from app.ai.dependencies import create_generation_service
 from app.ai.evaluation import outcome_metrics, quality_delta
 from app.ai.providers.base import RoadmapProviderError
-from app.ai.providers.compatible import safe_provider_diagnostic
+from app.ai.providers.compatible import (
+    OpenAICompatibleRoadmapProvider,
+    portable_strict_schema,
+    safe_provider_diagnostic,
+    strict_response_format,
+)
 from app.ai.providers.fixture import FixtureRoadmapProvider
-from app.ai.schema import RoadmapGenerationInput
+from app.ai.schema import RoadmapDraft, RoadmapGenerationInput
 from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
 from app.core.config import Settings
 
@@ -113,6 +118,99 @@ def test_provider_diagnostic_contains_only_bounded_metadata() -> None:
         "type=tokens;param=response_format"
     )
     assert "raw provider detail" not in safe_provider_diagnostic(error)
+
+
+def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() -> None:
+    response_format = strict_response_format(RoadmapDraft)
+    json_schema = response_format["json_schema"]
+    schema = json_schema["schema"]
+
+    assert json_schema["strict"] is True
+    assert schema["additionalProperties"] is False
+    assert set(schema["properties"]) == set(schema["required"])
+    assert schema["properties"]["schema_version"]["enum"] == ["1.0"]
+
+    def schema_keywords(value: object) -> set[str]:
+        if isinstance(value, list):
+            return set().union(*(schema_keywords(item) for item in value), set())
+        if not isinstance(value, dict):
+            return set()
+        keys = set(value)
+        for key, item in value.items():
+            if key in {"$defs", "properties"} and isinstance(item, dict):
+                keys.update(
+                    set().union(
+                        *(schema_keywords(definition) for definition in item.values()),
+                        set(),
+                    )
+                )
+            else:
+                keys.update(schema_keywords(item))
+        return keys
+
+    keywords = schema_keywords(schema)
+    for unsupported_keyword in (
+        "const",
+        "maxItems",
+        "maxLength",
+        "minItems",
+        "minLength",
+        "pattern",
+        "title",
+    ):
+        assert unsupported_keyword not in keywords
+
+    full_schema = RoadmapDraft.model_json_schema()
+    assert "minLength" in str(full_schema)
+    assert portable_strict_schema(full_schema) == schema
+
+
+def test_compatible_provider_parses_with_portable_strict_schema() -> None:
+    fixture = FixtureRoadmapProvider().generate(generation_input()).value
+    request: dict[str, object] = {}
+
+    class Message:
+        content = fixture.model_dump_json()
+        refusal = None
+
+    class Choice:
+        message = Message()
+
+    class Usage:
+        prompt_tokens = 12
+        completion_tokens = 34
+
+    class Completion:
+        choices = [Choice()]
+        usage = Usage()
+        id = "groq-test-response"
+
+    class Completions:
+        def create(self, **kwargs: object) -> Completion:
+            request.update(kwargs)
+            return Completion()
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="unused-test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-20b",
+        client=Client(),
+    )
+
+    result = provider.generate(generation_input())
+
+    assert result.value == fixture
+    assert result.response_id == "groq-test-response"
+    assert result.input_tokens == 12
+    assert result.output_tokens == 34
+    assert request["response_format"]["json_schema"]["strict"] is True
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:

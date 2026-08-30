@@ -15,6 +15,55 @@ from app.ai.schema import (
 T = TypeVar("T", bound=BaseModel)
 
 
+PORTABLE_SCHEMA_KEYS = {
+    "$defs",
+    "$ref",
+    "additionalProperties",
+    "anyOf",
+    "description",
+    "enum",
+    "items",
+    "properties",
+    "required",
+    "type",
+}
+
+
+def portable_strict_schema(value: object) -> object:
+    """Keep the strict JSON Schema subset shared by compatible model providers.
+
+    Full field constraints are still enforced by Pydantic after the response is returned.
+    """
+    if isinstance(value, list):
+        return [portable_strict_schema(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    normalized: dict[str, object] = {}
+    for key, item in value.items():
+        if key == "const":
+            normalized["enum"] = [item]
+        elif key in {"$defs", "properties"} and isinstance(item, dict):
+            normalized[key] = {
+                name: portable_strict_schema(definition)
+                for name, definition in item.items()
+            }
+        elif key in PORTABLE_SCHEMA_KEYS:
+            normalized[key] = portable_strict_schema(item)
+    return normalized
+
+
+def strict_response_format(response_format: type[BaseModel]) -> dict[str, object]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": response_format.__name__,
+            "strict": True,
+            "schema": portable_strict_schema(response_format.model_json_schema()),
+        },
+    }
+
+
 def safe_provider_diagnostic(error: Exception) -> str:
     """Return provider metadata that cannot contain prompts, responses, or credentials."""
     parts = [type(error).__name__]
@@ -47,7 +96,7 @@ passes only when a user could follow it without inventing missing intermediate s
 
 
 class OpenAICompatibleRoadmapProvider:
-    prompt_version = "roadmap-schema-1.0-compatible-1"
+    prompt_version = "roadmap-schema-1.0-compatible-2"
 
     def __init__(
         self,
@@ -78,13 +127,13 @@ class OpenAICompatibleRoadmapProvider:
         request: dict[str, object] = {
             "model": self.model,
             "messages": messages,
-            "response_format": response_format,
+            "response_format": strict_response_format(response_format),
         }
         if self.reasoning_effort is not None:
             request["reasoning_effort"] = self.reasoning_effort
 
         try:
-            completion = self.client.chat.completions.parse(**request)
+            completion = self.client.chat.completions.create(**request)
         except (OpenAIError, ValueError) as error:
             raise RoadmapProviderError(
                 "The roadmap provider request failed",
@@ -94,14 +143,22 @@ class OpenAICompatibleRoadmapProvider:
         if not completion.choices:
             raise RoadmapProviderError("The roadmap provider returned no choices")
         message = completion.choices[0].message
-        if message.refusal:
+        if getattr(message, "refusal", None):
             raise RoadmapProviderError("The roadmap provider refused the request")
-        if message.parsed is None:
+        if not message.content:
             raise RoadmapProviderError("The roadmap provider returned no structured output")
+
+        try:
+            parsed = response_format.model_validate_json(message.content)
+        except ValueError as error:
+            raise RoadmapProviderError(
+                "The roadmap provider returned invalid structured output",
+                diagnostic_code=safe_provider_diagnostic(error),
+            ) from error
 
         usage = completion.usage
         return ProviderResult(
-            value=message.parsed,
+            value=parsed,
             response_id=completion.id,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
