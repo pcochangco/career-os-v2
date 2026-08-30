@@ -2,7 +2,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Brand, Button, colors, ErrorState, LoadingState, Screen } from "@/components/ui";
+import {
+  Brand,
+  Button,
+  colors,
+  ErrorState,
+  Field,
+  LoadingState,
+  Screen,
+} from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Roadmap, RoadmapStep } from "@/lib/types";
@@ -21,7 +29,11 @@ export default function RoadmapRoute() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [savingStepId, setSavingStepId] = useState<string | null>(null);
+  const [savingAction, setSavingAction] = useState<"work" | "completion" | null>(null);
+  const [notes, setNotes] = useState("");
+  const [evidenceSummary, setEvidenceSummary] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [completionConfirmed, setCompletionConfirmed] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -52,13 +64,65 @@ export default function RoadmapRoute() {
     return positions;
   }, [roadmap]);
 
-  async function completeStep(step: RoadmapStep) {
+  const currentStep = useMemo(
+    () =>
+      roadmap?.milestones
+        .flatMap((milestone) => milestone.steps)
+        .find((step) => step.id === roadmap.current_step_id) ?? null,
+    [roadmap],
+  );
+
+  useEffect(() => {
+    setNotes(currentStep?.notes ?? "");
+    setEvidenceSummary(currentStep?.evidence_summary ?? "");
+    setEvidenceUrl(currentStep?.evidence_url ?? "");
+    setCompletionConfirmed(false);
+  }, [currentStep?.id]);
+
+  const workDirty = Boolean(
+    currentStep &&
+      (notes.trim() !== currentStep.notes ||
+        evidenceSummary.trim() !== currentStep.evidence_summary ||
+        evidenceUrl.trim() !== currentStep.evidence_url),
+  );
+
+  const workPayload = {
+    evidence_summary: evidenceSummary,
+    evidence_url: evidenceUrl,
+    notes,
+  };
+
+  async function saveStepWork(step: RoadmapStep) {
     if (!token || step.progress_status !== "current") return;
     setActionError(null);
-    setSavingStepId(step.id);
+    setSavingAction("work");
     try {
+      const updated = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/work`, {
+        body: workPayload,
+        method: "PUT",
+        token,
+      });
+      setRoadmap(updated);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Your work could not be saved.");
+    } finally {
+      setSavingAction(null);
+    }
+  }
+
+  async function completeStep(step: RoadmapStep) {
+    if (!token || step.progress_status !== "current" || !completionConfirmed) return;
+    setActionError(null);
+    setSavingAction("completion");
+    try {
+      const saved = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/work`, {
+        body: workPayload,
+        method: "PUT",
+        token,
+      });
+      setRoadmap(saved);
       const updated = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/progress`, {
-        body: { completed: true },
+        body: { completed: true, completion_confirmed: true },
         method: "PUT",
         token,
       });
@@ -66,7 +130,7 @@ export default function RoadmapRoute() {
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Progress could not be saved.");
     } finally {
-      setSavingStepId(null);
+      setSavingAction(null);
     }
   }
 
@@ -173,6 +237,24 @@ export default function RoadmapRoute() {
                       {stateLabels[step.progress_status]}
                     </Text>
                     <Text style={styles.stepTitle}>{step.title}</Text>
+                    {isCompleted &&
+                    (step.notes || step.evidence_summary || step.evidence_url) ? (
+                      <View style={styles.savedWork}>
+                        <Text style={styles.savedWorkLabel}>Your saved work</Text>
+                        {step.notes ? <Text style={styles.savedWorkText}>{step.notes}</Text> : null}
+                        {step.evidence_summary ? (
+                          <Text style={styles.savedWorkText}>{step.evidence_summary}</Text>
+                        ) : null}
+                        {step.evidence_url ? (
+                          <Pressable
+                            accessibilityRole="link"
+                            onPress={() => void Linking.openURL(step.evidence_url)}
+                          >
+                            <Text style={styles.savedWorkLink}>Open evidence ↗</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ) : null}
                     {isCurrent ? (
                       <>
                         <Text style={styles.objective}>{step.objective}</Text>
@@ -204,9 +286,80 @@ export default function RoadmapRoute() {
                           <Text style={styles.evidence}>Keep: {step.evidence_suggestion}</Text>
                         ) : null}
                         <Text style={styles.effort}>{step.effort_label} · no deadline</Text>
+                        <View style={styles.workSection}>
+                          <Text style={styles.workTitle}>Your learning record</Text>
+                          <Text style={styles.workIntro}>
+                            Keep anything useful for returning to this work or showing it later.
+                          </Text>
+                          <Field
+                            accessibilityLabel="Notes or reflections"
+                            maxLength={4000}
+                            multiline
+                            onChangeText={setNotes}
+                            placeholder="Notes or reflections (optional)"
+                            style={styles.workField}
+                            value={notes}
+                          />
+                          <Field
+                            accessibilityLabel="Output or evidence summary"
+                            maxLength={1000}
+                            multiline
+                            onChangeText={setEvidenceSummary}
+                            placeholder="What did you produce? (optional)"
+                            style={styles.workField}
+                            value={evidenceSummary}
+                          />
+                          <Field
+                            accessibilityLabel="Evidence link"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            keyboardType="url"
+                            maxLength={2048}
+                            onChangeText={setEvidenceUrl}
+                            placeholder="https://… evidence link (optional)"
+                            style={styles.linkField}
+                            value={evidenceUrl}
+                          />
+                          <View style={styles.saveRow}>
+                            <View style={styles.saveButton}>
+                              <Button
+                                disabled={!workDirty || savingAction !== null}
+                                loading={savingAction === "work"}
+                                onPress={() => void saveStepWork(step)}
+                                secondary
+                              >
+                                Save record
+                              </Button>
+                            </View>
+                            {!workDirty && step.work_updated_at ? (
+                              <Text style={styles.savedLabel}>Saved</Text>
+                            ) : null}
+                          </View>
+                        </View>
+                        <Pressable
+                          accessibilityRole="checkbox"
+                          accessibilityState={{ checked: completionConfirmed }}
+                          onPress={() => setCompletionConfirmed((value) => !value)}
+                          style={styles.confirmationRow}
+                        >
+                          <View
+                            style={[
+                              styles.checkbox,
+                              completionConfirmed && styles.checkboxChecked,
+                            ]}
+                          >
+                            {completionConfirmed ? (
+                              <Text style={styles.checkboxMark}>✓</Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.confirmationText}>
+                            I met this step’s completion condition.
+                          </Text>
+                        </Pressable>
                         <View style={styles.completeButton}>
                           <Button
-                            loading={savingStepId === step.id}
+                            disabled={!completionConfirmed || savingAction !== null}
+                            loading={savingAction === "completion"}
                             onPress={() => void completeStep(step)}
                           >
                             Complete this step
@@ -355,5 +508,53 @@ const styles = StyleSheet.create({
   completeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },
   evidence: { color: colors.muted, fontSize: 13, fontStyle: "italic", marginTop: 12 },
   effort: { color: colors.forest, fontSize: 12, fontWeight: "700", marginTop: 14 },
+  savedWork: {
+    backgroundColor: colors.forestSoft,
+    borderRadius: 12,
+    gap: 6,
+    marginTop: 13,
+    padding: 13,
+  },
+  savedWorkLabel: {
+    color: colors.forestDark,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  savedWorkText: { color: colors.forestDark, fontSize: 13, lineHeight: 19 },
+  savedWorkLink: { color: colors.forest, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  workSection: {
+    borderTopColor: colors.line,
+    borderTopWidth: 1,
+    marginTop: 20,
+    paddingTop: 18,
+  },
+  workTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
+  workIntro: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 13, marginTop: 4 },
+  workField: { fontSize: 15, lineHeight: 22, marginBottom: 10, minHeight: 94 },
+  linkField: { fontSize: 15, marginBottom: 10, minHeight: 50 },
+  saveRow: { alignItems: "center", flexDirection: "row", gap: 12 },
+  saveButton: { minWidth: 154 },
+  savedLabel: { color: colors.forest, fontSize: 13, fontWeight: "800" },
+  confirmationRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+    minHeight: 44,
+  },
+  checkbox: {
+    alignItems: "center",
+    backgroundColor: colors.card,
+    borderColor: colors.muted,
+    borderRadius: 7,
+    borderWidth: 2,
+    height: 25,
+    justifyContent: "center",
+    width: 25,
+  },
+  checkboxChecked: { backgroundColor: colors.forest, borderColor: colors.forest },
+  checkboxMark: { color: colors.white, fontSize: 16, fontWeight: "900" },
+  confirmationText: { color: colors.ink, flex: 1, fontSize: 14, fontWeight: "700", lineHeight: 20 },
   completeButton: { marginTop: 18 },
 });

@@ -26,6 +26,9 @@ class User(Base):
     step_progress: Mapped[list[RoadmapStepProgress]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    step_work: Mapped[list[RoadmapStepWork]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -158,6 +161,9 @@ class RoadmapStep(Base):
     progress_records: Mapped[list[RoadmapStepProgress]] = relationship(
         back_populates="step", cascade="all, delete-orphan"
     )
+    work_records: Mapped[list[RoadmapStepWork]] = relationship(
+        back_populates="step", cascade="all, delete-orphan"
+    )
 
 
 class RoadmapStepDependency(Base):
@@ -188,3 +194,24 @@ class RoadmapStepProgress(Base):
 
     user: Mapped[User] = relationship(back_populates="step_progress")
     step: Mapped[RoadmapStep] = relationship(back_populates="progress_records")
+
+
+class RoadmapStepWork(Base):
+    __tablename__ = "roadmap_step_work"
+    __table_args__ = (UniqueConstraint("user_id", "step_id", name="uq_user_step_work"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    notes: Mapped[str] = mapped_column(Text, default="")
+    evidence_summary: Mapped[str] = mapped_column(Text, default="")
+    evidence_url: Mapped[str] = mapped_column(String(2048), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now
+    )
+
+    user: Mapped[User] = relationship(back_populates="step_work")
+    step: Mapped[RoadmapStep] = relationship(back_populates="work_records")

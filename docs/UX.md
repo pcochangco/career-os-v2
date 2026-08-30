@@ -85,13 +85,17 @@ primary action.
 
 Completing a step:
 
-1. Records completion explicitly.
+1. Requires the user to confirm the concrete completion condition was met.
 2. Preserves notes and evidence.
 3. Updates goal progress.
 4. Advances the current position to the next unblocked step.
 5. Provides a restrained confirmation and a direct way to continue.
 
 No streak celebration, schedule repair, or missed-day warning is required.
+
+Notes, an output summary, and an optional web link can be saved before
+completion. They remain attached to the exact accepted-roadmap step if the step
+is completed or reopened. Saving or opening evidence never completes a step.
 
 ## Goal showcase
 

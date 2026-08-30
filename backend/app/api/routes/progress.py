@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.routes.roadmaps import get_owned_roadmap
-from app.api.schemas import RoadmapRead, StepProgressWrite
+from app.api.schemas import RoadmapRead, StepProgressWrite, StepWorkWrite
 from app.db.models import (
     Goal,
     RoadmapMilestone,
     RoadmapStep,
     RoadmapStepDependency,
     RoadmapStepProgress,
+    RoadmapStepWork,
     RoadmapVersion,
     User,
 )
@@ -150,5 +151,30 @@ def write_step_progress(
 
     db.flush()
     update_goal_status(db, user, roadmap, goal)
+    db.commit()
+    return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))
+
+
+@router.put("/{step_id}/work", response_model=RoadmapRead)
+def write_step_work(
+    step_id: UUID,
+    payload: StepWorkWrite,
+    user: CurrentUser,
+    db: DbSession,
+) -> RoadmapRead:
+    step, roadmap, _ = get_owned_active_step(db, user, step_id)
+    work = db.scalar(
+        select(RoadmapStepWork).where(
+            RoadmapStepWork.user_id == user.id,
+            RoadmapStepWork.step_id == step.id,
+        )
+    )
+    if work is None:
+        work = RoadmapStepWork(user_id=user.id, step_id=step.id)
+        db.add(work)
+    work.notes = payload.notes
+    work.evidence_summary = payload.evidence_summary
+    work.evidence_url = payload.evidence_url
+    work.updated_at = datetime.now(UTC)
     db.commit()
     return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))

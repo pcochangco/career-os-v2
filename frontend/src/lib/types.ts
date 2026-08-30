@@ -26,6 +26,10 @@ export type RoadmapStep = {
   resource_queries: string[];
   progress_status: "completed" | "current" | "upcoming" | "blocked";
   completed_at: string | null;
+  notes: string;
+  evidence_summary: string;
+  evidence_url: string;
+  work_updated_at: string | null;
 };
 
 export type RoadmapMilestone = {

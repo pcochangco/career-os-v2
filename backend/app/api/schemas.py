@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import Any, Literal
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AnonymousSessionRead(BaseModel):
@@ -37,6 +38,34 @@ class GoalRead(BaseModel):
 
 class StepProgressWrite(BaseModel):
     completed: bool
+    completion_confirmed: bool = False
+
+    @model_validator(mode="after")
+    def require_completion_confirmation(self) -> "StepProgressWrite":
+        if self.completed and not self.completion_confirmed:
+            raise ValueError("Confirm that the completion condition was met")
+        return self
+
+
+class StepWorkWrite(BaseModel):
+    notes: str = Field(default="", max_length=4000)
+    evidence_summary: str = Field(default="", max_length=1000)
+    evidence_url: str = Field(default="", max_length=2048)
+
+    @field_validator("notes", "evidence_summary", "evidence_url")
+    @classmethod
+    def trim_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("evidence_url")
+    @classmethod
+    def require_public_web_url(cls, value: str) -> str:
+        if not value:
+            return value
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Evidence link must be a valid http:// or https:// URL")
+        return value
 
 
 class RoadmapStepRead(BaseModel):
@@ -57,6 +86,10 @@ class RoadmapStepRead(BaseModel):
     resource_queries: list[str]
     progress_status: Literal["completed", "current", "upcoming", "blocked"] = "upcoming"
     completed_at: datetime | None = None
+    notes: str = ""
+    evidence_summary: str = ""
+    evidence_url: str = ""
+    work_updated_at: datetime | None = None
 
 
 class RoadmapMilestoneRead(BaseModel):

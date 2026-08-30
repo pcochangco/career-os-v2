@@ -48,6 +48,8 @@ The implemented product slice covers the complete first-run path:
 5. Accept the roadmap and open it as a mobile-first vertical path.
 6. Complete the current step and advance to the next unblocked step.
 7. Return later to the same position with truthful goal progress.
+8. Save private notes, an output summary, and an optional evidence link.
+9. Confirm the concrete completion condition before progress is recorded.
 
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI provider uses

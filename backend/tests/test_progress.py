@@ -60,14 +60,14 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     blocked = client.put(
         f"/api/v1/roadmap-steps/{steps[1]['id']}/progress",
         headers=headers,
-        json={"completed": True},
+        json={"completed": True, "completion_confirmed": True},
     )
     assert blocked.status_code == 409
 
     completed = client.put(
         f"/api/v1/roadmap-steps/{steps[0]['id']}/progress",
         headers=headers,
-        json={"completed": True},
+        json={"completed": True, "completion_confirmed": True},
     )
     assert completed.status_code == 200
     updated = completed.json()
@@ -82,7 +82,7 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     repeated = client.put(
         f"/api/v1/roadmap-steps/{steps[0]['id']}/progress",
         headers=headers,
-        json={"completed": True},
+        json={"completed": True, "completion_confirmed": True},
     )
     assert repeated.status_code == 200
     assert repeated.json()["completed_steps"] == 1
@@ -103,7 +103,7 @@ def test_completing_and_reopening_final_step_updates_goal_status(client: TestCli
         response = client.put(
             f"/api/v1/roadmap-steps/{roadmap['current_step_id']}/progress",
             headers=headers,
-            json={"completed": True},
+            json={"completed": True, "completion_confirmed": True},
         )
         assert response.status_code == 200
         roadmap = response.json()
@@ -136,7 +136,91 @@ def test_progress_is_private_to_the_roadmap_owner(client: TestClient) -> None:
     response = client.put(
         f"/api/v1/roadmap-steps/{first_step['id']}/progress",
         headers=auth(other_token),
-        json={"completed": True},
+        json={"completed": True, "completion_confirmed": True},
     )
 
     assert response.status_code == 404
+
+
+def test_completion_requires_explicit_condition_confirmation(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    first_step = steps_in(roadmap)[0]
+
+    unconfirmed = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/progress",
+        headers=auth(token),
+        json={"completed": True},
+    )
+
+    assert unconfirmed.status_code == 422
+    unchanged = client.get(f"/api/v1/roadmaps/{roadmap['id']}", headers=auth(token)).json()
+    assert unchanged["completed_steps"] == 0
+
+
+def test_step_work_is_saved_trimmed_and_preserved_across_progress(client: TestClient) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    _, roadmap = create_accepted_roadmap(client, token)
+    first_step = steps_in(roadmap)[0]
+
+    saved = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/work",
+        headers=headers,
+        json={
+            "notes": "  Closures keep the wrapped function state.  ",
+            "evidence_summary": "  Wrote and tested a timing decorator.  ",
+            "evidence_url": "  https://example.com/timing-decorator  ",
+        },
+    )
+    assert saved.status_code == 200
+    saved_step = steps_in(saved.json())[0]
+    assert saved_step["notes"] == "Closures keep the wrapped function state."
+    assert saved_step["evidence_summary"] == "Wrote and tested a timing decorator."
+    assert saved_step["evidence_url"] == "https://example.com/timing-decorator"
+    assert saved_step["work_updated_at"] is not None
+
+    completed = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/progress",
+        headers=headers,
+        json={"completed": True, "completion_confirmed": True},
+    )
+    assert completed.status_code == 200
+    completed_step = steps_in(completed.json())[0]
+    assert completed_step["progress_status"] == "completed"
+    assert completed_step["notes"] == saved_step["notes"]
+    assert completed_step["evidence_summary"] == saved_step["evidence_summary"]
+    assert completed_step["evidence_url"] == saved_step["evidence_url"]
+
+    reopened = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/progress",
+        headers=headers,
+        json={"completed": False},
+    )
+    assert reopened.status_code == 200
+    reopened_step = steps_in(reopened.json())[0]
+    assert reopened_step["progress_status"] == "current"
+    assert reopened_step["notes"] == saved_step["notes"]
+    assert reopened_step["evidence_summary"] == saved_step["evidence_summary"]
+    assert reopened_step["evidence_url"] == saved_step["evidence_url"]
+
+
+def test_step_work_rejects_invalid_links_and_other_users(client: TestClient) -> None:
+    owner_token = create_session(client)
+    other_token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, owner_token)
+    first_step = steps_in(roadmap)[0]
+
+    invalid_link = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/work",
+        headers=auth(owner_token),
+        json={"evidence_url": "ftp://example.com/file"},
+    )
+    assert invalid_link.status_code == 422
+
+    not_owned = client.put(
+        f"/api/v1/roadmap-steps/{first_step['id']}/work",
+        headers=auth(other_token),
+        json={"notes": "This must not be written."},
+    )
+    assert not_owned.status_code == 404

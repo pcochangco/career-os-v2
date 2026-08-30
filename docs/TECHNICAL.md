@@ -91,9 +91,11 @@ Ordered relationship between a verified resource and a roadmap step.
 
 User-owned completion state for a step. Completion is explicit and timestamped.
 
-### StepNote and StepEvidence
+### RoadmapStepWork
 
-Private notes and user-selected proof such as links or stored artifacts.
+Private notes, an output summary, and an optional validated web link attached to
+one user and one exact roadmap step. This record is independent of completion so
+work can be saved before completion and preserved if the step is reopened.
 
 ### GoalShowcase
 
@@ -122,6 +124,7 @@ Initial resource families:
 - `/api/v1/goals/{goal_id}/roadmaps`
 - `/api/v1/roadmaps/{roadmap_id}`
 - `/api/v1/roadmap-steps/{step_id}`
+- `/api/v1/roadmap-steps/{step_id}/work`
 - `/api/v1/roadmap-steps/{step_id}/progress`
 - `/api/v1/goals/{goal_id}/showcase`
 - `/public/showcases/{public_id}`
@@ -220,11 +223,14 @@ The first implemented slice is deliberately narrow:
 6. Record explicit step completion.
 7. Enforce prerequisites and advance to the next unblocked step.
 8. Derive roadmap and goal progress from completed accepted-roadmap steps.
+9. Save private notes, output summaries, and evidence links independently of completion.
+10. Require explicit confirmation of the step's completion condition.
 
 The live provider boundary is implemented but opt-in; deterministic generation
-remains the default for local development and CI. Notes, evidence, showcases,
-verified resource retrieval, and notifications follow in later vertical slices.
+remains the default for local development and CI. Showcases, verified resource
+retrieval, and notifications follow in later vertical slices.
 
 These slices are implemented through the `/api/v1/auth`, `/api/v1/goals`,
-`/api/v1/roadmaps`, and `/api/v1/roadmap-steps/{step_id}/progress` resource
-families. Both providers use the same persistence and response contracts.
+`/api/v1/roadmaps`, `/api/v1/roadmap-steps/{step_id}/work`, and
+`/api/v1/roadmap-steps/{step_id}/progress` resource families. Both providers use
+the same persistence and response contracts.
