@@ -102,9 +102,10 @@ The default `fixture` mode requires no API credentials. To exercise live
 generation, copy `.env.example` to `.env`, set `CAREEROS_AI_MODE=live`, and set
 `CAREEROS_AI_API_KEY` locally. Never commit the key. OpenAI-compatible providers
 are selected entirely through `CAREEROS_AI_PROVIDER`, `CAREEROS_AI_BASE_URL`,
-`CAREEROS_AI_MODEL`, `CAREEROS_AI_RESPONSE_FORMAT`,
-`CAREEROS_AI_MAX_COMPLETION_TOKENS`, and the optional `CAREEROS_AI_REASONING_EFFORT`;
-changing between compatible providers does not require application code changes. Use
+`CAREEROS_AI_MODEL`, optional stage-specific critic and repair models,
+`CAREEROS_AI_RESPONSE_FORMAT`, stage-specific completion-token caps, and the optional
+`CAREEROS_AI_REASONING_EFFORT`; changing between compatible providers does not require
+application code changes. Use
 `json_schema` when the provider reliably supports strict structured outputs, or
 `json_object` with the same local Pydantic validation and quality gates for providers
 with narrower schema support.
@@ -116,11 +117,20 @@ CAREEROS_AI_MODE=live
 CAREEROS_AI_PROVIDER=groq
 CAREEROS_AI_BASE_URL=https://api.groq.com/openai/v1
 CAREEROS_AI_MODEL=openai/gpt-oss-120b
+CAREEROS_AI_CRITIC_MODEL=openai/gpt-oss-20b
+CAREEROS_AI_REPAIR_MODEL=qwen/qwen3.8-27b
 CAREEROS_AI_RESPONSE_FORMAT=json_object
-CAREEROS_AI_REASONING_EFFORT=
-CAREEROS_AI_MAX_COMPLETION_TOKENS=8000
+CAREEROS_AI_REASONING_EFFORT=low
+CAREEROS_AI_MAX_COMPLETION_TOKENS=5000
+CAREEROS_AI_CRITIC_MAX_COMPLETION_TOKENS=1600
+CAREEROS_AI_REPAIR_MAX_COMPLETION_TOKENS=4800
 CAREEROS_AI_API_KEY=
 ```
+
+The separate models keep generation, critique, and repair within Groq's model-specific
+free-tier token budgets. The completion caps leave room for each stage's prompt, JSON
+schema, and roadmap input instead of requesting the full token-per-minute allowance as
+output alone.
 
 After configuring a local key, compare the live model with the deterministic
 baseline without printing roadmap text or prompts:
@@ -129,6 +139,18 @@ baseline without printing roadmap text or prompts:
 cd backend
 python evals/run_live.py --limit 2
 ```
+
+To debug one representative case without running the API, writing to the database,
+or deploying, run the exact generation → critique → repair pipeline locally:
+
+```bash
+cd backend
+python evals/diagnose_live.py --case "experienced career progression"
+```
+
+The diagnostic report identifies the failing stage, provider code, token usage,
+quality scores, and schema issue paths. It never prints the API key, prompts, user
+input, or generated roadmap content.
 
 Start the universal client in a separate terminal:
 

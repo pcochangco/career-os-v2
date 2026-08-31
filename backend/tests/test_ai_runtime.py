@@ -13,9 +13,10 @@ from app.ai.providers.compatible import (
     strict_response_format,
 )
 from app.ai.providers.fixture import FixtureRoadmapProvider
-from app.ai.schema import RoadmapDraft, RoadmapGenerationInput
+from app.ai.schema import ProviderCritique, QualityIssue, RoadmapDraft, RoadmapGenerationInput
 from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
 from app.core.config import Settings
+from evals.diagnose_live import diagnose
 
 
 def generation_input() -> RoadmapGenerationInput:
@@ -66,19 +67,27 @@ def test_provider_endpoint_and_model_are_configuration_only(
         ai_mode="auto",
         ai_provider="groq",
         ai_base_url="https://api.groq.com/openai/v1/",
-        ai_model="openai/gpt-oss-20b",
+        ai_model="openai/gpt-oss-120b",
+        ai_critic_model="openai/gpt-oss-20b",
+        ai_repair_model="qwen/qwen3.8-27b",
         ai_response_format="json_object",
-        ai_reasoning_effort="",
-        ai_max_completion_tokens=8000,
+        ai_reasoning_effort="low",
+        ai_max_completion_tokens=5000,
+        ai_critic_max_completion_tokens=1600,
+        ai_repair_max_completion_tokens=4800,
         ai_api_key="server-secret",
     )
 
     assert settings.ai_provider == "groq"
     assert settings.ai_base_url == "https://api.groq.com/openai/v1"
-    assert settings.ai_model == "openai/gpt-oss-20b"
+    assert settings.ai_model == "openai/gpt-oss-120b"
+    assert settings.resolved_ai_critic_model == "openai/gpt-oss-20b"
+    assert settings.resolved_ai_repair_model == "qwen/qwen3.8-27b"
     assert settings.ai_response_format == "json_object"
-    assert settings.ai_reasoning_effort is None
-    assert settings.ai_max_completion_tokens == 8000
+    assert settings.ai_reasoning_effort == "low"
+    assert settings.ai_max_completion_tokens == 5000
+    assert settings.ai_critic_max_completion_tokens == 1600
+    assert settings.ai_repair_max_completion_tokens == 4800
     assert settings.ai_configured is True
     assert settings.ai_generation_mode == "live_ai"
 
@@ -87,10 +96,20 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert isinstance(service, FallbackRoadmapGenerationService)
     provider = service.primary.provider
     assert provider.source == "groq"
-    assert provider.model == "openai/gpt-oss-20b"
+    assert provider.model == "openai/gpt-oss-120b"
+    assert provider.stage_models == {
+        "generate": "openai/gpt-oss-120b",
+        "critique": "openai/gpt-oss-20b",
+        "repair": "qwen/qwen3.8-27b",
+    }
+    assert provider.stage_max_completion_tokens == {
+        "generate": 5000,
+        "critique": 1600,
+        "repair": 4800,
+    }
     assert provider.response_format_mode == "json_object"
-    assert provider.reasoning_effort is None
-    assert provider.max_completion_tokens == 8000
+    assert provider.reasoning_effort == "low"
+    assert provider.max_completion_tokens == 5000
     assert client_config["base_url"] == "https://api.groq.com/openai/v1"
 
 
@@ -281,7 +300,7 @@ def test_compatible_provider_parses_with_portable_strict_schema(
     assert result.response_id == "groq-test-response"
     assert result.input_tokens == 12
     assert result.output_tokens == 34
-    assert request["max_completion_tokens"] == 8000
+    assert request["max_completion_tokens"] == 5000
     assert request["response_format"]["type"] == response_format_mode
     if response_format_mode == "json_schema":
         assert request["response_format"]["json_schema"]["strict"] is True
@@ -292,6 +311,83 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         assert provider.client.chat.completions.calls == 2
         if first_failure == "local_validation":
             assert "validation_error" in request["messages"][-1]["content"]
+
+
+def test_compatible_provider_routes_each_stage_to_its_configured_budget() -> None:
+    fixture = FixtureRoadmapProvider().generate(generation_input()).value
+    repair_issue = QualityIssue(
+        severity="error",
+        code="test_repair",
+        message="Repair the test roadmap.",
+        path="roadmap",
+        repair_instruction="Return the corrected complete roadmap.",
+    )
+    critique = ProviderCritique(
+        passed=False,
+        score=70,
+        summary="The roadmap needs one repair.",
+        issues=[repair_issue],
+    )
+    requests: list[dict[str, object]] = []
+
+    class Message:
+        refusal = None
+
+        def __init__(self, content: str) -> None:
+            self.content = content
+
+    class Choice:
+        finish_reason = "stop"
+
+        def __init__(self, content: str) -> None:
+            self.message = Message(content)
+
+    class Completion:
+        usage = None
+        id = "stage-response"
+
+        def __init__(self, content: str) -> None:
+            self.choices = [Choice(content)]
+
+    class Completions:
+        def create(self, **kwargs: object) -> Completion:
+            requests.append(kwargs)
+            if kwargs["model"] == "openai/gpt-oss-20b":
+                return Completion(critique.model_dump_json())
+            return Completion(fixture.model_dump_json())
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="unused-test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        critic_model="openai/gpt-oss-20b",
+        repair_model="qwen/qwen3.8-27b",
+        response_format_mode="json_object",
+        max_completion_tokens=5000,
+        critic_max_completion_tokens=1600,
+        repair_max_completion_tokens=4800,
+        client=Client(),
+    )
+
+    generated = provider.generate(generation_input())
+    critiqued = provider.critique(generation_input(), generated.value)
+    provider.repair(generation_input(), generated.value, critiqued.value.issues)
+
+    assert [
+        (request["model"], request["max_completion_tokens"])
+        for request in requests
+    ] == [
+        ("openai/gpt-oss-120b", 5000),
+        ("openai/gpt-oss-20b", 1600),
+        ("qwen/qwen3.8-27b", 4800),
+    ]
 
 
 def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> None:
@@ -313,7 +409,7 @@ def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> 
 
         def create(self, **kwargs: object) -> Completion:
             self.calls += 1
-            assert kwargs["max_completion_tokens"] == 8000
+            assert kwargs["max_completion_tokens"] == 5000
             return Completion()
 
     class Chat:
@@ -328,7 +424,7 @@ def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> 
         base_url="https://api.groq.com/openai/v1",
         model="openai/gpt-oss-120b",
         response_format_mode="json_object",
-        max_completion_tokens=8000,
+        max_completion_tokens=5000,
         client=Client(),
     )
 
@@ -367,7 +463,8 @@ def test_persistent_provider_failure_reports_only_the_generation_stage() -> None
         provider.generate(generation_input())
 
     assert captured.value.diagnostic_code == (
-        "stage=generate;JsonValidationFailure;code=json_validate_failed"
+        "stage=generate;model=openai/gpt-oss-120b;max_tokens=5000;"
+        "JsonValidationFailure;code=json_validate_failed"
     )
     assert "private generated response" not in captured.value.diagnostic_code
 
@@ -392,3 +489,43 @@ def test_evaluation_metrics_compare_without_exposing_roadmap_text() -> None:
     assert metrics["steps"] == 6
     assert quality_delta(metrics, metrics) == 0
     assert "draft" not in metrics
+
+
+def test_live_diagnostic_runs_stages_without_exposing_roadmap_content() -> None:
+    report = diagnose(
+        FixtureRoadmapProvider(),
+        generation_input(),
+        quality_threshold=80,
+        max_repair_attempts=1,
+    )
+
+    assert report["passed"] is True
+    assert [stage["stage"] for stage in report["stages"]] == [
+        "generate",
+        "structure",
+        "critique",
+        "quality_gate",
+    ]
+    serialized = str(report)
+    assert "draft" not in serialized
+    assert generation_input().existing_experience not in serialized
+
+
+def test_live_diagnostic_reports_safe_provider_stage_failure() -> None:
+    report = diagnose(
+        FailingProvider(),
+        generation_input(),
+        quality_threshold=80,
+        max_repair_attempts=1,
+    )
+
+    assert report["passed"] is False
+    assert report["stages"] == [
+        {
+            "stage": "generate",
+            "status": "failed",
+            "error_type": "RoadmapProviderError",
+            "diagnostic_code": "provider_error",
+        }
+    ]
+    assert "simulated provider outage" not in str(report)

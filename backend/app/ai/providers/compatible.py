@@ -125,7 +125,7 @@ inventing missing intermediate steps."""
 
 
 class OpenAICompatibleRoadmapProvider:
-    prompt_version = "roadmap-schema-1.0-compatible-7"
+    prompt_version = "roadmap-schema-1.0-compatible-8"
 
     def __init__(
         self,
@@ -134,10 +134,14 @@ class OpenAICompatibleRoadmapProvider:
         api_key: str,
         base_url: str,
         model: str,
+        critic_model: str | None = None,
+        repair_model: str | None = None,
         response_format_mode: Literal["json_schema", "json_object"] = "json_schema",
         reasoning_effort: str | None = None,
         timeout_seconds: float = 90,
-        max_completion_tokens: int = 8000,
+        max_completion_tokens: int = 5000,
+        critic_max_completion_tokens: int = 1600,
+        repair_max_completion_tokens: int = 4800,
         client: OpenAI | None = None,
     ) -> None:
         self.source = provider_name
@@ -145,6 +149,16 @@ class OpenAICompatibleRoadmapProvider:
         self.response_format_mode = response_format_mode
         self.reasoning_effort = reasoning_effort
         self.max_completion_tokens = max_completion_tokens
+        self.stage_models = {
+            "generate": model,
+            "critique": critic_model or model,
+            "repair": repair_model or model,
+        }
+        self.stage_max_completion_tokens = {
+            "generate": max_completion_tokens,
+            "critique": critic_max_completion_tokens,
+            "repair": repair_max_completion_tokens,
+        }
         self.client = client or OpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -175,11 +189,13 @@ class OpenAICompatibleRoadmapProvider:
             request_messages = [messages[0], schema_instruction, *messages[1:]]
             provider_response_format = {"type": "json_object"}
 
+        stage_model = self.stage_models[stage]
+        stage_max_completion_tokens = self.stage_max_completion_tokens[stage]
         request: dict[str, object] = {
-            "model": self.model,
+            "model": stage_model,
             "messages": request_messages,
             "response_format": provider_response_format,
-            "max_completion_tokens": self.max_completion_tokens,
+            "max_completion_tokens": stage_max_completion_tokens,
         }
         if self.response_format_mode == "json_object":
             request["temperature"] = 0
@@ -195,7 +211,11 @@ class OpenAICompatibleRoadmapProvider:
                     continue
                 raise RoadmapProviderError(
                     "The roadmap provider request failed",
-                    diagnostic_code=f"stage={stage};{safe_provider_diagnostic(error)}",
+                    diagnostic_code=(
+                        f"stage={stage};model={stage_model};"
+                        f"max_tokens={stage_max_completion_tokens};"
+                        f"{safe_provider_diagnostic(error)}"
+                    ),
                 ) from error
 
             if not completion.choices:

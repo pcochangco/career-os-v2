@@ -30,9 +30,14 @@ def main() -> int:
         api_key=api_key.get_secret_value(),
         base_url=settings.ai_base_url,
         model=settings.ai_model,
+        critic_model=settings.resolved_ai_critic_model,
+        repair_model=settings.resolved_ai_repair_model,
         response_format_mode=settings.ai_response_format,
         reasoning_effort=settings.ai_reasoning_effort,
         timeout_seconds=settings.ai_request_timeout_seconds,
+        max_completion_tokens=settings.ai_max_completion_tokens,
+        critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
+        repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
     )
     live_service = RoadmapGenerationService(
         provider,

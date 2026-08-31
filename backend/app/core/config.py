@@ -25,10 +25,14 @@ class Settings(BaseSettings):
     ai_provider: str = "openai"
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = "gpt-5.6-terra"
+    ai_critic_model: str | None = None
+    ai_repair_model: str | None = None
     ai_response_format: Literal["json_schema", "json_object"] = "json_schema"
     ai_reasoning_effort: Literal["low", "medium", "high"] | None = None
     ai_request_timeout_seconds: float = Field(default=60.0, ge=10.0, le=180.0)
-    ai_max_completion_tokens: int = Field(default=8000, ge=512, le=131072)
+    ai_max_completion_tokens: int = Field(default=5000, ge=512, le=131072)
+    ai_critic_max_completion_tokens: int = Field(default=1600, ge=256, le=32768)
+    ai_repair_max_completion_tokens: int = Field(default=4800, ge=512, le=131072)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
     ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)
@@ -50,6 +54,20 @@ class Settings(BaseSettings):
         normalized = value.strip().lower()
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,23}", normalized):
             raise ValueError("AI provider must be a lowercase identifier")
+        return normalized
+
+    @field_validator("ai_model", "ai_critic_model", "ai_repair_model", mode="before")
+    @classmethod
+    def validate_ai_model(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("AI model must be a string identifier")
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,119}", normalized):
+            raise ValueError("AI model must be a safe provider model identifier")
         return normalized
 
     @field_validator("ai_base_url")
@@ -82,6 +100,14 @@ class Settings(BaseSettings):
     @property
     def ai_configured(self) -> bool:
         return bool(self.ai_api_key is not None and self.ai_api_key.get_secret_value().strip())
+
+    @property
+    def resolved_ai_critic_model(self) -> str:
+        return self.ai_critic_model or self.ai_model
+
+    @property
+    def resolved_ai_repair_model(self) -> str:
+        return self.ai_repair_model or self.ai_model
 
     @property
     def ai_generation_mode(self) -> Literal[

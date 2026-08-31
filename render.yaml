@@ -27,14 +27,22 @@ services:
         value: https://api.groq.com/openai/v1
       - key: CAREEROS_AI_MODEL
         value: openai/gpt-oss-120b
+      - key: CAREEROS_AI_CRITIC_MODEL
+        value: openai/gpt-oss-20b
+      - key: CAREEROS_AI_REPAIR_MODEL
+        value: qwen/qwen3.8-27b
       - key: CAREEROS_AI_RESPONSE_FORMAT
         value: json_object
       - key: CAREEROS_AI_REASONING_EFFORT
-        value: ""
+        value: low
       - key: CAREEROS_AI_REQUEST_TIMEOUT_SECONDS
         value: 60
       - key: CAREEROS_AI_MAX_COMPLETION_TOKENS
-        value: 8000
+        value: 5000
+      - key: CAREEROS_AI_CRITIC_MAX_COMPLETION_TOKENS
+        value: 1600
+      - key: CAREEROS_AI_REPAIR_MAX_COMPLETION_TOKENS
+        value: 4800
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_QUALITY_THRESHOLD
