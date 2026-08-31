@@ -59,6 +59,10 @@ services:
         value: 3
       - key: CAREEROS_AI_GLOBAL_GENERATION_LIMIT_PER_HOUR
         value: 12
+      - key: CAREEROS_RESOURCE_ALTERNATE_LIMIT_PER_STEP_PER_DAY
+        value: 3
+      - key: CAREEROS_RESOURCE_ALTERNATE_COOLDOWN_SECONDS
+        value: 12
       - key: CAREEROS_AI_API_KEY
         sync: false
       - key: CAREEROS_YOUTUBE_API_KEY

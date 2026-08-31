@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.routes import resources as resource_routes
+from app.core.config import Settings
 from app.main import app
 from app.resources.dependencies import get_resource_resolver
 from app.resources.providers import BraveSearchResourceProvider, YouTubeResourceProvider
@@ -160,16 +162,143 @@ def test_resolver_excludes_the_current_resource_set() -> None:
         title="AI agent project tutorial",
         resource_type="video",
     )
-
     resolver = ResourceResolver(
         [RecordingProvider([first_video, next_video], name="youtube")]
     )
+
     resources = resolver.resolve(
         ["AI agent engineering practical tutorial"],
         excluded_urls={first_video.url},
     )
 
     assert [resource.url for resource in resources] == [next_video.url]
+
+
+def test_refresh_replaces_cached_resources_with_different_urls(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    first_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=first",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    next_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=next",
+        title="AI agent project tutorial",
+        resource_type="video",
+    )
+    provider = RecordingProvider([first_video], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    initial = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    provider.candidates = [first_video, next_video]
+    refreshed = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+
+    assert initial.status_code == refreshed.status_code == 200
+    assert [resource["url"] for resource in refreshed.json()["resources"]] == [next_video.url]
+
+
+def test_refresh_is_limited_per_user_and_step(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        resource_routes,
+        "get_settings",
+        lambda: Settings(
+            resource_alternate_limit_per_step_per_day=1,
+            resource_alternate_cooldown_seconds=0,
+        ),
+    )
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    first_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=first",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    next_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=next",
+        title="AI agent project tutorial",
+        resource_type="video",
+    )
+    provider = RecordingProvider([first_video], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    provider.candidates = [first_video, next_video]
+    allowed = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+    blocked = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+
+    assert allowed.status_code == 200
+    assert blocked.status_code == 429
+    assert blocked.headers["retry-after"] == "86400"
+
+
+def test_refresh_has_a_short_server_cooldown(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        resource_routes,
+        "get_settings",
+        lambda: Settings(
+            resource_alternate_limit_per_step_per_day=3,
+            resource_alternate_cooldown_seconds=12,
+        ),
+    )
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    first_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=first",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    next_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=next",
+        title="AI agent project tutorial",
+        resource_type="video",
+    )
+    provider = RecordingProvider([first_video], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    provider.candidates = [first_video, next_video]
+    client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+    blocked = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+
+    assert blocked.status_code == 429
+    assert 1 <= int(blocked.headers["retry-after"]) <= 12
 
 
 def test_video_first_policy_refreshes_old_article_only_cache(client: TestClient) -> None:
@@ -246,38 +375,6 @@ def test_video_first_policy_refreshes_cache_when_video_is_not_first(client: Test
     assert refreshed.status_code == 200
     assert refreshed.json()["cached"] is False
     assert refreshed.json()["resources"][0]["url"].endswith("primary-video")
-
-
-def test_refresh_replaces_cached_resources_with_different_urls(client: TestClient) -> None:
-    token = create_session(client)
-    _, roadmap = create_accepted_roadmap(client, token)
-    current_step = steps_in(roadmap)[0]
-    first = candidate(
-        provider="youtube",
-        url="https://www.youtube.com/watch?v=first",
-        title="AI agent full course",
-        resource_type="video",
-    )
-    next_video = candidate(
-        provider="youtube",
-        url="https://www.youtube.com/watch?v=next",
-        title="AI agent project tutorial",
-        resource_type="video",
-    )
-    provider = RecordingProvider([first], name="youtube")
-    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
-    initial = client.post(
-        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
-        headers=auth(token),
-    )
-    provider.candidates = [first, next_video]
-    refreshed = client.post(
-        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
-        headers=auth(token),
-    )
-
-    assert initial.status_code == refreshed.status_code == 200
-    assert [resource["url"] for resource in refreshed.json()["resources"]] == [next_video.url]
 
 
 def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> None:

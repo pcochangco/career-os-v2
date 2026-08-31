@@ -32,6 +32,9 @@ class User(Base):
     generation_attempts: Mapped[list[RoadmapGenerationAttempt]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    resource_refresh_attempts: Mapped[list[RoadmapStepResourceRefreshAttempt]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -131,6 +134,21 @@ class RoadmapGenerationAttempt(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="generation_attempts")
+
+
+class RoadmapStepResourceRefreshAttempt(Base):
+    __tablename__ = "roadmap_step_resource_refresh_attempts"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
+
+    user: Mapped[User] = relationship(back_populates="resource_refresh_attempts")
 
 
 class RoadmapVersion(Base):

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "CareerOS API"
     app_version: str = "0.1.0"
     environment: str = "local"
-    database_url: str = "postgresql+psycopg://careeros:careeros_local@localhost:5432/careeros"
+    database_url: str = "postgresql+psycopg://careeros@localhost:5432/careeros"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
     static_directory: str | None = None
     ai_mode: Literal["fixture", "live", "auto"] = "fixture"
@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     resource_request_timeout_seconds: float = Field(default=4.0, ge=1.0, le=15.0)
     resource_max_results_per_step: int = Field(default=3, ge=1, le=6)
     resource_cache_ttl_hours: int = Field(default=168, ge=1, le=720)
+    resource_alternate_limit_per_step_per_day: int = Field(default=3, ge=1, le=20)
+    resource_alternate_cooldown_seconds: int = Field(default=12, ge=0, le=300)
     ai_api_key: SecretStr | None = None
     youtube_api_key: SecretStr | None = None
     brave_search_api_key: SecretStr | None = None

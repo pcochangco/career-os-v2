@@ -21,6 +21,7 @@ const stateLabels: Record<RoadmapStep["progress_status"], string> = {
   upcoming: "Upcoming",
   blocked: "Prerequisite needed",
 };
+const resourceRefreshCooldownMs = 12_000;
 
 export default function RoadmapRoute() {
   const { roadmapId } = useLocalSearchParams<{ goalId: string; roadmapId: string }>();
@@ -40,6 +41,7 @@ export default function RoadmapRoute() {
   const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [resourceAttempt, setResourceAttempt] = useState(0);
   const [refreshingResources, setRefreshingResources] = useState(false);
+  const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
 
   useEffect(() => {
     if (!token || !roadmapId) return;
@@ -94,6 +96,7 @@ export default function RoadmapRoute() {
     setEvidenceSummary(currentStep?.evidence_summary ?? "");
     setEvidenceUrl(currentStep?.evidence_url ?? "");
     setCompletionConfirmed(false);
+    setResourceRefreshCoolingDown(false);
   }, [currentStep?.id]);
 
   useEffect(() => {
@@ -135,6 +138,8 @@ export default function RoadmapRoute() {
         { method: "POST", token },
       );
       setStepResources(value);
+      setResourceRefreshCoolingDown(true);
+      setTimeout(() => setResourceRefreshCoolingDown(false), resourceRefreshCooldownMs);
     } catch (caught) {
       setResourcesError(
         caught instanceof Error ? caught.message : "Different resources could not be found.",
@@ -443,15 +448,20 @@ export default function RoadmapRoute() {
                               <Pressable
                                 accessibilityHint="Finds different relevant courses and resources"
                                 accessibilityRole="button"
-                                disabled={refreshingResources}
+                                disabled={refreshingResources || resourceRefreshCoolingDown}
                                 onPress={() => void findAnotherResourceSet()}
                                 style={({ pressed }) => [
                                   styles.findAnother,
-                                  (pressed || refreshingResources) && styles.resourceLinkPressed,
+                                  (pressed || refreshingResources || resourceRefreshCoolingDown) &&
+                                    styles.resourceLinkPressed,
                                 ]}
                               >
                                 <Text style={styles.findAnotherText}>
-                                  {refreshingResources ? "Finding another set…" : "Not your style? Find another"}
+                                  {refreshingResources
+                                    ? "Finding another set…"
+                                    : resourceRefreshCoolingDown
+                                      ? "More alternatives in a few seconds"
+                                      : "Not your style? Find another"}
                                 </Text>
                               </Pressable>
                             ) : null}
@@ -754,8 +764,8 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 12,
     borderWidth: 1,
-    minHeight: 42,
     justifyContent: "center",
+    minHeight: 42,
     paddingHorizontal: 12,
   },
   findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },

@@ -1,15 +1,18 @@
+from datetime import UTC, datetime, timedelta
+from math import ceil
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.routes.progress import get_owned_active_step
 from app.api.routes.roadmaps import get_owned_roadmap
 from app.api.schemas import LearningResourceRead, StepResourcesRead
-from app.db.models import RoadmapStepResource
+from app.core.config import get_settings
+from app.db.models import RoadmapStepResource, RoadmapStepResourceRefreshAttempt
 from app.resources.dependencies import get_resource_resolver
 from app.resources.service import ResourceResolver
 from app.services.progress import calculate_roadmap_progress
@@ -70,6 +73,54 @@ def remove_irrelevant_cached_resources(
     return removed
 
 
+def start_resource_refresh_attempt(
+    db: DbSession,
+    *,
+    user_id: UUID,
+    step_id: UUID,
+) -> None:
+    settings = get_settings()
+    now = datetime.now(UTC)
+    daily_window_start = now - timedelta(days=1)
+    attempts = db.scalar(
+        select(func.count(RoadmapStepResourceRefreshAttempt.id)).where(
+            RoadmapStepResourceRefreshAttempt.user_id == user_id,
+            RoadmapStepResourceRefreshAttempt.step_id == step_id,
+            RoadmapStepResourceRefreshAttempt.created_at >= daily_window_start,
+        )
+    )
+    if (attempts or 0) >= settings.resource_alternate_limit_per_step_per_day:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You have reached this step's alternate-resource limit. Try another step later.",
+            headers={"Retry-After": "86400"},
+        )
+    latest_attempt = db.scalar(
+        select(RoadmapStepResourceRefreshAttempt)
+        .where(
+            RoadmapStepResourceRefreshAttempt.user_id == user_id,
+            RoadmapStepResourceRefreshAttempt.step_id == step_id,
+        )
+        .order_by(RoadmapStepResourceRefreshAttempt.created_at.desc())
+        .limit(1)
+    )
+    if latest_attempt is not None and settings.resource_alternate_cooldown_seconds:
+        latest_created_at = latest_attempt.created_at
+        if latest_created_at.tzinfo is None:
+            latest_created_at = latest_created_at.replace(tzinfo=UTC)
+        elapsed = (now - latest_created_at).total_seconds()
+        remaining = settings.resource_alternate_cooldown_seconds - elapsed
+        if remaining > 0:
+            retry_after = max(1, ceil(remaining))
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Please wait {retry_after} seconds before finding another resource set.",
+                headers={"Retry-After": str(retry_after)},
+            )
+    db.add(RoadmapStepResourceRefreshAttempt(user_id=user_id, step_id=step_id))
+    db.commit()
+
+
 @router.post("/{step_id}/resources/resolve", response_model=StepResourcesRead)
 def resolve_step_resources(
     step_id: UUID,
@@ -85,6 +136,9 @@ def resolve_step_resources(
             status_code=status.HTTP_409_CONFLICT,
             detail="Resources are available when this step becomes current",
         )
+
+    if refresh:
+        start_resource_refresh_attempt(db, user_id=user.id, step_id=step.id)
 
     cached = read_cached_resources(db, step.id)
     cache_changed = remove_irrelevant_cached_resources(
