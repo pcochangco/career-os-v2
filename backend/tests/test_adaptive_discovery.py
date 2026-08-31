@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
-from app.ai.schema import DiscoveryContextAnswer
+from app.ai.schema import DiscoveryContextAnswer, DiscoveryQuestionDraft
 from app.discovery.service import (
     AdaptiveDiscoveryService,
     DiscoveryValidationError,
@@ -149,3 +150,12 @@ def test_discovery_service_rejects_early_or_repeated_provider_questions() -> Non
         goal_title="Learn something", answers=[answer], used_question_keys=[first.question_key]
     ).value
     assert second.question_key == "starting-point"
+
+
+def test_incomplete_discovery_turn_requires_an_actionable_question() -> None:
+    try:
+        DiscoveryQuestionDraft(is_complete=False)
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("An incomplete discovery response must not omit its question fields")

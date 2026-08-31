@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class StrictModel(BaseModel):
@@ -38,6 +38,21 @@ class DiscoveryQuestionDraft(StrictModel):
     options: list[DiscoveryOption] = Field(default_factory=list, max_length=6)
     placeholder: str = Field(default="", max_length=180)
     completion_reason: str = Field(default="", max_length=500)
+
+    @model_validator(mode="after")
+    def require_an_actionable_question(self) -> "DiscoveryQuestionDraft":
+        """Make incomplete discovery turns retryable structured-output failures."""
+        if self.is_complete:
+            return self
+        if not self.question_key:
+            raise ValueError("An incomplete discovery turn must include a question key")
+        if len(self.question.strip()) < 8:
+            raise ValueError("An incomplete discovery turn must include a useful question")
+        if len(self.help_text.strip()) < 8:
+            raise ValueError("An incomplete discovery turn must include helpful guidance")
+        if len(self.options) < 3:
+            raise ValueError("An incomplete discovery turn must include three answer options")
+        return self
 
 
 class RoadmapDraftStep(StrictModel):

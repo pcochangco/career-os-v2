@@ -13,7 +13,13 @@ from app.ai.providers.compatible import (
     strict_response_format,
 )
 from app.ai.providers.fixture import FixtureRoadmapProvider
-from app.ai.schema import ProviderCritique, QualityIssue, RoadmapDraft, RoadmapGenerationInput
+from app.ai.schema import (
+    DiscoveryQuestionDraft,
+    ProviderCritique,
+    QualityIssue,
+    RoadmapDraft,
+    RoadmapGenerationInput,
+)
 from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
 from app.core.config import Settings
 from evals.diagnose_live import diagnose
@@ -485,6 +491,82 @@ def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> 
 
     assert captured.value.diagnostic_code == "stage=generate;finish_reason=length"
     assert provider.client.chat.completions.calls == 1
+
+
+def test_discovery_retries_an_incomplete_question_missing_options() -> None:
+    invalid = (
+        '{"is_complete":false,"question_key":"specialty","question":"Which specialty "'
+        '"will you focus on?","help_text":"Choose the direction that best fits your goal.",'
+        '"selection_mode":"single","options":[],"placeholder":""}'
+    )
+    valid = DiscoveryQuestionDraft.model_validate(
+        {
+            "is_complete": False,
+            "question_key": "specialty",
+            "question": "Which specialty will you focus on?",
+            "help_text": "Choose the direction that best fits your goal.",
+            "selection_mode": "single",
+            "options": [
+                {"key": "agents", "label": "AI agents"},
+                {"key": "workflows", "label": "Business workflows"},
+                {"key": "testing", "label": "AI testing"},
+            ],
+            "placeholder": "Describe another direction…",
+        }
+    ).model_dump_json()
+
+    class Message:
+        refusal = None
+
+        def __init__(self, content: str) -> None:
+            self.content = content
+
+    class Choice:
+        finish_reason = "stop"
+
+        def __init__(self, content: str) -> None:
+            self.message = Message(content)
+
+    class Completion:
+        usage = None
+        id = "discovery-response"
+
+        def __init__(self, content: str) -> None:
+            self.choices = [Choice(content)]
+
+    class Completions:
+        calls = 0
+
+        def create(self, **kwargs: object) -> Completion:
+            assert kwargs["model"] == "qwen/qwen3.8-27b"
+            self.calls += 1
+            return Completion(invalid if self.calls == 1 else valid)
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="unused-test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        discovery_model="qwen/qwen3.8-27b",
+        response_format_mode="json_object",
+        discovery_max_completion_tokens=700,
+        client=Client(),
+    )
+
+    question = provider.next_question(
+        goal_title="Become an AI automation engineer",
+        answers=[],
+        used_question_keys=[],
+    )
+
+    assert question.value.question_key == "specialty"
+    assert provider.client.chat.completions.calls == 2
 
 
 def test_persistent_provider_failure_reports_only_the_generation_stage() -> None:

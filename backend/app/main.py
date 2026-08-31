@@ -65,7 +65,12 @@ def create_app() -> FastAPI:
         request: Request,
         error: DiscoveryValidationError,
     ) -> JSONResponse:
-        del request, error
+        del request
+        logger.warning(
+            "Adaptive discovery validation failed failure_type=%s failure_code=%s",
+            type(error).__name__,
+            str(error),
+        )
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
