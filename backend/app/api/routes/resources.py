@@ -55,14 +55,12 @@ def remove_irrelevant_cached_resources(
 ) -> bool:
     removed = False
     for resource in resources:
-        if any(
-            resolver.is_relevant_text(
-                provider=resource.provider,
-                query=query,
-                title=resource.title,
-                description=resource.description,
-            )
-            for query in queries
+        if resolver.is_cached_resource_acceptable(
+            provider=resource.provider,
+            verified_at=resource.verified_at,
+            title=resource.title,
+            description=resource.description,
+            queries=queries,
         ):
             continue
         db.delete(resource)

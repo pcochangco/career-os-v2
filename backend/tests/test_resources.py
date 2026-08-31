@@ -5,15 +5,16 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.resources.dependencies import get_resource_resolver
-from app.resources.providers import CuratedVideoProvider, WikipediaResourceProvider
+from app.resources.providers import BraveSearchResourceProvider, YouTubeResourceProvider
 from app.resources.schema import ResourceCandidate
 from app.resources.service import ResourceResolver
 from tests.test_progress import auth, create_accepted_roadmap, create_session, steps_in
 
 
 class RecordingProvider:
-    def __init__(self, candidates: list[ResourceCandidate]) -> None:
+    def __init__(self, candidates: list[ResourceCandidate], name: str = "test") -> None:
         self.candidates = candidates
+        self.name = name
         self.calls = 0
 
     def search(self, query: str, limit: int) -> list[ResourceCandidate]:
@@ -69,7 +70,7 @@ def test_current_step_resources_are_verified_persisted_and_cached(client: TestCl
             candidate(),
             candidate(
                 url="https://www.youtube.com/watch?v=Unzc731iCUY",
-                title="How to Speak",
+                title="AI agent engineering walkthrough",
                 resource_type="video",
             ),
         ]
@@ -89,8 +90,8 @@ def test_current_step_resources_are_verified_persisted_and_cached(client: TestCl
     assert first.json()["available"] is True
     assert first.json()["cached"] is False
     assert [resource["resource_type"] for resource in first.json()["resources"]] == [
-        "article",
         "video",
+        "article",
     ]
     assert all(resource["verified_at"] for resource in first.json()["resources"])
     assert second.status_code == 200
@@ -111,7 +112,7 @@ def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> N
     provider = RecordingProvider(
         [
             candidate(url="http://127.0.0.1/internal"),
-            candidate(url="https://malicious.example/resource"),
+            candidate(url="https://localhost/resource"),
             candidate(title=""),
         ]
     )
@@ -128,7 +129,7 @@ def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> N
     assert response.json()["message"]
 
 
-def test_unrelated_wikipedia_results_and_stale_cache_are_rejected(
+def test_unrelated_cached_resources_are_rejected(
     client: TestClient,
 ) -> None:
     token = create_session(client)
@@ -139,7 +140,7 @@ def test_unrelated_wikipedia_results_and_stale_cache_are_rejected(
         title="Robert Englund",
         url="https://en.wikipedia.org/wiki/Robert_Englund",
     )
-    provider = RecordingProvider([unrelated])
+    provider = RecordingProvider([unrelated], name="wikipedia")
     app.dependency_overrides[get_resource_resolver] = lambda: PermissiveResolver([provider])
     stored = client.post(
         f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
@@ -180,57 +181,81 @@ def test_resources_cannot_be_loaded_early_or_by_another_user(client: TestClient)
     assert provider.calls == 0
 
 
-def test_wikipedia_provider_uses_topic_query_and_verified_api_metadata(
+def test_youtube_provider_uses_search_then_current_video_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request: dict = {}
+    requests: list[dict] = []
 
     def fake_get(url: str, **kwargs: object) -> StubResponse:
-        request.update({"url": url, **kwargs})
+        requests.append({"url": url, **kwargs})
+        if url == YouTubeResourceProvider.search_endpoint:
+            return StubResponse({"items": [{"id": {"videoId": "agent-video"}}]})
         return StubResponse(
             {
-                "query": {
-                    "pages": [
+                "items": [
+                    {
+                        "id": "agent-video",
+                        "snippet": {
+                            "title": "Build reliable AI agents",
+                            "channelTitle": "Engineering Academy",
+                            "publishedAt": "2026-05-01T00:00:00Z",
+                            "thumbnails": {
+                                "high": {"url": "https://i.ytimg.com/vi/agent-video/hqdefault.jpg"}
+                            },
+                        },
+                        "statistics": {"viewCount": "250000"},
+                        "contentDetails": {"duration": "PT1H10M"},
+                        "status": {"privacyStatus": "public"},
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr("app.resources.providers.httpx.get", fake_get)
+    resources = YouTubeResourceProvider("test-key", 2).search("AI agent engineering", 2)
+
+    assert [request["url"] for request in requests] == [
+        YouTubeResourceProvider.search_endpoint,
+        YouTubeResourceProvider.videos_endpoint,
+    ]
+    assert requests[0]["params"]["key"] == "test-key"
+    assert resources[0].title == "Build reliable AI agents"
+    assert resources[0].source_name == "Engineering Academy"
+    assert resources[0].resource_type == "video"
+    assert resources[0].quality_score > 0
+    assert resources[0].verified_at is not None
+
+
+def test_brave_provider_excludes_wikipedia_and_preserves_source_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_get(url: str, **kwargs: object) -> StubResponse:
+        assert url == BraveSearchResourceProvider.endpoint
+        assert kwargs["headers"]["X-Subscription-Token"] == "test-key"
+        return StubResponse(
+            {
+                "web": {
+                    "results": [
                         {
-                            "title": "Intelligent agent",
-                            "fullurl": "https://en.wikipedia.org/wiki/Intelligent_agent",
-                            "extract": "An intelligent agent perceives and acts.",
-                        }
+                            "title": "AI Agent Course",
+                            "url": "https://www.freecodecamp.org/news/ai-agent-course/",
+                            "description": "A practical AI agent engineering course.",
+                            "profile": {"long_name": "freeCodeCamp"},
+                        },
+                        {
+                            "title": "AI agent",
+                            "url": "https://en.wikipedia.org/wiki/Intelligent_agent",
+                            "description": "Excluded background article.",
+                        },
                     ]
                 }
             }
         )
 
     monkeypatch.setattr("app.resources.providers.httpx.get", fake_get)
-    resources = WikipediaResourceProvider(2).search(
-        "AI agent engineering competency framework beginner guide",
-        2,
-    )
-
-    assert request["url"] == WikipediaResourceProvider.endpoint
-    assert request["params"]["gsrsearch"] == "AI agent engineering"
-    assert resources[0].title == "Intelligent agent"
-    assert resources[0].resource_type == "article"
-    assert resources[0].verified_at is not None
-
-
-def test_curated_video_provider_verifies_youtube_metadata(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def fake_get(url: str, **kwargs: object) -> StubResponse:
-        assert url == "https://www.youtube.com/oembed"
-        assert kwargs["params"]["format"] == "json"
-        return StubResponse(
-            {
-                "title": "How to practice effectively",
-                "author_name": "TED-Ed",
-                "thumbnail_url": "https://i.ytimg.com/vi/example/hqdefault.jpg",
-            }
-        )
-
-    monkeypatch.setattr("app.resources.providers.httpx.get", fake_get)
-    resources = CuratedVideoProvider(2).search("complete practical tutorial", 2)
+    resources = BraveSearchResourceProvider("test-key", 2).search("AI agent engineering", 2)
 
     assert len(resources) == 1
-    assert resources[0].source_name == "TED-Ed"
-    assert resources[0].resource_type == "video"
+    assert resources[0].source_name == "freeCodeCamp"
+    assert resources[0].resource_type == "article"
+    assert resources[0].quality_score == 0.9

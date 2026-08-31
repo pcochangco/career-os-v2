@@ -294,8 +294,8 @@ export default function RoadmapRoute() {
                         {step.resource_queries.length ? (
                           <View style={styles.resources}>
                             <View style={styles.resourceHeading}>
-                              <Text style={styles.resourceLabel}>Verified resources</Text>
-                              <Text style={styles.verifiedLabel}>Checked links</Text>
+                              <Text style={styles.resourceLabel}>Recommended resources</Text>
+                              <Text style={styles.verifiedLabel}>Fresh source checks</Text>
                             </View>
                             {resourcesLoading ? (
                               <View style={styles.resourceNotice}>

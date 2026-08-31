@@ -43,7 +43,10 @@ class Settings(BaseSettings):
     ai_global_generation_limit_per_hour: int = Field(default=12, ge=1, le=1000)
     resource_request_timeout_seconds: float = Field(default=4.0, ge=1.0, le=15.0)
     resource_max_results_per_step: int = Field(default=3, ge=1, le=6)
+    resource_cache_ttl_hours: int = Field(default=168, ge=1, le=720)
     ai_api_key: SecretStr | None = None
+    youtube_api_key: SecretStr | None = None
+    brave_search_api_key: SecretStr | None = None
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -106,6 +109,19 @@ class Settings(BaseSettings):
     @property
     def ai_configured(self) -> bool:
         return bool(self.ai_api_key is not None and self.ai_api_key.get_secret_value().strip())
+
+    @property
+    def youtube_api_configured(self) -> bool:
+        return bool(
+            self.youtube_api_key is not None and self.youtube_api_key.get_secret_value().strip()
+        )
+
+    @property
+    def brave_search_api_configured(self) -> bool:
+        return bool(
+            self.brave_search_api_key is not None
+            and self.brave_search_api_key.get_secret_value().strip()
+        )
 
     @property
     def resolved_ai_critic_model(self) -> str:

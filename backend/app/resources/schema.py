@@ -13,3 +13,4 @@ class ResourceCandidate:
     why_relevant: str
     thumbnail_url: str
     verified_at: datetime
+    quality_score: float = 0.0
