@@ -102,21 +102,23 @@ The default `fixture` mode requires no API credentials. To exercise live
 generation, copy `.env.example` to `.env`, set `CAREEROS_AI_MODE=live`, and set
 `CAREEROS_AI_API_KEY` locally. Never commit the key. OpenAI-compatible providers
 are selected entirely through `CAREEROS_AI_PROVIDER`, `CAREEROS_AI_BASE_URL`,
-`CAREEROS_AI_MODEL`, `CAREEROS_AI_RESPONSE_FORMAT`, and the optional
-`CAREEROS_AI_REASONING_EFFORT`; changing between compatible providers does not
-require application code changes. Use `json_schema` when the provider reliably
-supports strict structured outputs, or `json_object` with the same local Pydantic
-validation and quality gates for providers with narrower schema support.
+`CAREEROS_AI_MODEL`, `CAREEROS_AI_RESPONSE_FORMAT`,
+`CAREEROS_AI_MAX_COMPLETION_TOKENS`, and the optional `CAREEROS_AI_REASONING_EFFORT`;
+changing between compatible providers does not require application code changes. Use
+`json_schema` when the provider reliably supports strict structured outputs, or
+`json_object` with the same local Pydantic validation and quality gates for providers
+with narrower schema support.
 
 For example, Groq's free developer tier can be configured with:
 
 ```dotenv
-CAREEROS_AI_MODE=auto
+CAREEROS_AI_MODE=live
 CAREEROS_AI_PROVIDER=groq
 CAREEROS_AI_BASE_URL=https://api.groq.com/openai/v1
 CAREEROS_AI_MODEL=openai/gpt-oss-120b
 CAREEROS_AI_RESPONSE_FORMAT=json_object
 CAREEROS_AI_REASONING_EFFORT=
+CAREEROS_AI_MAX_COMPLETION_TOKENS=8192
 CAREEROS_AI_API_KEY=
 ```
 

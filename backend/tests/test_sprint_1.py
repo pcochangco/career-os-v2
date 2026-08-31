@@ -1,6 +1,11 @@
+import logging
+
 from fastapi.testclient import TestClient
 
+from app.ai.dependencies import get_generation_service
+from app.ai.providers.base import RoadmapProviderError
 from app.core.config import Settings
+from app.main import app
 
 
 def create_session(client: TestClient) -> str:
@@ -160,6 +165,52 @@ def test_global_generation_capacity_applies_across_anonymous_sessions(
         else:
             assert generated.status_code == 503
             assert generated.headers["retry-after"] == "3600"
+
+
+def test_live_provider_failure_logs_only_the_safe_diagnostic(
+    client: TestClient,
+    caplog,
+) -> None:
+    private_detail = "private generated response must not be logged"
+
+    class FailingService:
+        def generate(self, generation_input):
+            del generation_input
+            raise RoadmapProviderError(
+                private_detail,
+                diagnostic_code="stage=generate;finish_reason=length",
+            )
+
+    app.dependency_overrides[get_generation_service] = lambda: FailingService()
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Build a production AI workflow"},
+    ).json()
+    discovery = {
+        "desired_outcome": "Build and explain a reliable production AI workflow",
+        "current_level": "Python automation developer",
+        "existing_experience": "Python, APIs, and basic LLM integrations",
+        "relevant_constraints": "Prefer a concise project-focused roadmap",
+        "proof_of_completion": "A deployed workflow with an evaluation report",
+    }
+    assert client.put(
+        f"/api/v1/goals/{goal['id']}/discovery",
+        headers=headers,
+        json=discovery,
+    ).status_code == 200
+
+    with caplog.at_level(logging.WARNING, logger="app.main"):
+        response = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Roadmap generation is temporarily unavailable. Please try again."
+    }
+    assert "failure_code=stage=generate;finish_reason=length" in caplog.text
+    assert private_detail not in caplog.text
 
 
 def test_openapi_contains_sprint_1_paths(client: TestClient) -> None:

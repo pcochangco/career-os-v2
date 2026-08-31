@@ -137,12 +137,14 @@ class OpenAICompatibleRoadmapProvider:
         response_format_mode: Literal["json_schema", "json_object"] = "json_schema",
         reasoning_effort: str | None = None,
         timeout_seconds: float = 90,
+        max_completion_tokens: int = 8192,
         client: OpenAI | None = None,
     ) -> None:
         self.source = provider_name
         self.model = model
         self.response_format_mode = response_format_mode
         self.reasoning_effort = reasoning_effort
+        self.max_completion_tokens = max_completion_tokens
         self.client = client or OpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -177,6 +179,7 @@ class OpenAICompatibleRoadmapProvider:
             "model": self.model,
             "messages": request_messages,
             "response_format": provider_response_format,
+            "max_completion_tokens": self.max_completion_tokens,
         }
         if self.response_format_mode == "json_object":
             request["temperature"] = 0
@@ -196,12 +199,27 @@ class OpenAICompatibleRoadmapProvider:
                 ) from error
 
             if not completion.choices:
-                raise RoadmapProviderError("The roadmap provider returned no choices")
-            message = completion.choices[0].message
+                raise RoadmapProviderError(
+                    "The roadmap provider returned no choices",
+                    diagnostic_code=f"stage={stage};no_choices",
+                )
+            choice = completion.choices[0]
+            if getattr(choice, "finish_reason", None) == "length":
+                raise RoadmapProviderError(
+                    "The roadmap provider response reached the completion-token limit",
+                    diagnostic_code=f"stage={stage};finish_reason=length",
+                )
+            message = choice.message
             if getattr(message, "refusal", None):
-                raise RoadmapProviderError("The roadmap provider refused the request")
+                raise RoadmapProviderError(
+                    "The roadmap provider refused the request",
+                    diagnostic_code=f"stage={stage};refusal",
+                )
             if not message.content:
-                raise RoadmapProviderError("The roadmap provider returned no structured output")
+                raise RoadmapProviderError(
+                    "The roadmap provider returned no structured output",
+                    diagnostic_code=f"stage={stage};empty_output",
+                )
 
             try:
                 parsed = response_format.model_validate_json(message.content)

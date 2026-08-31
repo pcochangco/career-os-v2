@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ai_response_format: Literal["json_schema", "json_object"] = "json_schema"
     ai_reasoning_effort: Literal["low", "medium", "high"] | None = None
     ai_request_timeout_seconds: float = Field(default=60.0, ge=10.0, le=180.0)
+    ai_max_completion_tokens: int = Field(default=8192, ge=512, le=131072)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
     ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)

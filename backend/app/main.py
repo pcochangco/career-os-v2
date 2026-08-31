@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,6 +9,8 @@ from app.ai.service import RoadmapQualityError
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.web import mount_frontend
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -31,7 +35,12 @@ def create_app() -> FastAPI:
         request: Request,
         error: RoadmapProviderError,
     ) -> JSONResponse:
-        del request, error
+        del request
+        logger.warning(
+            "Live roadmap generation failed failure_type=%s failure_code=%s",
+            type(error).__name__,
+            error.diagnostic_code,
+        )
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"detail": "Roadmap generation is temporarily unavailable. Please try again."},

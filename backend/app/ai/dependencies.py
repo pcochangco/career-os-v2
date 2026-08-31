@@ -31,6 +31,7 @@ def live_service(settings: Settings) -> RoadmapGenerationService:
         response_format_mode=settings.ai_response_format,
         reasoning_effort=settings.ai_reasoning_effort,
         timeout_seconds=settings.ai_request_timeout_seconds,
+        max_completion_tokens=settings.ai_max_completion_tokens,
     )
     return RoadmapGenerationService(
         provider=provider,
