@@ -62,6 +62,11 @@ class Goal(Base):
     discovery_answers: Mapped[list[GoalDiscoveryAnswer]] = relationship(
         back_populates="goal", cascade="all, delete-orphan"
     )
+    discovery_questions: Mapped[list[GoalDiscoveryQuestion]] = relationship(
+        back_populates="goal",
+        cascade="all, delete-orphan",
+        order_by="GoalDiscoveryQuestion.position",
+    )
     roadmaps: Mapped[list[RoadmapVersion]] = relationship(
         back_populates="goal", cascade="all, delete-orphan"
     )
@@ -83,6 +88,34 @@ class GoalDiscoveryAnswer(Base):
     goal: Mapped[Goal] = relationship(back_populates="discovery_answers")
 
 
+class GoalDiscoveryQuestion(Base):
+    __tablename__ = "goal_discovery_questions"
+    __table_args__ = (
+        UniqueConstraint(
+            "goal_id", "revision", "question_key", name="uq_goal_question_revision_key"
+        ),
+        UniqueConstraint(
+            "goal_id", "revision", "position", name="uq_goal_question_revision_position"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    goal_id: Mapped[UUID] = mapped_column(ForeignKey("goals.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    position: Mapped[int] = mapped_column(Integer)
+    question_key: Mapped[str] = mapped_column(String(64))
+    question: Mapped[str] = mapped_column(Text)
+    help_text: Mapped[str] = mapped_column(Text, default="")
+    selection_mode: Mapped[str] = mapped_column(String(16))
+    options: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    placeholder: Mapped[str] = mapped_column(String(180), default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    goal: Mapped[Goal] = relationship(back_populates="discovery_questions")
+
+
 class RoadmapGenerationAttempt(Base):
     __tablename__ = "roadmap_generation_attempts"
 
@@ -95,9 +128,7 @@ class RoadmapGenerationAttempt(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, index=True
     )
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="generation_attempts")
 

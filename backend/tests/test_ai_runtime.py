@@ -70,11 +70,13 @@ def test_provider_endpoint_and_model_are_configuration_only(
         ai_model="openai/gpt-oss-120b",
         ai_critic_model="openai/gpt-oss-20b",
         ai_repair_model="qwen/qwen3.8-27b",
+        ai_discovery_model="qwen/qwen3.8-27b",
         ai_response_format="json_object",
         ai_reasoning_effort="low",
         ai_max_completion_tokens=5000,
         ai_critic_max_completion_tokens=1600,
         ai_repair_max_completion_tokens=4800,
+        ai_discovery_max_completion_tokens=700,
         ai_api_key="server-secret",
     )
 
@@ -83,11 +85,13 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert settings.ai_model == "openai/gpt-oss-120b"
     assert settings.resolved_ai_critic_model == "openai/gpt-oss-20b"
     assert settings.resolved_ai_repair_model == "qwen/qwen3.8-27b"
+    assert settings.resolved_ai_discovery_model == "qwen/qwen3.8-27b"
     assert settings.ai_response_format == "json_object"
     assert settings.ai_reasoning_effort == "low"
     assert settings.ai_max_completion_tokens == 5000
     assert settings.ai_critic_max_completion_tokens == 1600
     assert settings.ai_repair_max_completion_tokens == 4800
+    assert settings.ai_discovery_max_completion_tokens == 700
     assert settings.ai_configured is True
     assert settings.ai_generation_mode == "live_ai"
 
@@ -101,16 +105,68 @@ def test_provider_endpoint_and_model_are_configuration_only(
         "generate": "openai/gpt-oss-120b",
         "critique": "openai/gpt-oss-20b",
         "repair": "qwen/qwen3.8-27b",
+        "discovery": "qwen/qwen3.8-27b",
     }
     assert provider.stage_max_completion_tokens == {
         "generate": 5000,
         "critique": 1600,
         "repair": 4800,
+        "discovery": 700,
     }
     assert provider.response_format_mode == "json_object"
     assert provider.reasoning_effort == "low"
     assert provider.max_completion_tokens == 5000
     assert client_config["base_url"] == "https://api.groq.com/openai/v1"
+
+
+def test_discovery_provider_uses_its_own_model_and_token_cap() -> None:
+    request: dict[str, object] = {}
+
+    class Message:
+        refusal = None
+        content = (
+            '{"is_complete":false,"question_key":"focus-area",'
+            '"question":"Which specialization matters most to you?",'
+            '"help_text":"Choose the direction your roadmap should emphasize.",'
+            '"selection_mode":"single",'
+            '"options":[{"key":"agents","label":"AI agents"},'
+            '{"key":"testing","label":"Testing automation"},'
+            '{"key":"workflows","label":"Business workflows"}],'
+            '"placeholder":"Describe your direction",'
+            '"completion_reason":""}'
+        )
+
+    class Completion:
+        id = "discovery-response"
+        choices = [type("Choice", (), {"message": Message(), "finish_reason": "stop"})()]
+        usage = type("Usage", (), {"prompt_tokens": 12, "completion_tokens": 34})()
+
+    class Completions:
+        def create(self, **kwargs: object) -> Completion:
+            request.update(kwargs)
+            return Completion()
+
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        discovery_model="qwen/qwen3.8-27b",
+        discovery_max_completion_tokens=700,
+        client=client,
+    )
+
+    result = provider.next_question(
+        goal_title="Become an AI automation engineer",
+        answers=[],
+        used_question_keys=[],
+    )
+
+    assert result.value.question_key == "focus-area"
+    assert result.input_tokens == 12
+    assert request["model"] == "qwen/qwen3.8-27b"
+    assert request["max_completion_tokens"] == 700
 
 
 @pytest.mark.parametrize(
@@ -142,8 +198,7 @@ def test_provider_diagnostic_contains_only_bounded_metadata() -> None:
     error = ProviderFailure("raw provider detail that must never be logged")
 
     assert safe_provider_diagnostic(error) == (
-        "ProviderFailure;status_code=429;code=rate_limit_exceeded;"
-        "type=tokens;param=response_format"
+        "ProviderFailure;status_code=429;code=rate_limit_exceeded;type=tokens;param=response_format"
     )
     assert "raw provider detail" not in safe_provider_diagnostic(error)
 
@@ -380,10 +435,7 @@ def test_compatible_provider_routes_each_stage_to_its_configured_budget() -> Non
     critiqued = provider.critique(generation_input(), generated.value)
     provider.repair(generation_input(), generated.value, critiqued.value.issues)
 
-    assert [
-        (request["model"], request["max_completion_tokens"])
-        for request in requests
-    ] == [
+    assert [(request["model"], request["max_completion_tokens"]) for request in requests] == [
         ("openai/gpt-oss-120b", 5000),
         ("openai/gpt-oss-20b", 1600),
         ("qwen/qwen3.8-27b", 4800),

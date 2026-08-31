@@ -5,14 +5,24 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.ai.dependencies import GenerationService
-from app.ai.schema import RoadmapGenerationInput
+from app.ai.dependencies import DiscoveryService, GenerationService
+from app.ai.schema import DiscoveryContextAnswer, RoadmapGenerationInput
 from app.api.dependencies import CurrentUser, DbSession
-from app.api.schemas import DiscoveryWrite, GoalCreate, GoalRead, RoadmapRead
+from app.api.schemas import (
+    DiscoveryAnswerWrite,
+    DiscoveryOptionRead,
+    DiscoveryQuestionRead,
+    DiscoveryStateRead,
+    DiscoveryWrite,
+    GoalCreate,
+    GoalRead,
+    RoadmapRead,
+)
 from app.core.config import get_settings
 from app.db.models import (
     Goal,
     GoalDiscoveryAnswer,
+    GoalDiscoveryQuestion,
     RoadmapGenerationAttempt,
     RoadmapMilestone,
     RoadmapStep,
@@ -38,9 +48,7 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
         .where(RoadmapVersion.goal_id == goal.id, RoadmapVersion.status == "accepted")
         .order_by(RoadmapVersion.version.desc())
         .limit(1)
-        .options(
-            selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps)
-        )
+        .options(selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps))
     )
     draft_id = db.scalar(
         select(RoadmapVersion.id)
@@ -122,7 +130,293 @@ def save_discovery(
     return to_goal_read(db, goal)
 
 
-def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
+def latest_question_revision(db: Session, goal: Goal) -> int | None:
+    return db.scalar(
+        select(func.max(GoalDiscoveryQuestion.revision)).where(
+            GoalDiscoveryQuestion.goal_id == goal.id
+        )
+    )
+
+
+def adaptive_questions(db: Session, goal: Goal, revision: int) -> list[GoalDiscoveryQuestion]:
+    return db.scalars(
+        select(GoalDiscoveryQuestion)
+        .where(
+            GoalDiscoveryQuestion.goal_id == goal.id,
+            GoalDiscoveryQuestion.revision == revision,
+        )
+        .order_by(GoalDiscoveryQuestion.position)
+    ).all()
+
+
+def adaptive_context(
+    db: Session,
+    goal: Goal,
+    revision: int,
+) -> list[DiscoveryContextAnswer]:
+    questions = adaptive_questions(db, goal, revision)
+    answers = {
+        answer.question_key: answer.answer
+        for answer in db.scalars(
+            select(GoalDiscoveryAnswer).where(
+                GoalDiscoveryAnswer.goal_id == goal.id,
+                GoalDiscoveryAnswer.revision == revision,
+            )
+        ).all()
+    }
+    return [
+        DiscoveryContextAnswer(
+            question_key=question.question_key,
+            question=question.question,
+            answer=answers[question.question_key],
+            skipped=question.status == "skipped",
+        )
+        for question in questions
+        if question.status in {"answered", "skipped"} and question.question_key in answers
+    ]
+
+
+def to_discovery_question_read(question: GoalDiscoveryQuestion) -> DiscoveryQuestionRead:
+    return DiscoveryQuestionRead(
+        id=question.id,
+        position=question.position,
+        question_key=question.question_key,
+        question=question.question,
+        help_text=question.help_text,
+        selection_mode=question.selection_mode,
+        options=[DiscoveryOptionRead.model_validate(option) for option in question.options],
+        placeholder=question.placeholder,
+    )
+
+
+def to_discovery_state(db: Session, goal: Goal) -> DiscoveryStateRead:
+    revision = latest_question_revision(db, goal)
+    if revision is None:
+        return DiscoveryStateRead(status="unstarted")
+    questions = adaptive_questions(db, goal, revision)
+    pending = next(
+        (question for question in reversed(questions) if question.status == "pending"), None
+    )
+    if pending is not None:
+        return DiscoveryStateRead(status="question", question=to_discovery_question_read(pending))
+    context = adaptive_context(db, goal, revision)
+    if goal.status == "ready_to_generate":
+        return DiscoveryStateRead(
+            status="ready",
+            context_summary=[f"{answer.question}: {answer.answer}" for answer in context],
+            completion_reason="You have given enough detail to shape a focused roadmap.",
+        )
+    return DiscoveryStateRead(status="unstarted")
+
+
+def start_next_discovery_question(
+    *,
+    db: Session,
+    goal: Goal,
+    discovery_service: DiscoveryService,
+) -> DiscoveryStateRead:
+    state = to_discovery_state(db, goal)
+    if state.status != "unstarted":
+        return state
+
+    existing_revision = latest_question_revision(db, goal)
+    if existing_revision is not None and adaptive_questions(db, goal, existing_revision):
+        return advance_discovery(
+            db=db,
+            goal=goal,
+            discovery_service=discovery_service,
+            revision=existing_revision,
+        )
+
+    latest_answer_revision = db.scalar(
+        select(func.max(GoalDiscoveryAnswer.revision)).where(GoalDiscoveryAnswer.goal_id == goal.id)
+    )
+    revision = (latest_answer_revision or 0) + 1
+    context: list[DiscoveryContextAnswer] = []
+    result = discovery_service.next_question(
+        goal_title=goal.title,
+        answers=context,
+        used_question_keys=[],
+    )
+    if result.value.is_complete:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "CareerOS needs a little more context before it can shape your roadmap. "
+                "Please try again."
+            ),
+        )
+    question = result.value
+    goal.status = "discovery"
+    db.add(
+        GoalDiscoveryQuestion(
+            goal_id=goal.id,
+            revision=revision,
+            position=1,
+            question_key=question.question_key,
+            question=question.question,
+            help_text=question.help_text,
+            selection_mode=question.selection_mode,
+            options=[option.model_dump() for option in question.options],
+            placeholder=question.placeholder,
+        )
+    )
+    db.commit()
+    db.refresh(goal)
+    return to_discovery_state(db, goal)
+
+
+def advance_discovery(
+    *,
+    db: Session,
+    goal: Goal,
+    discovery_service: DiscoveryService,
+    revision: int,
+) -> DiscoveryStateRead:
+    context = adaptive_context(db, goal, revision)
+    questions = adaptive_questions(db, goal, revision)
+    result = discovery_service.next_question(
+        goal_title=goal.title,
+        answers=context,
+        used_question_keys=[question.question_key for question in questions],
+    )
+    if result.value.is_complete:
+        goal.status = "ready_to_generate"
+        db.commit()
+        db.refresh(goal)
+        return to_discovery_state(db, goal)
+
+    question = result.value
+    db.add(
+        GoalDiscoveryQuestion(
+            goal_id=goal.id,
+            revision=revision,
+            position=len(questions) + 1,
+            question_key=question.question_key,
+            question=question.question,
+            help_text=question.help_text,
+            selection_mode=question.selection_mode,
+            options=[option.model_dump() for option in question.options],
+            placeholder=question.placeholder,
+        )
+    )
+    db.commit()
+    db.refresh(goal)
+    return to_discovery_state(db, goal)
+
+
+@router.get("/{goal_id}/discovery", response_model=DiscoveryStateRead)
+def read_adaptive_discovery(
+    goal_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> DiscoveryStateRead:
+    return to_discovery_state(db, get_owned_goal(db, user, goal_id))
+
+
+@router.post("/{goal_id}/discovery/questions/next", response_model=DiscoveryStateRead)
+def begin_adaptive_discovery(
+    goal_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+    discovery_service: DiscoveryService,
+) -> DiscoveryStateRead:
+    goal = get_owned_goal(db, user, goal_id)
+    if goal.status in {"active", "completed"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This goal already has a roadmap"
+        )
+    return start_next_discovery_question(db=db, goal=goal, discovery_service=discovery_service)
+
+
+@router.post(
+    "/{goal_id}/discovery/questions/{question_id}/answer", response_model=DiscoveryStateRead
+)
+def answer_adaptive_discovery_question(
+    goal_id: UUID,
+    question_id: UUID,
+    payload: DiscoveryAnswerWrite,
+    user: CurrentUser,
+    db: DbSession,
+    discovery_service: DiscoveryService,
+) -> DiscoveryStateRead:
+    goal = get_owned_goal(db, user, goal_id)
+    question = db.scalar(
+        select(GoalDiscoveryQuestion).where(
+            GoalDiscoveryQuestion.id == question_id,
+            GoalDiscoveryQuestion.goal_id == goal.id,
+        )
+    )
+    if question is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Discovery question not found"
+        )
+    if question.status != "pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This question was already answered"
+        )
+
+    options_by_key = {option["key"]: option["label"] for option in question.options}
+    unknown_keys = set(payload.selected_option_keys) - set(options_by_key)
+    if unknown_keys:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Choose one of the listed answers",
+        )
+    if question.selection_mode == "single" and len(payload.selected_option_keys) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose one answer"
+        )
+
+    selected_labels = [options_by_key[key] for key in payload.selected_option_keys]
+    answer_parts = selected_labels + ([payload.custom_answer] if payload.custom_answer else [])
+    answer_text = "Skipped" if payload.skipped else "; ".join(answer_parts)
+    question.status = "skipped" if payload.skipped else "answered"
+    question.answered_at = datetime.now(UTC)
+    db.add(
+        GoalDiscoveryAnswer(
+            goal_id=goal.id,
+            revision=question.revision,
+            question_key=question.question_key,
+            answer=answer_text,
+        )
+    )
+    db.commit()
+    db.refresh(goal)
+    return advance_discovery(
+        db=db,
+        goal=goal,
+        discovery_service=discovery_service,
+        revision=question.revision,
+    )
+
+
+def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
+    adaptive_revision = latest_question_revision(db, goal)
+    if adaptive_revision is not None:
+        context = adaptive_context(db, goal, adaptive_revision)
+        if not context or goal.status != "ready_to_generate":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Complete discovery before generating a roadmap",
+            )
+        return RoadmapGenerationInput(
+            goal_title=goal.title,
+            desired_outcome=f"Achieve the goal: {goal.title}",
+            current_level=(
+                "Use the learner's discovery answers to establish their starting point."
+            ),
+            existing_experience=(
+                "Use the learner's discovery answers to identify existing experience."
+            ),
+            relevant_constraints=(
+                "Use the learner's discovery answers to identify preferences and constraints."
+            ),
+            proof_of_completion=(
+                "Use the learner's discovery answers to define convincing proof of completion."
+            ),
+            discovery_context=context,
+        )
     latest_revision = db.scalar(
         select(func.max(GoalDiscoveryAnswer.revision)).where(GoalDiscoveryAnswer.goal_id == goal.id)
     )
@@ -137,15 +431,17 @@ def latest_discovery(db: Session, goal: Goal) -> DiscoveryWrite:
             GoalDiscoveryAnswer.revision == latest_revision,
         )
     ).all()
-    return DiscoveryWrite(**{answer.question_key: answer.answer for answer in answers})
+    return RoadmapGenerationInput(
+        goal_title=goal.title,
+        **DiscoveryWrite(**{answer.question_key: answer.answer for answer in answers}).model_dump(),
+    )
 
 
 def start_generation_attempt(db: Session, user: User) -> RoadmapGenerationAttempt:
     settings = get_settings()
     window_start = datetime.now(UTC) - timedelta(hours=1)
     user_attempts = db.scalar(
-        select(func.count(RoadmapGenerationAttempt.id))
-        .where(
+        select(func.count(RoadmapGenerationAttempt.id)).where(
             RoadmapGenerationAttempt.user_id == user.id,
             RoadmapGenerationAttempt.created_at >= window_start,
         )
@@ -170,9 +466,7 @@ def start_generation_attempt(db: Session, user: User) -> RoadmapGenerationAttemp
 
     attempt = RoadmapGenerationAttempt(
         user_id=user.id,
-        requested_provider=(
-            "fixture" if settings.ai_mode == "fixture" else settings.ai_provider
-        ),
+        requested_provider=("fixture" if settings.ai_mode == "fixture" else settings.ai_provider),
     )
     db.add(attempt)
     db.commit()
@@ -203,12 +497,8 @@ def generate_roadmap(
     generation_service: GenerationService,
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
-    discovery = latest_discovery(db, goal)
+    generation_input = latest_discovery(db, goal)
     attempt = start_generation_attempt(db, user)
-    generation_input = RoadmapGenerationInput(
-        goal_title=goal.title,
-        **discovery.model_dump(),
-    )
     try:
         generated = generation_service.generate(generation_input)
     except Exception:

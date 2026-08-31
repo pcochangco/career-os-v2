@@ -8,6 +8,7 @@ from app.ai.providers.base import RoadmapProviderError
 from app.ai.service import RoadmapQualityError
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.discovery.service import DiscoveryValidationError
 from app.web import mount_frontend
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,19 @@ def create_app() -> FastAPI:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
                 "detail": "CareerOS could not produce a trustworthy roadmap yet. Please try again."
+            },
+        )
+
+    @application.exception_handler(DiscoveryValidationError)
+    async def handle_discovery_validation_error(
+        request: Request,
+        error: DiscoveryValidationError,
+    ) -> JSONResponse:
+        del request, error
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "detail": "CareerOS could not tailor the next question yet. Please try again."
             },
         )
 

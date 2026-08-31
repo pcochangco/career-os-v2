@@ -24,6 +24,50 @@ class DiscoveryWrite(BaseModel):
     proof_of_completion: str = Field(min_length=3, max_length=1000)
 
 
+class DiscoveryOptionRead(BaseModel):
+    key: str
+    label: str
+
+
+class DiscoveryQuestionRead(BaseModel):
+    id: UUID
+    position: int
+    question_key: str
+    question: str
+    help_text: str
+    selection_mode: Literal["single", "multiple"]
+    options: list[DiscoveryOptionRead]
+    placeholder: str
+
+
+class DiscoveryStateRead(BaseModel):
+    status: Literal["unstarted", "question", "ready"]
+    question: DiscoveryQuestionRead | None = None
+    context_summary: list[str] = Field(default_factory=list)
+    completion_reason: str = ""
+
+
+class DiscoveryAnswerWrite(BaseModel):
+    selected_option_keys: list[str] = Field(default_factory=list, max_length=6)
+    custom_answer: str = Field(default="", max_length=1000)
+    skipped: bool = False
+
+    @field_validator("selected_option_keys", "custom_answer")
+    @classmethod
+    def trim_discovery_answer(cls, value: list[str] | str) -> list[str] | str:
+        if isinstance(value, list):
+            return [item.strip() for item in value if item.strip()]
+        return value.strip()
+
+    @model_validator(mode="after")
+    def require_discovery_response(self) -> "DiscoveryAnswerWrite":
+        if not self.skipped and not self.selected_option_keys and not self.custom_answer:
+            raise ValueError("Choose an answer, write your own, or skip this question")
+        if self.skipped and (self.selected_option_keys or self.custom_answer):
+            raise ValueError("A skipped question cannot include an answer")
+        return self
+
+
 class GoalRead(BaseModel):
     id: UUID
     title: str

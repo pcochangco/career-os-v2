@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.ai.schema import (
+    DiscoveryContextAnswer,
+    DiscoveryQuestionDraft,
     ProviderCritique,
     QualityIssue,
     RoadmapDraft,
@@ -39,6 +41,16 @@ class RoadmapProvider(Protocol):
         draft: RoadmapDraft,
         issues: list[QualityIssue],
     ) -> ProviderResult[RoadmapDraft]: ...
+
+
+class DiscoveryProvider(Protocol):
+    def next_question(
+        self,
+        *,
+        goal_title: str,
+        answers: list[DiscoveryContextAnswer],
+        used_question_keys: list[str],
+    ) -> ProviderResult[DiscoveryQuestionDraft]: ...
 
 
 class RoadmapProviderError(RuntimeError):

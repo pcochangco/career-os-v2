@@ -113,3 +113,26 @@ export type DiscoveryAnswers = {
   relevant_constraints: string;
   proof_of_completion: string;
 };
+
+export type DiscoveryOption = {
+  key: string;
+  label: string;
+};
+
+export type DiscoveryQuestion = {
+  id: string;
+  position: number;
+  question_key: string;
+  question: string;
+  help_text: string;
+  selection_mode: "single" | "multiple";
+  options: DiscoveryOption[];
+  placeholder: string;
+};
+
+export type DiscoveryState = {
+  status: "unstarted" | "question" | "ready";
+  question: DiscoveryQuestion | null;
+  context_summary: string[];
+  completion_reason: string;
+};

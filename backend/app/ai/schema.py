@@ -14,6 +14,30 @@ class RoadmapGenerationInput(StrictModel):
     existing_experience: str
     relevant_constraints: str
     proof_of_completion: str
+    discovery_context: list["DiscoveryContextAnswer"] = Field(default_factory=list, max_length=6)
+
+
+class DiscoveryContextAnswer(StrictModel):
+    question_key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    question: str = Field(min_length=8, max_length=400)
+    answer: str = Field(min_length=1, max_length=1200)
+    skipped: bool = False
+
+
+class DiscoveryOption(StrictModel):
+    key: str = Field(min_length=1, max_length=48, pattern=r"^[a-z0-9-]+$")
+    label: str = Field(min_length=2, max_length=100)
+
+
+class DiscoveryQuestionDraft(StrictModel):
+    is_complete: bool
+    question_key: str = Field(default="", max_length=64, pattern=r"^[a-z0-9-]*$")
+    question: str = Field(default="", max_length=400)
+    help_text: str = Field(default="", max_length=500)
+    selection_mode: Literal["single", "multiple"] = "single"
+    options: list[DiscoveryOption] = Field(default_factory=list, max_length=6)
+    placeholder: str = Field(default="", max_length=180)
+    completion_reason: str = Field(default="", max_length=500)
 
 
 class RoadmapDraftStep(StrictModel):

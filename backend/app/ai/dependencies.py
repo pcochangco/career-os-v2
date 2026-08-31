@@ -6,6 +6,7 @@ from app.ai.providers.base import RoadmapProviderError
 from app.ai.providers.fixture import FixtureRoadmapProvider
 from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
 from app.core.config import Settings, get_settings
+from app.discovery.service import AdaptiveDiscoveryService, FixtureDiscoveryProvider
 
 
 def fixture_service(settings: Settings) -> RoadmapGenerationService:
@@ -30,12 +31,14 @@ def live_service(settings: Settings) -> RoadmapGenerationService:
         model=settings.ai_model,
         critic_model=settings.resolved_ai_critic_model,
         repair_model=settings.resolved_ai_repair_model,
+        discovery_model=settings.resolved_ai_discovery_model,
         response_format_mode=settings.ai_response_format,
         reasoning_effort=settings.ai_reasoning_effort,
         timeout_seconds=settings.ai_request_timeout_seconds,
         max_completion_tokens=settings.ai_max_completion_tokens,
         critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
+        discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
     )
     return RoadmapGenerationService(
         provider=provider,
@@ -67,7 +70,42 @@ def get_generation_service() -> RoadmapGenerationService | FallbackRoadmapGenera
     return create_generation_service(settings)
 
 
+def get_discovery_service() -> AdaptiveDiscoveryService:
+    settings = get_settings()
+    if settings.ai_mode == "fixture":
+        return AdaptiveDiscoveryService(FixtureDiscoveryProvider())
+    if not settings.ai_configured:
+        if settings.ai_mode == "auto":
+            return AdaptiveDiscoveryService(FixtureDiscoveryProvider())
+        raise RoadmapProviderError("Live AI is selected but no API key is configured")
+
+    from app.ai.providers.compatible import OpenAICompatibleRoadmapProvider
+
+    api_key = settings.ai_api_key
+    if api_key is None:
+        raise RoadmapProviderError("Live AI is selected but no API key is configured")
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name=settings.ai_provider,
+        api_key=api_key.get_secret_value(),
+        base_url=settings.ai_base_url,
+        model=settings.ai_model,
+        critic_model=settings.resolved_ai_critic_model,
+        repair_model=settings.resolved_ai_repair_model,
+        discovery_model=settings.resolved_ai_discovery_model,
+        response_format_mode=settings.ai_response_format,
+        reasoning_effort=settings.ai_reasoning_effort,
+        timeout_seconds=settings.ai_request_timeout_seconds,
+        max_completion_tokens=settings.ai_max_completion_tokens,
+        critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
+        repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
+        discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
+    )
+    return AdaptiveDiscoveryService(provider)
+
+
 GenerationService = Annotated[
     RoadmapGenerationService | FallbackRoadmapGenerationService,
     Depends(get_generation_service),
 ]
+
+DiscoveryService = Annotated[AdaptiveDiscoveryService, Depends(get_discovery_service)]

@@ -27,12 +27,14 @@ class Settings(BaseSettings):
     ai_model: str = "gpt-5.6-terra"
     ai_critic_model: str | None = None
     ai_repair_model: str | None = None
+    ai_discovery_model: str | None = None
     ai_response_format: Literal["json_schema", "json_object"] = "json_schema"
     ai_reasoning_effort: Literal["low", "medium", "high"] | None = None
     ai_request_timeout_seconds: float = Field(default=60.0, ge=10.0, le=180.0)
     ai_max_completion_tokens: int = Field(default=5000, ge=512, le=131072)
     ai_critic_max_completion_tokens: int = Field(default=1600, ge=256, le=32768)
     ai_repair_max_completion_tokens: int = Field(default=4800, ge=512, le=131072)
+    ai_discovery_max_completion_tokens: int = Field(default=700, ge=256, le=8192)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
     ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)
@@ -56,7 +58,9 @@ class Settings(BaseSettings):
             raise ValueError("AI provider must be a lowercase identifier")
         return normalized
 
-    @field_validator("ai_model", "ai_critic_model", "ai_repair_model", mode="before")
+    @field_validator(
+        "ai_model", "ai_critic_model", "ai_repair_model", "ai_discovery_model", mode="before"
+    )
     @classmethod
     def validate_ai_model(cls, value: object) -> object:
         if value is None:
@@ -110,9 +114,11 @@ class Settings(BaseSettings):
         return self.ai_repair_model or self.ai_model
 
     @property
-    def ai_generation_mode(self) -> Literal[
-        "live_ai", "deterministic_preview", "misconfigured"
-    ]:
+    def resolved_ai_discovery_model(self) -> str:
+        return self.ai_discovery_model or self.ai_model
+
+    @property
+    def ai_generation_mode(self) -> Literal["live_ai", "deterministic_preview", "misconfigured"]:
         if self.ai_mode == "fixture":
             return "deterministic_preview"
         if self.ai_configured:

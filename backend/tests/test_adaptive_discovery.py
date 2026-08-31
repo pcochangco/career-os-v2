@@ -1,0 +1,151 @@
+from fastapi.testclient import TestClient
+
+from app.ai.schema import DiscoveryContextAnswer
+from app.discovery.service import (
+    AdaptiveDiscoveryService,
+    DiscoveryValidationError,
+    FixtureDiscoveryProvider,
+)
+
+
+def create_session(client: TestClient) -> str:
+    response = client.post("/api/v1/auth/anonymous")
+    assert response.status_code == 201
+    return response.json()["access_token"]
+
+
+def auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
+    client: TestClient,
+) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Become an AI automation engineer"},
+    ).json()
+
+    started = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/next",
+        headers=headers,
+    )
+    assert started.status_code == 200
+    first_question = started.json()["question"]
+    assert first_question["question_key"] == "focus-area"
+    assert first_question["selection_mode"] == "multiple"
+    assert len(first_question["options"]) >= 3
+
+    reloaded = client.get(f"/api/v1/goals/{goal['id']}/discovery", headers=headers)
+    assert reloaded.status_code == 200
+    assert reloaded.json()["question"]["id"] == first_question["id"]
+
+    second = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{first_question['id']}/answer",
+        headers=headers,
+        json={
+            "selected_option_keys": ["practical-project", "career-change"],
+            "custom_answer": "I want to focus on agent reliability.",
+        },
+    )
+    assert second.status_code == 200
+    second_question = second.json()["question"]
+    assert second_question["question_key"] == "starting-point"
+
+    third = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{second_question['id']}/answer",
+        headers=headers,
+        json={"skipped": True},
+    )
+    assert third.status_code == 200
+    third_question = third.json()["question"]
+    assert third_question["question_key"] == "biggest-gap"
+
+    ready = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{third_question['id']}/answer",
+        headers=headers,
+        json={"selected_option_keys": ["proof"]},
+    )
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+    assert len(ready.json()["context_summary"]) == 3
+    assert "Skipped" in ready.json()["context_summary"][1]
+
+    generated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+    assert generated.status_code == 201
+    assert generated.json()["quality_report"]["passed"] is True
+
+
+def test_adaptive_discovery_validates_answer_options_and_choice_mode(client: TestClient) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Learn production API design"},
+    ).json()
+    first_question = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/next", headers=headers
+    ).json()["question"]
+
+    unknown = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{first_question['id']}/answer",
+        headers=headers,
+        json={"selected_option_keys": ["not-an-option"]},
+    )
+    assert unknown.status_code == 422
+
+    second_question = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{first_question['id']}/answer",
+        headers=headers,
+        json={"selected_option_keys": ["practical-project"]},
+    ).json()["question"]
+    third_question = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{second_question['id']}/answer",
+        headers=headers,
+        json={"selected_option_keys": ["work-experience"]},
+    ).json()["question"]
+    assert third_question["selection_mode"] == "single"
+
+    multiple = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/{third_question['id']}/answer",
+        headers=headers,
+        json={"selected_option_keys": ["proof", "confidence"]},
+    )
+    assert multiple.status_code == 422
+
+
+def test_discovery_service_rejects_early_or_repeated_provider_questions() -> None:
+    class EarlyProvider:
+        def next_question(self, **kwargs):
+            del kwargs
+            from app.ai.providers.base import ProviderResult
+            from app.ai.schema import DiscoveryQuestionDraft
+
+            return ProviderResult(value=DiscoveryQuestionDraft(is_complete=True))
+
+    service = AdaptiveDiscoveryService(EarlyProvider())
+    try:
+        service.next_question(goal_title="Learn something", answers=[], used_question_keys=[])
+    except DiscoveryValidationError:
+        pass
+    else:
+        raise AssertionError("An early completion must be rejected")
+
+    fixture = AdaptiveDiscoveryService(FixtureDiscoveryProvider())
+    first = fixture.next_question(
+        goal_title="Learn something", answers=[], used_question_keys=[]
+    ).value
+    assert first.question_key == "focus-area"
+    answer = DiscoveryContextAnswer(
+        question_key="focus-area",
+        question=first.question,
+        answer="Build a practical project",
+    )
+    second = fixture.next_question(
+        goal_title="Learn something", answers=[answer], used_question_keys=[first.question_key]
+    ).value
+    assert second.question_key == "starting-point"
