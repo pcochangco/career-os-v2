@@ -35,8 +35,18 @@ def upgrade() -> None:
         sa.Column("answered_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["goal_id"], ["goals.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("goal_id", "revision", "question_key", name="uq_goal_question_revision_key"),
-        sa.UniqueConstraint("goal_id", "revision", "position", name="uq_goal_question_revision_position"),
+        sa.UniqueConstraint(
+            "goal_id",
+            "revision",
+            "question_key",
+            name="uq_goal_question_revision_key",
+        ),
+        sa.UniqueConstraint(
+            "goal_id",
+            "revision",
+            "position",
+            name="uq_goal_question_revision_position",
+        ),
     )
     op.create_index("ix_goal_discovery_questions_goal_id", "goal_discovery_questions", ["goal_id"])
     op.create_index("ix_goal_discovery_questions_status", "goal_discovery_questions", ["status"])
