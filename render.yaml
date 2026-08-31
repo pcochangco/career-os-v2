@@ -20,7 +20,7 @@ services:
           name: career-os-db
           property: connectionString
       - key: CAREEROS_AI_MODE
-        value: auto
+        value: live
       - key: CAREEROS_AI_PROVIDER
         value: groq
       - key: CAREEROS_AI_BASE_URL

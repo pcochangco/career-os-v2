@@ -4,6 +4,8 @@ from app.ai.dependencies import create_generation_service
 from app.ai.evaluation import outcome_metrics, quality_delta
 from app.ai.providers.base import RoadmapProviderError
 from app.ai.providers.compatible import (
+    CRITIC_PROMPT,
+    SYSTEM_PROMPT,
     OpenAICompatibleRoadmapProvider,
     portable_strict_schema,
     safe_provider_diagnostic,
@@ -124,6 +126,15 @@ def test_provider_diagnostic_contains_only_bounded_metadata() -> None:
     assert "raw provider detail" not in safe_provider_diagnostic(error)
 
 
+def test_prompts_encode_schedule_free_effort_and_exact_critic_contract() -> None:
+    assert "Never use minutes, hours, days, weeks" in SYSTEM_PROMPT
+    assert 'exactly one of "Short focused session"' in SYSTEM_PROMPT
+    assert "Do not request URLs" in CRITIC_PROMPT
+    assert "exactly four top-level keys: passed, score, summary, and issues" in CRITIC_PROMPT
+    assert "exactly severity, code, message, path, and repair_instruction" in CRITIC_PROMPT
+    assert "Do not use overall_pass, category, description, suggestion" in CRITIC_PROMPT
+
+
 def test_validation_diagnostic_excludes_generated_values() -> None:
     generated_value = "private model output that must not be logged"
     with pytest.raises(ValueError) as captured:
@@ -134,6 +145,17 @@ def test_validation_diagnostic_excludes_generated_values() -> None:
     assert diagnostic.startswith("validation_error;count=")
     assert "schema_version:missing" in diagnostic
     assert generated_value not in diagnostic
+
+
+def test_roadmap_schema_rejects_calendar_effort_labels() -> None:
+    draft = FixtureRoadmapProvider().generate(generation_input()).value
+    payload = draft.model_dump()
+    payload["milestones"][0]["steps"][0]["effort_label"] = "2-3 days"
+
+    with pytest.raises(ValueError) as captured:
+        RoadmapDraft.model_validate(payload)
+
+    assert "milestones.0.steps.0.effort_label" in safe_validation_diagnostic(captured.value)
 
 
 def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() -> None:
@@ -266,6 +288,39 @@ def test_compatible_provider_parses_with_portable_strict_schema(
         assert provider.client.chat.completions.calls == 2
         if first_failure == "local_validation":
             assert "validation_error" in request["messages"][-1]["content"]
+
+
+def test_persistent_provider_failure_reports_only_the_generation_stage() -> None:
+    class JsonValidationFailure(ValueError):
+        code = "json_validate_failed"
+
+    class Completions:
+        def create(self, **kwargs: object) -> object:
+            del kwargs
+            raise JsonValidationFailure("private generated response")
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="unused-test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        response_format_mode="json_object",
+        client=Client(),
+    )
+
+    with pytest.raises(RoadmapProviderError) as captured:
+        provider.generate(generation_input())
+
+    assert captured.value.diagnostic_code == (
+        "stage=generate;JsonValidationFailure;code=json_validate_failed"
+    )
+    assert "private generated response" not in captured.value.diagnostic_code
 
 
 def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:

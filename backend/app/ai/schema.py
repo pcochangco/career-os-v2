@@ -24,7 +24,11 @@ class RoadmapDraftStep(StrictModel):
     rationale: str = Field(min_length=12, max_length=600)
     action: str = Field(min_length=20, max_length=1600)
     completion_condition: str = Field(min_length=12, max_length=800)
-    effort_label: str = Field(min_length=3, max_length=80)
+    effort_label: Literal[
+        "Short focused session",
+        "Several focused sessions",
+        "Multi-session project",
+    ]
     evidence_suggestion: str = Field(min_length=3, max_length=500)
     prerequisite_step_keys: list[str] = Field(max_length=6)
     resource_queries: list[str] = Field(max_length=4)

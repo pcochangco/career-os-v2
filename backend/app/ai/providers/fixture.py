@@ -85,7 +85,7 @@ class FixtureRoadmapProvider:
                                 "The foundation map exists and every item has a confidence and "
                                 "gap note."
                             ),
-                            effort_label="One or two sessions",
+                            effort_label="Several focused sessions",
                             evidence_suggestion="Annotated foundation map",
                             prerequisite_step_keys=["define-success"],
                             resource_queries=[f"{goal_title} essential concepts roadmap"],
@@ -119,7 +119,7 @@ class FixtureRoadmapProvider:
                                 "A complete walkthrough exists with an explanation at every "
                                 "major stage."
                             ),
-                            effort_label="A few focused sessions",
+                            effort_label="Several focused sessions",
                             evidence_suggestion="Reproduced walkthrough with personal notes",
                             prerequisite_step_keys=["map-foundations"],
                             resource_queries=[f"{goal_title} complete practical tutorial"],
@@ -139,7 +139,7 @@ class FixtureRoadmapProvider:
                                 "The output works and includes a reflection describing two "
                                 "corrected gaps."
                             ),
-                            effort_label="Several sessions",
+                            effort_label="Several focused sessions",
                             evidence_suggestion="Working practice output and reflection",
                             prerequisite_step_keys=["learn-workflow"],
                             resource_queries=[f"{goal_title} practice project ideas"],
@@ -188,7 +188,7 @@ class FixtureRoadmapProvider:
                             completion_condition=(
                                 "A clear summary and final evidence artifact are ready to share."
                             ),
-                            effort_label="One focused session",
+                            effort_label="Short focused session",
                             evidence_suggestion="Shareable summary and evidence package",
                             prerequisite_step_keys=["independent-output"],
                             resource_queries=[f"how to present {goal_title} portfolio work"],

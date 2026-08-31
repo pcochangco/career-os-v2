@@ -55,9 +55,9 @@ The implemented product slice covers the complete first-run path:
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI-compatible
 provider uses the same strict schema, a separate critic pass, deterministic
-structural checks, and one bounded repair attempt. Production `auto` mode uses the
-configured live provider only when a server-side key exists and falls back to the
-quality-checked deterministic path when the provider is unavailable. Only roadmaps
+structural checks, and one bounded repair attempt. Production `live` mode requires
+the configured provider to succeed and returns an explicit service error when it does
+not; it never presents a deterministic fixture as a live AI result. Only roadmaps
 that pass the quality contract are persisted. Models produce resource search queries
 but never final URLs. The
 resource resolver uses those queries to retrieve topic-specific Wikipedia
@@ -159,10 +159,11 @@ managed PostgreSQL database in Render's Singapore region. The web service:
 - Reports whether live AI or the deterministic preview is active through health metadata.
 
 Create the Blueprint from this repository to receive an `onrender.com` URL. The
-checked-in configuration uses `auto` mode with Groq's OpenAI-compatible endpoint.
-Without a key it remains a no-cost deterministic preview. To enable live generation,
-add `CAREEROS_AI_API_KEY` as a secret directly in Render and redeploy. Never place
-the key in this repository, source-controlled Blueprint values, or application requests.
+checked-in production configuration uses `live` mode with Groq's OpenAI-compatible
+endpoint. Add `CAREEROS_AI_API_KEY` as a secret directly in Render before deploying;
+without it, the health endpoint reports a misconfiguration and roadmap generation is
+unavailable. Never place the key in this repository, source-controlled Blueprint
+values, or application requests.
 
 The free Render database is suitable only for an MVP preview and expires after
 30 days. Upgrade the database before storing data that must persist long-term.
