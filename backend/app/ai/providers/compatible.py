@@ -137,7 +137,7 @@ class OpenAICompatibleRoadmapProvider:
         response_format_mode: Literal["json_schema", "json_object"] = "json_schema",
         reasoning_effort: str | None = None,
         timeout_seconds: float = 90,
-        max_completion_tokens: int = 8192,
+        max_completion_tokens: int = 8000,
         client: OpenAI | None = None,
     ) -> None:
         self.source = provider_name

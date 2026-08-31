@@ -69,7 +69,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         ai_model="openai/gpt-oss-20b",
         ai_response_format="json_object",
         ai_reasoning_effort="",
-        ai_max_completion_tokens=8192,
+        ai_max_completion_tokens=8000,
         ai_api_key="server-secret",
     )
 
@@ -78,7 +78,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert settings.ai_model == "openai/gpt-oss-20b"
     assert settings.ai_response_format == "json_object"
     assert settings.ai_reasoning_effort is None
-    assert settings.ai_max_completion_tokens == 8192
+    assert settings.ai_max_completion_tokens == 8000
     assert settings.ai_configured is True
     assert settings.ai_generation_mode == "live_ai"
 
@@ -90,7 +90,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert provider.model == "openai/gpt-oss-20b"
     assert provider.response_format_mode == "json_object"
     assert provider.reasoning_effort is None
-    assert provider.max_completion_tokens == 8192
+    assert provider.max_completion_tokens == 8000
     assert client_config["base_url"] == "https://api.groq.com/openai/v1"
 
 
@@ -281,7 +281,7 @@ def test_compatible_provider_parses_with_portable_strict_schema(
     assert result.response_id == "groq-test-response"
     assert result.input_tokens == 12
     assert result.output_tokens == 34
-    assert request["max_completion_tokens"] == 8192
+    assert request["max_completion_tokens"] == 8000
     assert request["response_format"]["type"] == response_format_mode
     if response_format_mode == "json_schema":
         assert request["response_format"]["json_schema"]["strict"] is True
@@ -313,7 +313,7 @@ def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> 
 
         def create(self, **kwargs: object) -> Completion:
             self.calls += 1
-            assert kwargs["max_completion_tokens"] == 8192
+            assert kwargs["max_completion_tokens"] == 8000
             return Completion()
 
     class Chat:
@@ -328,7 +328,7 @@ def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> 
         base_url="https://api.groq.com/openai/v1",
         model="openai/gpt-oss-120b",
         response_format_mode="json_object",
-        max_completion_tokens=8192,
+        max_completion_tokens=8000,
         client=Client(),
     )
 

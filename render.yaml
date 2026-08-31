@@ -34,7 +34,7 @@ services:
       - key: CAREEROS_AI_REQUEST_TIMEOUT_SECONDS
         value: 60
       - key: CAREEROS_AI_MAX_COMPLETION_TOKENS
-        value: 8192
+        value: 8000
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_QUALITY_THRESHOLD
