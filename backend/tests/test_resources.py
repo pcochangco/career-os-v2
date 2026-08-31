@@ -31,12 +31,21 @@ class PermissiveResolver(ResourceResolver):
 
 
 class LegacyOrderResolver(PermissiveResolver):
-    def __init__(self, providers: list[RecordingProvider], ordered: list[ResourceCandidate]) -> None:
+    def __init__(
+        self,
+        providers: list[RecordingProvider],
+        ordered: list[ResourceCandidate],
+    ) -> None:
         super().__init__(providers)
         self.ordered = ordered
 
-    def resolve(self, queries: list[str]) -> list[ResourceCandidate]:
-        del queries
+    def resolve(
+        self,
+        queries: list[str],
+        *,
+        excluded_urls: set[str] | None = None,
+    ) -> list[ResourceCandidate]:
+        del queries, excluded_urls
         return self.ordered
 
 
@@ -138,6 +147,31 @@ def test_video_course_is_returned_before_supporting_articles() -> None:
     assert [resource.resource_type for resource in resources] == ["video", "article"]
 
 
+def test_resolver_excludes_the_current_resource_set() -> None:
+    first_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=first",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    next_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=next",
+        title="AI agent project tutorial",
+        resource_type="video",
+    )
+
+    resolver = ResourceResolver(
+        [RecordingProvider([first_video, next_video], name="youtube")]
+    )
+    resources = resolver.resolve(
+        ["AI agent engineering practical tutorial"],
+        excluded_urls={first_video.url},
+    )
+
+    assert [resource.url for resource in resources] == [next_video.url]
+
+
 def test_video_first_policy_refreshes_old_article_only_cache(client: TestClient) -> None:
     token = create_session(client)
     _, roadmap = create_accepted_roadmap(client, token)
@@ -212,6 +246,38 @@ def test_video_first_policy_refreshes_cache_when_video_is_not_first(client: Test
     assert refreshed.status_code == 200
     assert refreshed.json()["cached"] is False
     assert refreshed.json()["resources"][0]["url"].endswith("primary-video")
+
+
+def test_refresh_replaces_cached_resources_with_different_urls(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    first = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=first",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    next_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=next",
+        title="AI agent project tutorial",
+        resource_type="video",
+    )
+    provider = RecordingProvider([first], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    initial = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    provider.candidates = [first, next_video]
+    refreshed = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve?refresh=true",
+        headers=auth(token),
+    )
+
+    assert initial.status_code == refreshed.status_code == 200
+    assert [resource["url"] for resource in refreshed.json()["resources"]] == [next_video.url]
 
 
 def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> None:

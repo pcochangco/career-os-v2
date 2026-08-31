@@ -51,7 +51,13 @@ class ResourceResolver:
         self.cache_ttl = timedelta(hours=cache_ttl_hours)
         self.provider_names = {provider.name for provider in providers}
 
-    def resolve(self, queries: list[str]) -> list[ResourceCandidate]:
+    def resolve(
+        self,
+        queries: list[str],
+        *,
+        excluded_urls: set[str] | None = None,
+    ) -> list[ResourceCandidate]:
+        excluded_urls = excluded_urls or set()
         candidates_by_url: dict[str, ResourceCandidate] = {}
         for query in queries[:3]:
             clean_query = " ".join(query.split())[:300]
@@ -63,6 +69,8 @@ class ResourceResolver:
                 except ResourceProviderError:
                     continue
                 for candidate in candidates:
+                    if candidate.url in excluded_urls:
+                        continue
                     if not self.is_safe(candidate) or not self.is_relevant(candidate, clean_query):
                         continue
                     existing = candidates_by_url.get(candidate.url)

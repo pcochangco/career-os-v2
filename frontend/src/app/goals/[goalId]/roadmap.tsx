@@ -39,6 +39,7 @@ export default function RoadmapRoute() {
   const [resourcesLoading, setResourcesLoading] = useState(false);
   const [resourcesError, setResourcesError] = useState<string | null>(null);
   const [resourceAttempt, setResourceAttempt] = useState(0);
+  const [refreshingResources, setRefreshingResources] = useState(false);
 
   useEffect(() => {
     if (!token || !roadmapId) return;
@@ -123,6 +124,25 @@ export default function RoadmapRoute() {
       active = false;
     };
   }, [currentStep?.id, resourceAttempt, token]);
+
+  async function findAnotherResourceSet() {
+    if (!token || !currentStep || refreshingResources) return;
+    setRefreshingResources(true);
+    setResourcesError(null);
+    try {
+      const value = await apiRequest<StepResources>(
+        `/roadmap-steps/${currentStep.id}/resources/resolve?refresh=true`,
+        { method: "POST", token },
+      );
+      setStepResources(value);
+    } catch (caught) {
+      setResourcesError(
+        caught instanceof Error ? caught.message : "Different resources could not be found.",
+      );
+    } finally {
+      setRefreshingResources(false);
+    }
+  }
 
   const workDirty = Boolean(
     currentStep &&
@@ -419,6 +439,22 @@ export default function RoadmapRoute() {
                                   );
                                 })
                               : null}
+                            {!resourcesLoading && stepResources?.available ? (
+                              <Pressable
+                                accessibilityHint="Finds different relevant courses and resources"
+                                accessibilityRole="button"
+                                disabled={refreshingResources}
+                                onPress={() => void findAnotherResourceSet()}
+                                style={({ pressed }) => [
+                                  styles.findAnother,
+                                  (pressed || refreshingResources) && styles.resourceLinkPressed,
+                                ]}
+                              >
+                                <Text style={styles.findAnotherText}>
+                                  {refreshingResources ? "Finding another set…" : "Not your style? Find another"}
+                                </Text>
+                              </Pressable>
+                            ) : null}
                             {!resourcesLoading &&
                             (resourcesError || (stepResources && !stepResources.available)) ? (
                               <View style={styles.resourceNotice}>
@@ -713,6 +749,16 @@ const styles = StyleSheet.create({
   resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
   resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800", marginTop: 10 },
+  findAnother: {
+    alignItems: "center",
+    borderColor: colors.line,
+    borderRadius: 12,
+    borderWidth: 1,
+    minHeight: 42,
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
   resourceNotice: {
     backgroundColor: colors.background,
     borderColor: colors.line,

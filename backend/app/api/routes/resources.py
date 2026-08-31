@@ -76,6 +76,7 @@ def resolve_step_resources(
     user: CurrentUser,
     db: DbSession,
     resolver: Resolver,
+    refresh: bool = False,
 ) -> StepResourcesRead:
     step, roadmap, _ = get_owned_active_step(db, user, step_id)
     owned_roadmap = get_owned_roadmap(db, user, roadmap.id)
@@ -93,21 +94,22 @@ def resolve_step_resources(
         step.resource_queries,
     )
     cached = read_cached_resources(db, step.id) if cache_changed else cached
+    excluded_urls = {resource.url for resource in cached} if refresh else set()
     # Refresh pre-video-first caches once. This makes the new recommendation policy
     # useful immediately instead of waiting for the old seven-day cache window.
     needs_primary_video = resolver.has_video_provider and (
         not cached or cached[0].resource_type != "video"
     )
-    if cached and not cache_changed and not needs_primary_video:
+    if cached and not cache_changed and not needs_primary_video and not refresh:
         return to_resource_response(step.id, cached, cached=True)
 
-    if needs_primary_video:
+    if needs_primary_video or refresh or cache_changed:
         for resource in cached:
             db.delete(resource)
         db.commit()
         cached = []
 
-    candidates = resolver.resolve(step.resource_queries)
+    candidates = resolver.resolve(step.resource_queries, excluded_urls=excluded_urls)
     existing_urls = {resource.url for resource in cached}
     resources = [
         RoadmapStepResource(
