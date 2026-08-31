@@ -105,6 +105,63 @@ def test_current_step_resources_are_verified_persisted_and_cached(client: TestCl
     assert provider.calls == 1
 
 
+def test_video_course_is_returned_before_supporting_articles() -> None:
+    article = candidate(
+        provider="brave-web",
+        url="https://docs.example.com/agents",
+        title="AI agent reference guide",
+    )
+    video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=course",
+        title="AI agents full course",
+        resource_type="video",
+    )
+
+    resources = ResourceResolver(
+        [
+            RecordingProvider([article], name="brave-web"),
+            RecordingProvider([video], name="youtube"),
+        ]
+    ).resolve(["AI agent engineering practical tutorial"])
+
+    assert [resource.resource_type for resource in resources] == ["video", "article"]
+
+
+def test_video_first_policy_refreshes_old_article_only_cache(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    article_provider = RecordingProvider([candidate(provider="brave-web")], name="brave-web")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([article_provider])
+    first = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    assert first.json()["resources"][0]["resource_type"] == "article"
+
+    video_provider = RecordingProvider(
+        [
+            candidate(
+                provider="youtube",
+                url="https://www.youtube.com/watch?v=course",
+                title="AI agent full course",
+                resource_type="video",
+            )
+        ],
+        name="youtube",
+    )
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([video_provider])
+    refreshed = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["cached"] is False
+    assert [resource["resource_type"] for resource in refreshed.json()["resources"]] == ["video"]
+
+
 def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> None:
     token = create_session(client)
     _, roadmap = create_accepted_roadmap(client, token)
@@ -219,10 +276,12 @@ def test_youtube_provider_uses_search_then_current_video_metadata(
         YouTubeResourceProvider.videos_endpoint,
     ]
     assert requests[0]["params"]["key"] == "test-key"
+    assert requests[0]["params"]["q"].endswith("full course practical tutorial")
     assert resources[0].title == "Build reliable AI agents"
     assert resources[0].source_name == "Engineering Academy"
     assert resources[0].resource_type == "video"
     assert resources[0].quality_score > 0
+    assert "1h 10m" in resources[0].description
     assert resources[0].verified_at is not None
 
 

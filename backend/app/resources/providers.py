@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -32,12 +33,13 @@ class YouTubeResourceProvider:
         self.timeout_seconds = timeout_seconds
 
     def search(self, query: str, limit: int) -> list[ResourceCandidate]:
+        course_query = self._course_query(query)
         try:
             search_response = httpx.get(
                 self.search_endpoint,
                 params={
                     "part": "snippet",
-                    "q": query,
+                    "q": course_query,
                     "type": "video",
                     "order": "relevance",
                     "videoEmbeddable": "true",
@@ -105,10 +107,12 @@ class YouTubeResourceProvider:
             views = self._int_value(statistics.get("viewCount"))
             published_at = self._parse_datetime(snippet.get("publishedAt"))
             duration = str(item.get("contentDetails", {}).get("duration", "")).strip()
+            duration_seconds = self._duration_seconds(duration)
             published_label = published_at.strftime("%Y") if published_at else "recently"
             details_label = f"{self._view_label(views)} views · Published {published_label}"
-            if duration:
-                details_label = f"{details_label} · {duration.removeprefix('PT').lower()}"
+            if duration_seconds:
+                details_label = f"{details_label} · {self._duration_label(duration_seconds)}"
+            is_course = self._is_course_video(title, duration_seconds)
             resources.append(
                 ResourceCandidate(
                     provider=self.name,
@@ -118,12 +122,15 @@ class YouTubeResourceProvider:
                     source_name=channel,
                     description=details_label,
                     why_relevant=(
-                        f"A public learning video from {channel}, selected using its topic match, "
-                        "current metadata, and audience reach."
+                        f"A {'full-course or zero-to-hero' if is_course else 'practical'} "
+                        "video from "
+                        f"{channel}, selected for topic match, useful depth, and audience reach."
                     ),
                     thumbnail_url=thumbnail_url,
                     verified_at=verified_at,
-                    quality_score=self._quality_score(views, published_at),
+                    quality_score=self._quality_score(
+                        views, published_at, title, duration_seconds
+                    ),
                 )
             )
         return resources
@@ -153,13 +160,61 @@ class YouTubeResourceProvider:
         return str(views)
 
     @staticmethod
-    def _quality_score(views: int, published_at: datetime | None) -> float:
+    def _course_query(query: str) -> str:
+        """Ask YouTube for an approachable course rather than a reference page."""
+        normalized = " ".join(query.split())[:220]
+        return f"{normalized} full course practical tutorial"
+
+    @staticmethod
+    def _duration_seconds(value: str) -> int:
+        match = re.fullmatch(
+            r"PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?",
+            value,
+        )
+        if not match:
+            return 0
+        return (
+            int(match.group("hours") or 0) * 3600
+            + int(match.group("minutes") or 0) * 60
+            + int(match.group("seconds") or 0)
+        )
+
+    @staticmethod
+    def _duration_label(seconds: int) -> str:
+        hours, remainder = divmod(seconds, 3600)
+        minutes = remainder // 60
+        return f"{hours}h {minutes}m" if hours else f"{minutes}m"
+
+    @staticmethod
+    def _is_course_video(title: str, duration_seconds: int) -> bool:
+        lower_title = title.lower()
+        course_terms = ("full course", "complete course", "zero to hero", "bootcamp", "masterclass")
+        practical_terms = ("tutorial", "project", "build", "crash course", "for beginners")
+        return (
+            any(term in lower_title for term in course_terms)
+            or (
+                duration_seconds >= 45 * 60
+                and any(term in lower_title for term in practical_terms)
+            )
+            or duration_seconds >= 2 * 60 * 60
+        )
+
+    @classmethod
+    def _quality_score(
+        cls,
+        views: int,
+        published_at: datetime | None,
+        title: str,
+        duration_seconds: int,
+    ) -> float:
         popularity = min(math.log10(views + 1) / 7, 1.0) * 0.55
         if published_at is None:
-            return popularity + 0.15
-        age_days = max((datetime.now(UTC) - published_at).days, 0)
-        freshness = 0.35 if age_days <= 365 else 0.28 if age_days <= 1_095 else 0.18
-        return popularity + freshness
+            freshness = 0.15
+        else:
+            age_days = max((datetime.now(UTC) - published_at).days, 0)
+            freshness = 0.35 if age_days <= 365 else 0.28 if age_days <= 1_095 else 0.18
+        course_bonus = 0.5 if cls._is_course_video(title, duration_seconds) else 0.12
+        return popularity + freshness + course_bonus
 
 
 class BraveSearchResourceProvider:

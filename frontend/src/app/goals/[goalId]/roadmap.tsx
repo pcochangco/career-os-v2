@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   Brand,
@@ -73,6 +73,18 @@ export default function RoadmapRoute() {
       roadmap?.milestones
         .flatMap((milestone) => milestone.steps)
         .find((step) => step.id === roadmap.current_step_id) ?? null,
+    [roadmap],
+  );
+
+  const milestoneProgress = useMemo(
+    () =>
+      (roadmap?.milestones ?? []).map((milestone) => {
+        const completed = milestone.steps.filter(
+          (step) => step.progress_status === "completed",
+        ).length;
+        const isCurrent = milestone.steps.some((step) => step.progress_status === "current");
+        return { ...milestone, completed, isCurrent };
+      }),
     [roadmap],
   );
 
@@ -196,6 +208,50 @@ export default function RoadmapRoute() {
         />
       </View>
 
+      <View style={styles.mapCard}>
+        <Text style={styles.mapEyebrow}>Your roadmap map</Text>
+        <Text style={styles.mapTitle}>Build toward: {roadmap.goal_outcome}</Text>
+        <Text style={styles.mapBody}>
+          Each milestone unlocks the next piece of proof for your goal.
+        </Text>
+        <View style={styles.mapMilestones}>
+          {milestoneProgress.map((milestone, index) => (
+            <View key={milestone.id} style={styles.mapMilestoneRow}>
+              <View style={styles.mapRail}>
+                <View
+                  style={[
+                    styles.mapNode,
+                    milestone.completed === milestone.steps.length && styles.mapNodeCompleted,
+                    milestone.isCurrent && styles.mapNodeCurrent,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.mapNodeText,
+                      (milestone.isCurrent || milestone.completed === milestone.steps.length) &&
+                        styles.mapNodeTextActive,
+                    ]}
+                  >
+                    {milestone.completed === milestone.steps.length ? "✓" : milestone.position}
+                  </Text>
+                </View>
+                {index < milestoneProgress.length - 1 ? <View style={styles.mapConnector} /> : null}
+              </View>
+              <View style={styles.mapMilestoneContent}>
+                <Text style={styles.mapMilestoneTitle}>{milestone.title}</Text>
+                <Text numberOfLines={2} style={styles.mapMilestoneOutcome}>
+                  {milestone.outcome}
+                </Text>
+                <Text style={styles.mapMilestoneProgress}>
+                  {milestone.completed}/{milestone.steps.length} missions complete
+                  {milestone.isCurrent ? " · You are here" : ""}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
       {roadmap.current_step_id === null ? (
         <View style={styles.goalComplete}>
           <Text style={styles.goalCompleteEyebrow}>Goal complete</Text>
@@ -214,6 +270,7 @@ export default function RoadmapRoute() {
             <View style={styles.milestoneHeader}>
               <Text style={styles.milestoneLabel}>Milestone {milestone.position}</Text>
               <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+              <Text style={styles.milestoneOutcome}>{milestone.outcome}</Text>
             </View>
             {milestone.steps.map((step, stepIndex) => {
               const isCurrent = step.progress_status === "current";
@@ -262,9 +319,12 @@ export default function RoadmapRoute() {
                       isBlocked && styles.blockedCard,
                     ]}
                   >
-                    <Text style={[styles.stateLabel, isCurrent && styles.currentState]}>
-                      {stateLabels[step.progress_status]}
-                    </Text>
+                    <View style={styles.missionMeta}>
+                      <Text style={styles.missionKind}>{step.kind}</Text>
+                      <Text style={[styles.stateLabel, isCurrent && styles.currentState]}>
+                        {stateLabels[step.progress_status]}
+                      </Text>
+                    </View>
                     <Text style={styles.stepTitle}>{step.title}</Text>
                     {isCompleted &&
                     (step.notes || step.evidence_summary || step.evidence_url) ? (
@@ -305,20 +365,39 @@ export default function RoadmapRoute() {
                               </View>
                             ) : null}
                             {!resourcesLoading && stepResources?.available
-                              ? stepResources.resources.map((resource) => (
+                              ? stepResources.resources.map((resource, resourceIndex) => {
+                                  const isPrimaryVideo =
+                                    resource.resource_type === "video" &&
+                                    resourceIndex ===
+                                      stepResources.resources.findIndex(
+                                        (item) => item.resource_type === "video",
+                                      );
+                                  return (
                                   <Pressable
-                                    accessibilityHint="Opens this verified resource"
+                                    accessibilityHint={
+                                      isPrimaryVideo
+                                        ? "Opens the primary video course or tutorial"
+                                        : "Opens this recommended resource"
+                                    }
                                     accessibilityRole="link"
                                     key={resource.id}
                                     onPress={() => void Linking.openURL(resource.url)}
                                     style={({ pressed }) => [
                                       styles.resourceCard,
+                                      isPrimaryVideo && styles.primaryVideoCard,
                                       pressed && styles.resourceLinkPressed,
                                     ]}
                                   >
+                                    {isPrimaryVideo && resource.thumbnail_url ? (
+                                      <Image
+                                        accessibilityLabel={`${resource.title} video thumbnail`}
+                                        source={{ uri: resource.thumbnail_url }}
+                                        style={styles.courseThumbnail}
+                                      />
+                                    ) : null}
                                     <View style={styles.resourceMeta}>
                                       <Text style={styles.resourceType}>
-                                        {resource.resource_type}
+                                        {isPrimaryVideo ? "Start here · video course" : resource.resource_type}
                                       </Text>
                                       <Text style={styles.resourceSource}>
                                         {resource.source_name}
@@ -333,9 +412,12 @@ export default function RoadmapRoute() {
                                     <Text style={styles.resourceReason}>
                                       Why this fits: {resource.why_relevant}
                                     </Text>
-                                    <Text style={styles.resourceOpen}>Open resource ↗</Text>
+                                    <Text style={styles.resourceOpen}>
+                                      {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
+                                    </Text>
                                   </Pressable>
-                                ))
+                                  );
+                                })
                               : null}
                             {!resourcesLoading &&
                             (resourcesError || (stepResources && !stepResources.available)) ? (
@@ -473,6 +555,33 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: { backgroundColor: colors.forest, borderRadius: 4, height: 7 },
+  mapCard: {
+    backgroundColor: colors.forestSoft,
+    borderColor: "#C7D9CB",
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 30,
+    padding: 18,
+  },
+  mapEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  mapTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 23, marginTop: 5 },
+  mapBody: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  mapMilestones: { marginTop: 17 },
+  mapMilestoneRow: { flexDirection: "row", minHeight: 76 },
+  mapRail: { alignItems: "center", width: 33 },
+  mapNode: {
+    alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 15,
+    borderWidth: 2, height: 30, justifyContent: "center", width: 30,
+  },
+  mapNodeCurrent: { backgroundColor: colors.forest, borderColor: colors.forest },
+  mapNodeCompleted: { backgroundColor: colors.forest, borderColor: colors.forest },
+  mapNodeText: { color: colors.muted, fontSize: 12, fontWeight: "900" },
+  mapNodeTextActive: { color: colors.white },
+  mapConnector: { backgroundColor: "#B8CFBD", flex: 1, marginVertical: 3, width: 2 },
+  mapMilestoneContent: { flex: 1, paddingBottom: 14, paddingLeft: 10 },
+  mapMilestoneTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", lineHeight: 20 },
+  mapMilestoneOutcome: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  mapMilestoneProgress: { color: colors.forestDark, fontSize: 11, fontWeight: "800", marginTop: 5 },
   goalComplete: {
     backgroundColor: colors.forestSoft,
     borderRadius: 18,
@@ -497,6 +606,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   milestoneTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 4 },
+  milestoneOutcome: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   pathRow: { alignItems: "stretch", flexDirection: "row", minHeight: 100 },
   rail: { alignItems: "center", width: 54 },
   node: {
@@ -535,11 +645,15 @@ const styles = StyleSheet.create({
   currentCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2 },
   completedCard: { backgroundColor: colors.card },
   blockedCard: { opacity: 0.68 },
+  missionMeta: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 7 },
+  missionKind: {
+    backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 10,
+    fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 4, textTransform: "uppercase",
+  },
   stateLabel: {
     color: colors.muted,
     fontSize: 11,
     fontWeight: "800",
-    marginBottom: 6,
     textTransform: "uppercase",
   },
   currentState: { color: colors.forest },
@@ -573,6 +687,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 14,
   },
+  primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
+  courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
   resourceLinkPressed: { opacity: 0.72 },
   resourceMeta: { alignItems: "center", flexDirection: "row", gap: 8 },
   resourceType: {

@@ -93,8 +93,19 @@ def resolve_step_resources(
         step.resource_queries,
     )
     cached = read_cached_resources(db, step.id) if cache_changed else cached
-    if cached and not cache_changed:
+    # Refresh pre-video-first caches once. This makes the new recommendation policy
+    # useful immediately instead of waiting for the old seven-day cache window.
+    needs_primary_video = resolver.has_video_provider and not any(
+        resource.resource_type == "video" for resource in cached
+    )
+    if cached and not cache_changed and not needs_primary_video:
         return to_resource_response(step.id, cached, cached=True)
+
+    if needs_primary_video:
+        for resource in cached:
+            db.delete(resource)
+        db.commit()
+        cached = []
 
     candidates = resolver.resolve(step.resource_queries)
     existing_urls = {resource.url for resource in cached}

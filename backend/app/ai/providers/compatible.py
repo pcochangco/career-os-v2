@@ -103,7 +103,10 @@ Every step must tell the user what to do and require observable evidence for com
 Use learn steps only where knowledge is required, practice steps to build ability, and prove steps
 to demonstrate the final outcome. Use two to five milestones and five to twelve total steps.
 Do not create daily schedules, deadlines, streaks, overdue work, or generic filler. Do not invent
-or include URLs. Provide short, topic-specific resource search queries instead.
+or include URLs. Provide short, topic-specific resource search queries instead. Write resource
+queries like a practical mentor: for learn steps seek a focused "full course" or "zero to hero"
+tutorial; for practice steps seek a project walkthrough; for prove steps seek a portfolio or
+demonstration example. A separate service will find and verify the actual links.
 Every effort_label must be exactly one of "Short focused session", "Several focused sessions", or
 "Multi-session project". Never use minutes, hours, days, weeks, dates, deadlines, or calendar
 durations in an effort label.

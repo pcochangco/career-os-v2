@@ -70,11 +70,18 @@ class ResourceResolver:
                         existing, clean_query
                     ):
                         candidates_by_url[candidate.url] = candidate
-        return sorted(
+        ranked = sorted(
             candidates_by_url.values(),
             key=lambda candidate: self.rank(candidate, " ".join(queries)),
             reverse=True,
-        )[: self.max_results]
+        )
+        # A learner should have a practical starting point first. Articles remain useful
+        # supporting material, but should not crowd out an available course or tutorial.
+        videos = [candidate for candidate in ranked if candidate.resource_type == "video"]
+        supporting = [candidate for candidate in ranked if candidate.resource_type != "video"]
+        if not videos:
+            return supporting[: self.max_results]
+        return (videos + supporting)[: self.max_results]
 
     @classmethod
     def is_relevant(cls, candidate: ResourceCandidate, query: str) -> bool:
@@ -105,8 +112,12 @@ class ResourceResolver:
         topic_tokens = cls.topic_tokens(query)
         content_tokens = cls.normalized_tokens(f"{candidate.title} {candidate.description}")
         overlap = len(topic_tokens & content_tokens) / max(len(topic_tokens), 1)
-        source_bonus = 0.05 if candidate.resource_type == "video" else 0.0
+        source_bonus = 0.35 if candidate.resource_type == "video" else 0.0
         return candidate.quality_score + overlap + source_bonus
+
+    @property
+    def has_video_provider(self) -> bool:
+        return "youtube" in self.provider_names
 
     @classmethod
     def topic_tokens(cls, value: str) -> set[str]:
