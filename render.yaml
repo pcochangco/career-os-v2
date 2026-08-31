@@ -32,7 +32,7 @@ services:
       - key: CAREEROS_AI_REPAIR_MODEL
         value: qwen/qwen3.8-27b
       - key: CAREEROS_AI_DISCOVERY_MODEL
-        value: qwen/qwen3.8-27b
+        value: qwen/qwen3.6-27b
       - key: CAREEROS_AI_RESPONSE_FORMAT
         value: json_object
       - key: CAREEROS_AI_REASONING_EFFORT
@@ -47,6 +47,10 @@ services:
         value: 4800
       - key: CAREEROS_AI_DISCOVERY_MAX_COMPLETION_TOKENS
         value: 700
+      - key: CAREEROS_AI_TRANSIENT_RETRY_ATTEMPTS
+        value: 1
+      - key: CAREEROS_AI_TRANSIENT_RETRY_DELAY_SECONDS
+        value: 15
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_QUALITY_THRESHOLD

@@ -4,7 +4,11 @@ from fastapi import Depends
 
 from app.ai.providers.base import RoadmapProviderError
 from app.ai.providers.fixture import FixtureRoadmapProvider
-from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
+from app.ai.service import (
+    FallbackRoadmapGenerationService,
+    RetryingRoadmapGenerationService,
+    RoadmapGenerationService,
+)
 from app.core.config import Settings, get_settings
 from app.discovery.service import AdaptiveDiscoveryService, FixtureDiscoveryProvider
 
@@ -17,7 +21,7 @@ def fixture_service(settings: Settings) -> RoadmapGenerationService:
     )
 
 
-def live_service(settings: Settings) -> RoadmapGenerationService:
+def live_service(settings: Settings) -> RetryingRoadmapGenerationService:
     api_key = settings.ai_api_key
     if api_key is None or not api_key.get_secret_value().strip():
         raise RoadmapProviderError("Live AI is selected but no API key is configured")
@@ -40,16 +44,20 @@ def live_service(settings: Settings) -> RoadmapGenerationService:
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
     )
-    return RoadmapGenerationService(
-        provider=provider,
-        quality_threshold=settings.ai_quality_threshold,
-        max_repair_attempts=settings.ai_max_repair_attempts,
+    return RetryingRoadmapGenerationService(
+        RoadmapGenerationService(
+            provider=provider,
+            quality_threshold=settings.ai_quality_threshold,
+            max_repair_attempts=settings.ai_max_repair_attempts,
+        ),
+        max_transient_retries=settings.ai_transient_retry_attempts,
+        retry_delay_seconds=settings.ai_transient_retry_delay_seconds,
     )
 
 
 def create_generation_service(
     settings: Settings,
-) -> RoadmapGenerationService | FallbackRoadmapGenerationService:
+) -> RoadmapGenerationService | RetryingRoadmapGenerationService | FallbackRoadmapGenerationService:
     fallback = fixture_service(settings)
     if settings.ai_mode == "fixture":
         return fallback
@@ -104,7 +112,7 @@ def get_discovery_service() -> AdaptiveDiscoveryService:
 
 
 GenerationService = Annotated[
-    RoadmapGenerationService | FallbackRoadmapGenerationService,
+    RoadmapGenerationService | RetryingRoadmapGenerationService | FallbackRoadmapGenerationService,
     Depends(get_generation_service),
 ]
 

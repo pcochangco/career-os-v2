@@ -1,12 +1,15 @@
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from app.ai.dependencies import get_discovery_service
+from app.ai.providers.base import ProviderResult
 from app.ai.schema import DiscoveryContextAnswer, DiscoveryQuestionDraft
 from app.discovery.service import (
     AdaptiveDiscoveryService,
     DiscoveryValidationError,
     FixtureDiscoveryProvider,
 )
+from app.main import app
 
 
 def create_session(client: TestClient) -> str:
@@ -80,7 +83,9 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert generated.json()["quality_report"]["passed"] is True
 
 
-def test_adaptive_discovery_validates_answer_options_and_choice_mode(client: TestClient) -> None:
+def test_adaptive_discovery_validates_answer_options_and_allows_multiple_choices(
+    client: TestClient,
+) -> None:
     token = create_session(client)
     headers = auth(token)
     goal = client.post(
@@ -109,14 +114,53 @@ def test_adaptive_discovery_validates_answer_options_and_choice_mode(client: Tes
         headers=headers,
         json={"selected_option_keys": ["work-experience"]},
     ).json()["question"]
-    assert third_question["selection_mode"] == "single"
+    assert third_question["selection_mode"] == "multiple"
 
     multiple = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{third_question['id']}/answer",
         headers=headers,
         json={"selected_option_keys": ["proof", "confidence"]},
     )
-    assert multiple.status_code == 422
+    assert multiple.status_code == 200
+    assert multiple.json()["status"] == "ready"
+
+
+def test_first_discovery_turn_applies_the_suggested_goal_title(client: TestClient) -> None:
+    class TitleProvider:
+        def next_question(self, **kwargs):
+            del kwargs
+            return ProviderResult(
+                value=DiscoveryQuestionDraft(
+                    is_complete=False,
+                    suggested_goal_title="Become an AI Automation Engineer",
+                    question_key="focus-area",
+                    question="Which part of this goal matters most to you right now?",
+                    help_text="Choose every direction that would make the roadmap useful.",
+                    options=[
+                        {"key": "projects", "label": "Practical projects"},
+                        {"key": "roles", "label": "Career roles"},
+                        {"key": "skills", "label": "Technical skills"},
+                    ],
+                )
+            )
+
+    app.dependency_overrides[get_discovery_service] = lambda: AdaptiveDiscoveryService(
+        TitleProvider()
+    )
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals", headers=headers, json={"title": "become ai automation engineer"}
+    ).json()
+
+    response = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/next", headers=headers
+    )
+    assert response.status_code == 200
+    assert response.json()["goal_title"] == "Become an AI Automation Engineer"
+    assert client.get(f"/api/v1/goals/{goal['id']}", headers=headers).json()["title"] == (
+        "Become an AI Automation Engineer"
+    )
 
 
 def test_discovery_service_rejects_early_or_repeated_provider_questions() -> None:

@@ -35,13 +35,14 @@ class DiscoveryQuestionRead(BaseModel):
     question_key: str
     question: str
     help_text: str
-    selection_mode: Literal["single", "multiple"]
+    selection_mode: Literal["multiple"]
     options: list[DiscoveryOptionRead]
     placeholder: str
 
 
 class DiscoveryStateRead(BaseModel):
     status: Literal["unstarted", "question", "ready"]
+    goal_title: str = ""
     question: DiscoveryQuestionRead | None = None
     context_summary: list[str] = Field(default_factory=list)
     completion_reason: str = ""

@@ -183,7 +183,7 @@ def to_discovery_question_read(question: GoalDiscoveryQuestion) -> DiscoveryQues
         question_key=question.question_key,
         question=question.question,
         help_text=question.help_text,
-        selection_mode=question.selection_mode,
+        selection_mode="multiple",
         options=[DiscoveryOptionRead.model_validate(option) for option in question.options],
         placeholder=question.placeholder,
     )
@@ -192,21 +192,31 @@ def to_discovery_question_read(question: GoalDiscoveryQuestion) -> DiscoveryQues
 def to_discovery_state(db: Session, goal: Goal) -> DiscoveryStateRead:
     revision = latest_question_revision(db, goal)
     if revision is None:
-        return DiscoveryStateRead(status="unstarted")
+        return DiscoveryStateRead(status="unstarted", goal_title=goal.title)
     questions = adaptive_questions(db, goal, revision)
     pending = next(
         (question for question in reversed(questions) if question.status == "pending"), None
     )
     if pending is not None:
-        return DiscoveryStateRead(status="question", question=to_discovery_question_read(pending))
+        return DiscoveryStateRead(
+            status="question", goal_title=goal.title, question=to_discovery_question_read(pending)
+        )
     context = adaptive_context(db, goal, revision)
     if goal.status == "ready_to_generate":
         return DiscoveryStateRead(
             status="ready",
+            goal_title=goal.title,
             context_summary=[f"{answer.question}: {answer.answer}" for answer in context],
             completion_reason="You have given enough detail to shape a focused roadmap.",
         )
-    return DiscoveryStateRead(status="unstarted")
+    return DiscoveryStateRead(status="unstarted", goal_title=goal.title)
+
+
+def apply_goal_title_suggestion(goal: Goal, suggested_title: str) -> None:
+    """Apply the first-turn presentation correction without changing the goal's meaning."""
+    normalized = " ".join(suggested_title.split()).strip(" .")
+    if 3 <= len(normalized) <= 140:
+        goal.title = normalized
 
 
 def start_next_discovery_question(
@@ -247,6 +257,7 @@ def start_next_discovery_question(
             ),
         )
     question = result.value
+    apply_goal_title_suggestion(goal, question.suggested_goal_title)
     goal.status = "discovery"
     db.add(
         GoalDiscoveryQuestion(
@@ -256,7 +267,7 @@ def start_next_discovery_question(
             question_key=question.question_key,
             question=question.question,
             help_text=question.help_text,
-            selection_mode=question.selection_mode,
+            selection_mode="multiple",
             options=[option.model_dump() for option in question.options],
             placeholder=question.placeholder,
         )
@@ -295,7 +306,7 @@ def advance_discovery(
             question_key=question.question_key,
             question=question.question,
             help_text=question.help_text,
-            selection_mode=question.selection_mode,
+            selection_mode="multiple",
             options=[option.model_dump() for option in question.options],
             placeholder=question.placeholder,
         )
@@ -363,11 +374,6 @@ def answer_adaptive_discovery_question(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Choose one of the listed answers",
         )
-    if question.selection_mode == "single" and len(payload.selected_option_keys) > 1:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose one answer"
-        )
-
     selected_labels = [options_by_key[key] for key in payload.selected_option_keys]
     answer_parts = selected_labels + ([payload.custom_answer] if payload.custom_answer else [])
     answer_text = "Skipped" if payload.skipped else "; ".join(answer_parts)

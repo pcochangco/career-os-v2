@@ -31,10 +31,11 @@ class DiscoveryOption(StrictModel):
 
 class DiscoveryQuestionDraft(StrictModel):
     is_complete: bool
+    suggested_goal_title: str = Field(default="", max_length=140)
     question_key: str = Field(default="", max_length=64, pattern=r"^[a-z0-9-]*$")
     question: str = Field(default="", max_length=400)
     help_text: str = Field(default="", max_length=500)
-    selection_mode: Literal["single", "multiple"] = "single"
+    selection_mode: Literal["multiple"] = "multiple"
     options: list[DiscoveryOption] = Field(default_factory=list, max_length=6)
     placeholder: str = Field(default="", max_length=180)
     completion_reason: str = Field(default="", max_length=500)
@@ -42,6 +43,8 @@ class DiscoveryQuestionDraft(StrictModel):
     @model_validator(mode="after")
     def require_an_actionable_question(self) -> "DiscoveryQuestionDraft":
         """Make incomplete discovery turns retryable structured-output failures."""
+        if self.suggested_goal_title and len(self.suggested_goal_title.strip()) < 3:
+            raise ValueError("A suggested goal title must be useful when provided")
         if self.is_complete:
             return self
         if not self.question_key:

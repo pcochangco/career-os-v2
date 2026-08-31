@@ -20,7 +20,11 @@ from app.ai.schema import (
     RoadmapDraft,
     RoadmapGenerationInput,
 )
-from app.ai.service import FallbackRoadmapGenerationService, RoadmapGenerationService
+from app.ai.service import (
+    FallbackRoadmapGenerationService,
+    RetryingRoadmapGenerationService,
+    RoadmapGenerationService,
+)
 from app.core.config import Settings
 from evals.diagnose_live import diagnose
 
@@ -76,7 +80,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         ai_model="openai/gpt-oss-120b",
         ai_critic_model="openai/gpt-oss-20b",
         ai_repair_model="qwen/qwen3.8-27b",
-        ai_discovery_model="qwen/qwen3.8-27b",
+        ai_discovery_model="qwen/qwen3.6-27b",
         ai_response_format="json_object",
         ai_reasoning_effort="low",
         ai_max_completion_tokens=5000,
@@ -91,7 +95,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
     assert settings.ai_model == "openai/gpt-oss-120b"
     assert settings.resolved_ai_critic_model == "openai/gpt-oss-20b"
     assert settings.resolved_ai_repair_model == "qwen/qwen3.8-27b"
-    assert settings.resolved_ai_discovery_model == "qwen/qwen3.8-27b"
+    assert settings.resolved_ai_discovery_model == "qwen/qwen3.6-27b"
     assert settings.ai_response_format == "json_object"
     assert settings.ai_reasoning_effort == "low"
     assert settings.ai_max_completion_tokens == 5000
@@ -111,7 +115,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         "generate": "openai/gpt-oss-120b",
         "critique": "openai/gpt-oss-20b",
         "repair": "qwen/qwen3.8-27b",
-        "discovery": "qwen/qwen3.8-27b",
+        "discovery": "qwen/qwen3.6-27b",
     }
     assert provider.stage_max_completion_tokens == {
         "generate": 5000,
@@ -134,7 +138,7 @@ def test_discovery_provider_uses_its_own_model_and_token_cap() -> None:
             '{"is_complete":false,"question_key":"focus-area",'
             '"question":"Which specialization matters most to you?",'
             '"help_text":"Choose the direction your roadmap should emphasize.",'
-            '"selection_mode":"single",'
+            '"selection_mode":"multiple",'
             '"options":[{"key":"agents","label":"AI agents"},'
             '{"key":"testing","label":"Testing automation"},'
             '{"key":"workflows","label":"Business workflows"}],'
@@ -497,7 +501,7 @@ def test_discovery_retries_an_incomplete_question_missing_options() -> None:
     invalid = (
         '{"is_complete":false,"question_key":"specialty","question":"Which specialty "'
         '"will you focus on?","help_text":"Choose the direction that best fits your goal.",'
-        '"selection_mode":"single","options":[],"placeholder":""}'
+        '"selection_mode":"multiple","options":[],"placeholder":""}'
     )
     valid = DiscoveryQuestionDraft.model_validate(
         {
@@ -505,7 +509,7 @@ def test_discovery_retries_an_incomplete_question_missing_options() -> None:
             "question_key": "specialty",
             "question": "Which specialty will you focus on?",
             "help_text": "Choose the direction that best fits your goal.",
-            "selection_mode": "single",
+            "selection_mode": "multiple",
             "options": [
                 {"key": "agents", "label": "AI agents"},
                 {"key": "workflows", "label": "Business workflows"},
@@ -613,6 +617,51 @@ def test_live_failure_falls_back_to_the_quality_checked_fixture() -> None:
 
     assert outcome.provider == "fixture"
     assert outcome.quality.passed is True
+
+
+def test_live_generation_retries_one_transient_capacity_failure() -> None:
+    class RateLimitedOnceProvider(FixtureRoadmapProvider):
+        calls = 0
+
+        def generate(self, generation_input: RoadmapGenerationInput):
+            self.calls += 1
+            if self.calls == 1:
+                raise RoadmapProviderError(
+                    "simulated transient limit",
+                    diagnostic_code=(
+                        "stage=repair;APIStatusError;status_code=413;"
+                        "code=rate_limit_exceeded;type=tokens"
+                    ),
+                )
+            return super().generate(generation_input)
+
+    waits: list[float] = []
+    provider = RateLimitedOnceProvider()
+    service = RetryingRoadmapGenerationService(
+        RoadmapGenerationService(provider),
+        max_transient_retries=1,
+        retry_delay_seconds=15,
+        sleeper=waits.append,
+    )
+
+    outcome = service.generate(generation_input())
+
+    assert outcome.quality.passed is True
+    assert provider.calls == 2
+    assert waits == [15]
+
+
+def test_live_generation_does_not_retry_non_transient_provider_failures() -> None:
+    provider = FailingProvider()
+    service = RetryingRoadmapGenerationService(
+        RoadmapGenerationService(provider),
+        max_transient_retries=1,
+        retry_delay_seconds=15,
+        sleeper=lambda _: (_ for _ in ()).throw(AssertionError("must not sleep")),
+    )
+
+    with pytest.raises(RoadmapProviderError):
+        service.generate(generation_input())
 
 
 def test_evaluation_metrics_compare_without_exposing_roadmap_text() -> None:

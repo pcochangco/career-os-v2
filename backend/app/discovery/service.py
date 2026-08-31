@@ -121,7 +121,7 @@ class FixtureDiscoveryProvider:
                     question_key="biggest-gap",
                     question="What is the biggest thing holding you back?",
                     help_text="Pick the gap the roadmap should solve first.",
-                    selection_mode="single",
+                    selection_mode="multiple",
                     options=[
                         DiscoveryOption(
                             key="know-what-to-learn", label="Knowing what to learn next"

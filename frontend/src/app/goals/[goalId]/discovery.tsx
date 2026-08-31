@@ -49,10 +49,6 @@ export default function DiscoveryRoute() {
 
   function toggleOption(key: string) {
     if (!question) return;
-    if (question.selection_mode === "single") {
-      setSelected((current) => current[0] === key ? [] : [key]);
-      return;
-    }
     setSelected((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   }
 
@@ -121,7 +117,7 @@ export default function DiscoveryRoute() {
   return (
     <Screen>
       <Brand />
-      <Text style={styles.eyebrow}>Tailoring your path · Question {question?.position ?? 1}</Text>
+      <Text style={styles.eyebrow}>{state.goal_title || "Your goal"} · Question {question?.position ?? 1}</Text>
       <Heading>{question?.question ?? "Let's understand your goal."}</Heading>
       <Body>{question?.help_text}</Body>
       <View style={styles.chips}>
@@ -139,7 +135,7 @@ export default function DiscoveryRoute() {
           );
         })}
       </View>
-      <Text style={styles.or}>Or answer in your own words</Text>
+      <Text style={styles.or}>Choose every suggestion that applies, or answer in your own words</Text>
       <Field
         multiline
         onChangeText={setCustomAnswer}

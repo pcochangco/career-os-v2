@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from time import perf_counter
+from time import perf_counter, sleep
 
 from app.ai.providers.base import ProviderResult, RoadmapProvider, RoadmapProviderError
 from app.ai.quality import combine_quality, evaluate_structure
@@ -106,6 +107,53 @@ class RoadmapGenerationService:
         return input_tokens + result.input_tokens, output_tokens + result.output_tokens
 
 
+class RetryingRoadmapGenerationService:
+    """Retry only bounded, transient provider capacity failures in strict live mode."""
+
+    def __init__(
+        self,
+        primary: RoadmapGenerationService,
+        *,
+        max_transient_retries: int,
+        retry_delay_seconds: float,
+        sleeper: Callable[[float], None] = sleep,
+    ) -> None:
+        self.primary = primary
+        self.max_transient_retries = max_transient_retries
+        self.retry_delay_seconds = retry_delay_seconds
+        self.sleeper = sleeper
+
+    @property
+    def provider(self) -> RoadmapProvider:
+        return self.primary.provider
+
+    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+        for attempt in range(self.max_transient_retries + 1):
+            try:
+                return self.primary.generate(generation_input)
+            except RoadmapProviderError as error:
+                if (
+                    not self._is_transient_capacity_error(error)
+                    or attempt >= self.max_transient_retries
+                ):
+                    raise
+                delay = self.retry_delay_seconds * (attempt + 1)
+                logger.warning(
+                    "Retrying transient roadmap provider failure attempt=%s delay_seconds=%s "
+                    "failure_code=%s",
+                    attempt + 1,
+                    round(delay, 2),
+                    error.diagnostic_code,
+                )
+                self.sleeper(delay)
+        raise AssertionError("Transient retry loop exited unexpectedly")
+
+    @staticmethod
+    def _is_transient_capacity_error(error: RoadmapProviderError) -> bool:
+        diagnostic = error.diagnostic_code
+        return "code=rate_limit_exceeded" in diagnostic or "status_code=429" in diagnostic
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -114,7 +162,7 @@ class FallbackRoadmapGenerationService:
 
     def __init__(
         self,
-        primary: RoadmapGenerationService,
+        primary: RoadmapGenerationService | RetryingRoadmapGenerationService,
         fallback: RoadmapGenerationService,
     ) -> None:
         self.primary = primary

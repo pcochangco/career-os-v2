@@ -125,13 +125,14 @@ export type DiscoveryQuestion = {
   question_key: string;
   question: string;
   help_text: string;
-  selection_mode: "single" | "multiple";
+  selection_mode: "multiple";
   options: DiscoveryOption[];
   placeholder: string;
 };
 
 export type DiscoveryState = {
   status: "unstarted" | "question" | "ready";
+  goal_title: string;
   question: DiscoveryQuestion | null;
   context_summary: string[];
   completion_reason: string;
