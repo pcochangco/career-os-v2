@@ -30,6 +30,16 @@ class PermissiveResolver(ResourceResolver):
         return True
 
 
+class LegacyOrderResolver(PermissiveResolver):
+    def __init__(self, providers: list[RecordingProvider], ordered: list[ResourceCandidate]) -> None:
+        super().__init__(providers)
+        self.ordered = ordered
+
+    def resolve(self, queries: list[str]) -> list[ResourceCandidate]:
+        del queries
+        return self.ordered
+
+
 class StubResponse:
     def __init__(self, payload: dict) -> None:
         self.payload = payload
@@ -160,6 +170,48 @@ def test_video_first_policy_refreshes_old_article_only_cache(client: TestClient)
     assert refreshed.status_code == 200
     assert refreshed.json()["cached"] is False
     assert [resource["resource_type"] for resource in refreshed.json()["resources"]] == ["video"]
+
+
+def test_video_first_policy_refreshes_cache_when_video_is_not_first(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    old_article = candidate(provider="brave-web")
+    old_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=old-video",
+        title="AI agent tutorial",
+        resource_type="video",
+    )
+    app.dependency_overrides[get_resource_resolver] = lambda: LegacyOrderResolver(
+        [RecordingProvider([], name="brave-web"), RecordingProvider([], name="youtube")],
+        [old_article, old_video],
+    )
+    client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    refreshed_provider = RecordingProvider(
+        [
+            candidate(
+                provider="youtube",
+                url="https://www.youtube.com/watch?v=primary-video",
+                title="AI agent full course",
+                resource_type="video",
+            )
+        ],
+        name="youtube",
+    )
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([refreshed_provider])
+    refreshed = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    assert refreshed.status_code == 200
+    assert refreshed.json()["cached"] is False
+    assert refreshed.json()["resources"][0]["url"].endswith("primary-video")
 
 
 def test_unsafe_or_incomplete_candidates_are_not_stored(client: TestClient) -> None:
