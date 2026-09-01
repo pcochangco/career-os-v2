@@ -44,6 +44,7 @@ export default function RoadmapRoute() {
   const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
   const [dismissingResourceId, setDismissingResourceId] = useState<string | null>(null);
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
+  const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
   const scrollViewRef = useRef<ScrollView>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
   const [currentMilestoneOffset, setCurrentMilestoneOffset] = useState<number | null>(null);
@@ -100,6 +101,26 @@ export default function RoadmapRoute() {
       }),
     [roadmap],
   );
+
+  useEffect(() => {
+    const currentMilestone = roadmap?.milestones.find((milestone) =>
+      milestone.steps.some((step) => step.progress_status === "current"),
+    );
+    if (!currentMilestone) return;
+    setExpandedMilestoneIds((current) => {
+      if (current.has(currentMilestone.id)) return current;
+      return new Set(current).add(currentMilestone.id);
+    });
+  }, [roadmap?.current_step_id, roadmap?.id]);
+
+  function toggleMilestone(milestoneId: string) {
+    setExpandedMilestoneIds((current) => {
+      const next = new Set(current);
+      if (next.has(milestoneId)) next.delete(milestoneId);
+      else next.add(milestoneId);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setNotes(currentStep?.notes ?? "");
@@ -382,12 +403,30 @@ export default function RoadmapRoute() {
                 : undefined
             }
           >
-            <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneLabel}>Milestone {milestone.position}</Text>
+            <Pressable
+              accessibilityHint="Expands or collapses this milestone"
+              accessibilityRole="button"
+              accessibilityState={{ expanded: expandedMilestoneIds.has(milestone.id) }}
+              onPress={() => toggleMilestone(milestone.id)}
+              style={({ pressed }) => [styles.milestoneHeader, pressed && styles.milestoneHeaderPressed]}
+            >
+              <View style={styles.milestoneHeaderTopline}>
+                <Text style={styles.milestoneLabel}>Milestone {milestone.position}</Text>
+                <Text style={styles.milestoneToggle}>
+                  {expandedMilestoneIds.has(milestone.id) ? "Hide steps ↑" : "Show steps ↓"}
+                </Text>
+              </View>
               <Text style={styles.milestoneTitle}>{milestone.title}</Text>
               <Text style={styles.milestoneOutcome}>{milestone.outcome}</Text>
-            </View>
-            {milestone.steps.map((step, stepIndex) => {
+              <Text style={styles.milestoneSummary}>
+                {milestone.steps.filter((step) => step.progress_status === "completed").length}/
+                {milestone.steps.length} complete
+                {milestone.steps.some((step) => step.progress_status === "current") ? " · In progress" : ""}
+              </Text>
+            </Pressable>
+            {(expandedMilestoneIds.has(milestone.id) ||
+              milestone.steps.some((step) => step.progress_status === "current")) &&
+              milestone.steps.map((step, stepIndex) => {
               const isCurrent = step.progress_status === "current";
               const isCompleted = step.progress_status === "completed";
               const isBlocked = step.progress_status === "blocked";
@@ -680,7 +719,7 @@ export default function RoadmapRoute() {
                   </View>
                 </View>
               );
-            })}
+              })}
           </View>
         ))}
       </View>
@@ -781,15 +820,27 @@ const styles = StyleSheet.create({
   goalCompleteBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6 },
   actionError: { color: "#A13B32", fontSize: 14, marginBottom: 22 },
   path: { gap: 30 },
-  milestoneHeader: { marginBottom: 15, marginLeft: 68 },
+  milestoneHeader: {
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 15,
+    marginLeft: 68,
+    padding: 15,
+  },
+  milestoneHeaderPressed: { opacity: 0.74 },
+  milestoneHeaderTopline: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   milestoneLabel: {
     color: colors.forest,
     fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
+  milestoneToggle: { color: colors.forest, fontSize: 12, fontWeight: "800" },
   milestoneTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 4 },
   milestoneOutcome: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  milestoneSummary: { color: colors.forestDark, fontSize: 12, fontWeight: "800", marginTop: 9 },
   pathRow: { alignItems: "stretch", flexDirection: "row", minHeight: 100 },
   rail: { alignItems: "center", width: 54 },
   node: {
