@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
   Brand,
@@ -43,6 +43,14 @@ export default function RoadmapRoute() {
   const [refreshingResources, setRefreshingResources] = useState(false);
   const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
   const [dismissingResourceId, setDismissingResourceId] = useState<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [pathOffset, setPathOffset] = useState<number | null>(null);
+  const [currentMilestoneOffset, setCurrentMilestoneOffset] = useState<number | null>(null);
+  const [currentRowOffset, setCurrentRowOffset] = useState<number | null>(null);
+  const currentStepOffset =
+    pathOffset === null || currentMilestoneOffset === null || currentRowOffset === null
+      ? null
+      : pathOffset + currentMilestoneOffset + currentRowOffset;
 
   useEffect(() => {
     if (!token || !roadmapId) return;
@@ -241,7 +249,7 @@ export default function RoadmapRoute() {
   if (!roadmap) return <LoadingState />;
 
   return (
-    <Screen>
+    <Screen scrollViewRef={scrollViewRef}>
       <View style={styles.topBar}>
         <Brand />
         <Pressable accessibilityRole="button" onPress={() => router.push("/goals" as never)}>
@@ -265,7 +273,12 @@ export default function RoadmapRoute() {
       </View>
 
       {currentStep ? (
-        <View style={styles.nextCard}>
+        <Pressable
+          accessibilityHint="Moves to the current step and its recommended resources"
+          accessibilityRole="button"
+          onPress={() => currentStepOffset !== null && scrollViewRef.current?.scrollTo({ y: currentStepOffset - 16, animated: true })}
+          style={({ pressed }) => [styles.nextCard, pressed && styles.nextCardPressed]}
+        >
           <Text style={styles.nextEyebrow}>Your next move</Text>
           <Text style={styles.nextTitle}>{currentStep.title}</Text>
           <Text numberOfLines={2} style={styles.nextAction}>{currentStep.action}</Text>
@@ -273,7 +286,8 @@ export default function RoadmapRoute() {
             <Text style={styles.nextMetaText}>Step {stepNumberById.get(currentStep.id)} of {roadmap.total_steps}</Text>
             <Text style={styles.nextMetaText}>{currentStep.effort_label}</Text>
           </View>
-        </View>
+          <Text style={styles.nextOpen}>Open current step ↓</Text>
+        </Pressable>
       ) : null}
 
       <View style={styles.mapCard}>
@@ -332,9 +346,16 @@ export default function RoadmapRoute() {
 
       {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
 
-      <View style={styles.path}>
+      <View onLayout={(event) => setPathOffset(event.nativeEvent.layout.y)} style={styles.path}>
         {roadmap.milestones.map((milestone, milestoneIndex) => (
-          <View key={milestone.id}>
+          <View
+            key={milestone.id}
+            onLayout={
+              milestone.steps.some((step) => step.progress_status === "current")
+                ? (event) => setCurrentMilestoneOffset(event.nativeEvent.layout.y)
+                : undefined
+            }
+          >
             <View style={styles.milestoneHeader}>
               <Text style={styles.milestoneLabel}>Milestone {milestone.position}</Text>
               <Text style={styles.milestoneTitle}>{milestone.title}</Text>
@@ -380,6 +401,7 @@ export default function RoadmapRoute() {
                     ) : null}
                   </View>
                   <View
+                    onLayout={isCurrent ? (event) => setCurrentRowOffset(event.nativeEvent.layout.y) : undefined}
                     style={[
                       styles.stepCard,
                       isCurrent && styles.currentCard,
@@ -673,6 +695,8 @@ const styles = StyleSheet.create({
   nextAction: { color: "#EDF6EF", fontSize: 14, lineHeight: 20, marginTop: 7 },
   nextMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
   nextMetaText: { color: "#D8E9DC", fontSize: 11, fontWeight: "800" },
+  nextOpen: { color: colors.white, fontSize: 13, fontWeight: "900", marginTop: 15 },
+  nextCardPressed: { opacity: 0.84 },
   mapCard: {
     backgroundColor: colors.forestSoft,
     borderColor: "#C7D9CB",
