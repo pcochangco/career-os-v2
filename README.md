@@ -184,6 +184,7 @@ Configure these build-time values in each EAS environment:
 
 ```dotenv
 EXPO_PUBLIC_API_URL=https://career-os-41i5.onrender.com/api/v1
+EXPO_PUBLIC_SUPPORT_EMAIL=
 GOOGLE_IOS_CLIENT_ID=
 ```
 
@@ -204,6 +205,11 @@ Development and preview builds use internal distribution; Android preview builds
 produce an installable APK. Production builds use store-ready signing and version
 auto-incrementing.
 
+Public web routes are available at `/privacy`, `/terms`, `/account-deletion`, and
+`/support`. They do not create a guest session merely by being opened. Set a real
+`EXPO_PUBLIC_SUPPORT_EMAIL` and rebuild the web/native clients before public beta;
+do not publish a personal address unintentionally.
+
 The backend health endpoint is `GET /api/v1/health`, and local API documentation
 is available at `/api/docs`. Representative roadmap evaluations live in
 `backend/evals/cases.json` and run as part of the backend test suite without
@@ -221,6 +227,8 @@ managed PostgreSQL database in Render's Singapore region. The web service:
 - Limits each user to three roadmap generations per hour.
 - Caps total public generation attempts across anonymous sessions.
 - Reports whether live AI or the deterministic preview is active through health metadata.
+- Adds request references, structured request logs, no-store API caching, browser
+  security headers, narrowed CORS, and bounded account-sensitive operations.
 
 Create the Blueprint from this repository to receive an `onrender.com` URL. The
 checked-in production configuration uses `live` mode with Groq's OpenAI-compatible

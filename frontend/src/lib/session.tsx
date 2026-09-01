@@ -80,7 +80,13 @@ async function readAccount(token: string): Promise<Account> {
   return apiRequest<Account>("/auth/account", { token });
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({
+  children,
+  enabled = true,
+}: {
+  children: ReactNode;
+  enabled?: boolean;
+}) {
   const [token, setToken] = useState<string | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
@@ -95,6 +101,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      setAccountLoading(false);
+      return;
+    }
     let active = true;
     async function initialize() {
       try {
@@ -134,7 +144,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [attempt]);
+  }, [attempt, enabled]);
 
   const linkIdentity = useCallback(
     async (provider: IdentityProvider, identityToken: string) => {

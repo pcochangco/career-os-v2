@@ -13,6 +13,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly requestId: string | null = null,
   ) {
     super(message);
   }
@@ -39,7 +40,11 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       : Array.isArray(detail) && typeof detail[0]?.msg === "string"
         ? detail[0].msg.replace(/^Value error,\s*/i, "")
         : "Something went wrong. Please try again.";
-    throw new ApiError(message, response.status);
+    const requestId = response.headers.get("X-Request-ID");
+    const displayMessage = response.status >= 500 && requestId
+      ? `${message} Reference: ${requestId}.`
+      : message;
+    throw new ApiError(displayMessage, response.status, requestId);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;

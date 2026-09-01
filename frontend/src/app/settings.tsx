@@ -83,18 +83,22 @@ export default function SettingsRoute() {
         {actionError ? (
           <Text accessibilityLiveRegion="polite" style={styles.errorText}>{actionError}</Text>
         ) : null}
-        {account?.status === "saved" ? (
+        {account ? (
           <View style={styles.accountActions}>
-            <Button disabled={accountLoading} loading={accountLoading} onPress={handleSignOut} secondary>
-              Sign out
-            </Button>
+            {account.status === "saved" ? (
+              <Button disabled={accountLoading} loading={accountLoading} onPress={handleSignOut} secondary>
+                Sign out
+              </Button>
+            ) : null}
             {confirmDelete ? (
               <View style={styles.deleteConfirm}>
                 <Text style={styles.deleteWarning}>
-                  This permanently deletes your goals, roadmaps, and progress.
+                  {account.status === "saved"
+                    ? "This permanently deletes your account, goals, roadmaps, notes, and progress on every device."
+                    : "This permanently deletes this guest’s goals, roadmaps, notes, and progress. A new empty guest session will open."}
                 </Text>
                 <Button disabled={accountLoading} loading={accountLoading} onPress={handleDeleteAccount}>
-                  Delete account permanently
+                  {account.status === "saved" ? "Delete account permanently" : "Delete guest data permanently"}
                 </Button>
                 <Pressable
                   accessibilityRole="button"
@@ -112,7 +116,9 @@ export default function SettingsRoute() {
                 onPress={() => setConfirmDelete(true)}
                 style={styles.textAction}
               >
-                <Text style={styles.deleteLabel}>Delete account</Text>
+                <Text style={styles.deleteLabel}>
+                  {account.status === "saved" ? "Delete account" : "Delete guest data"}
+                </Text>
               </Pressable>
             )}
           </View>
@@ -140,6 +146,25 @@ export default function SettingsRoute() {
           );
         })}
       </View>
+      <Text style={[styles.sectionTitle, styles.legalTitle]}>Privacy and support</Text>
+      <View style={styles.legalLinks}>
+        {[
+          ["Privacy policy", "/privacy"],
+          ["Terms of use", "/terms"],
+          ["Account deletion", "/account-deletion"],
+          ["Support", "/support"],
+        ].map(([label, route]) => (
+          <Pressable
+            accessibilityRole="link"
+            key={route}
+            onPress={() => router.push(route as never)}
+            style={({ pressed }) => [styles.legalLink, pressed && styles.pressed]}
+          >
+            <Text style={styles.legalLinkText}>{label}</Text>
+            <Text style={styles.legalLinkArrow}>›</Text>
+          </Pressable>
+        ))}
+      </View>
     </Screen>
   );
 }
@@ -155,6 +180,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   deleteLabel: { color: colors.danger, fontSize: 14, fontWeight: "800", textAlign: "center" },
   deleteWarning: { color: colors.danger, fontSize: 14, lineHeight: 21, textAlign: "center" },
   errorText: { color: colors.danger, fontSize: 14, lineHeight: 21 },
+  legalLink: { alignItems: "center", borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 52, paddingHorizontal: 2 },
+  legalLinkArrow: { color: colors.muted, fontSize: 24 },
+  legalLinkText: { color: colors.forest, fontSize: 15, fontWeight: "800" },
+  legalLinks: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 18, paddingHorizontal: 16 },
+  legalTitle: { marginTop: 30 },
   options: { gap: 12 },
   option: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, flexDirection: "row", minHeight: 76, paddingHorizontal: 17, paddingVertical: 14 },
   optionSelected: { backgroundColor: colors.forestSoft, borderColor: colors.forest, borderWidth: 2 },

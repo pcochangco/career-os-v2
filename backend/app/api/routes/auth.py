@@ -1,7 +1,9 @@
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 from secrets import token_urlsafe
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 
 from app.api.dependencies import (
@@ -17,6 +19,7 @@ from app.api.schemas import (
     IdentityLinkWrite,
 )
 from app.core.config import get_settings
+from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
 from app.db.models import (
     AuthIdentity,
     Goal,
@@ -37,6 +40,29 @@ from app.services.identity import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+AuthRateLimiter = Annotated[SlidingWindowRateLimiter, Depends(get_auth_rate_limiter)]
+
+
+def enforce_rate_limit(
+    limiter: SlidingWindowRateLimiter,
+    *,
+    action: str,
+    source: str,
+    limit: int,
+) -> None:
+    source_hash = sha256(source.encode("utf-8")).hexdigest()
+    decision = limiter.check(
+        f"{action}:{source_hash}",
+        limit=limit,
+        window_seconds=15 * 60,
+    )
+    if decision.allowed:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail="Too many account requests. Please wait and try again.",
+        headers={"Retry-After": str(decision.retry_after_seconds)},
+    )
 
 
 def issue_session(db: DbSession, user: User) -> AnonymousSessionRead:
@@ -100,7 +126,20 @@ def merge_guest_data(db: DbSession, source_user: User, target_user: User) -> Non
     response_model=AnonymousSessionRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_anonymous_session(db: DbSession) -> AnonymousSessionRead:
+def create_anonymous_session(
+    request: Request,
+    db: DbSession,
+    limiter: AuthRateLimiter,
+) -> AnonymousSessionRead:
+    settings = get_settings()
+    client_host = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("User-Agent", "")[:160]
+    enforce_rate_limit(
+        limiter,
+        action="anonymous",
+        source=f"{client_host}:{user_agent}",
+        limit=settings.auth_anonymous_limit_per_15_minutes,
+    )
     user = User()
     db.add(user)
     db.flush()
@@ -122,7 +161,15 @@ def link_identity(
     current_session: CurrentSession,
     db: DbSession,
     verifier: IdentityVerifier,
+    limiter: AuthRateLimiter,
 ) -> AnonymousSessionRead:
+    settings = get_settings()
+    enforce_rate_limit(
+        limiter,
+        action=f"link:{provider}",
+        source=str(user.id),
+        limit=settings.auth_identity_limit_per_15_minutes,
+    )
     try:
         verified = verifier.verify(provider, payload.identity_token)
     except IdentityProviderNotConfigured as error:
@@ -199,7 +246,18 @@ def logout(current_session: CurrentSession, db: DbSession) -> Response:
 
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
-def delete_account(user: CurrentUser, db: DbSession) -> Response:
+def delete_account(
+    user: CurrentUser,
+    db: DbSession,
+    limiter: AuthRateLimiter,
+) -> Response:
+    settings = get_settings()
+    enforce_rate_limit(
+        limiter,
+        action="delete",
+        source=str(user.id),
+        limit=settings.auth_deletion_limit_per_15_minutes,
+    )
     db.delete(user)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

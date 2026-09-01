@@ -77,6 +77,12 @@ services:
         sync: false
       - key: CAREEROS_APPLE_CLIENT_IDS
         sync: false
+      - key: CAREEROS_AUTH_ANONYMOUS_LIMIT_PER_15_MINUTES
+        value: 120
+      - key: CAREEROS_AUTH_IDENTITY_LIMIT_PER_15_MINUTES
+        value: 20
+      - key: CAREEROS_AUTH_DELETION_LIMIT_PER_15_MINUTES
+        value: 5
 
 databases:
   - name: career-os-db

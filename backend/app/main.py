@@ -8,6 +8,7 @@ from app.ai.providers.base import RoadmapProviderError
 from app.ai.service import RoadmapQualityError
 from app.api.router import api_router
 from app.core.config import get_settings
+from app.core.http import add_http_middleware
 from app.discovery.service import DiscoveryValidationError
 from app.web import mount_frontend
 
@@ -26,10 +27,12 @@ def create_app() -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_credentials=False,
+        allow_methods=["DELETE", "GET", "OPTIONS", "PATCH", "POST", "PUT"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID"],
     )
+    add_http_middleware(application, settings)
 
     @application.exception_handler(RoadmapProviderError)
     async def handle_provider_error(
