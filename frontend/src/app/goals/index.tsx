@@ -49,8 +49,17 @@ export default function GoalsRoute() {
         </View>
       </View>
       <View style={styles.list}>
-        {goals.map((goal) => (
+        {goals.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Start with one meaningful goal.</Text>
+            <Text style={styles.emptyBody}>
+              CareerOS will shape a clear path, then keep your next step ready.
+            </Text>
+            <Button onPress={() => router.push("/goals/new" as never)}>Create your first goal</Button>
+          </View>
+        ) : goals.map((goal) => (
           <Pressable
+            accessibilityHint={`Opens ${goal.title}`}
             accessibilityRole="button"
             key={goal.id}
             onPress={() => router.push(routeForGoal(goal) as never)}
@@ -77,6 +86,9 @@ export default function GoalsRoute() {
                 />
               </View>
             ) : null}
+            <Text style={styles.continueLabel}>
+              {goal.status === "completed" ? "Review your journey" : "Continue →"}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -89,6 +101,17 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1 },
   newGoalButton: { alignSelf: "flex-start", minWidth: 130 },
   list: { gap: 14 },
+  emptyState: {
+    alignItems: "flex-start",
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 10,
+    padding: 22,
+  },
+  emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", lineHeight: 27 },
+  emptyBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 6 },
   card: {
     backgroundColor: colors.card,
     borderColor: colors.line,
@@ -101,6 +124,7 @@ const styles = StyleSheet.create({
   goalTitle: { color: colors.ink, flex: 1, fontSize: 19, fontWeight: "800", lineHeight: 26 },
   chevron: { color: colors.forest, fontSize: 30, lineHeight: 30 },
   status: { color: colors.muted, fontSize: 14, marginTop: 10 },
+  continueLabel: { color: colors.forest, fontSize: 14, fontWeight: "800", marginTop: 14 },
   progressTrack: {
     backgroundColor: colors.line,
     borderRadius: 4,
