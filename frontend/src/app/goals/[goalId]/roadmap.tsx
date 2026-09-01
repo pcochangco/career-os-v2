@@ -5,7 +5,6 @@ import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "r
 import {
   Brand,
   Button,
-  colors,
   ErrorState,
   Field,
   LoadingState,
@@ -14,6 +13,7 @@ import {
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Roadmap, RoadmapStep, StepResources } from "@/lib/types";
+import { ThemeColors, useTheme } from "@/lib/theme";
 
 const stateLabels: Record<RoadmapStep["progress_status"], string> = {
   completed: "Completed",
@@ -24,6 +24,8 @@ const stateLabels: Record<RoadmapStep["progress_status"], string> = {
 const resourceRefreshCooldownMs = 12_000;
 
 export default function RoadmapRoute() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { roadmapId } = useLocalSearchParams<{ goalId: string; roadmapId: string }>();
   const router = useRouter();
   const { token } = useSession();
@@ -285,6 +287,9 @@ export default function RoadmapRoute() {
         <Brand />
         <Pressable accessibilityRole="button" onPress={() => router.push("/goals" as never)}>
           <Text style={styles.goalsLink}>All goals</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/settings" as never)}>
+          <Text style={styles.goalsLink}>Appearance</Text>
         </Pressable>
       </View>
       <Text style={styles.title}>{roadmap.title}</Text>
@@ -727,7 +732,7 @@ export default function RoadmapRoute() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   topBar: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
   goalsLink: { color: colors.forest, fontSize: 15, fontWeight: "800", paddingVertical: 2 },
   title: {
@@ -740,7 +745,7 @@ const styles = StyleSheet.create({
   completionNotice: {
     alignItems: "flex-start",
     backgroundColor: colors.forestSoft,
-    borderColor: "#B7D5C0",
+    borderColor: colors.softBorder,
     borderRadius: 16,
     borderWidth: 1,
     flexDirection: "row",
@@ -770,16 +775,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     padding: 18,
   },
-  nextEyebrow: { color: "#D8E9DC", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  nextEyebrow: { color: colors.accentMuted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   nextTitle: { color: colors.white, fontSize: 19, fontWeight: "800", lineHeight: 25, marginTop: 5 },
-  nextAction: { color: "#EDF6EF", fontSize: 14, lineHeight: 20, marginTop: 7 },
+  nextAction: { color: colors.accentMuted, fontSize: 14, lineHeight: 20, marginTop: 7 },
   nextMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  nextMetaText: { color: "#D8E9DC", fontSize: 11, fontWeight: "800" },
+  nextMetaText: { color: colors.accentMuted, fontSize: 11, fontWeight: "800" },
   nextOpen: { color: colors.white, fontSize: 13, fontWeight: "900", marginTop: 15 },
   nextCardPressed: { opacity: 0.84 },
   mapCard: {
     backgroundColor: colors.forestSoft,
-    borderColor: "#C7D9CB",
+    borderColor: colors.softBorder,
     borderRadius: 20,
     borderWidth: 1,
     marginBottom: 30,
@@ -799,7 +804,7 @@ const styles = StyleSheet.create({
   mapNodeCompleted: { backgroundColor: colors.forest, borderColor: colors.forest },
   mapNodeText: { color: colors.muted, fontSize: 12, fontWeight: "900" },
   mapNodeTextActive: { color: colors.white },
-  mapConnector: { backgroundColor: "#B8CFBD", flex: 1, marginVertical: 3, width: 2 },
+  mapConnector: { backgroundColor: colors.softBorder, flex: 1, marginVertical: 3, width: 2 },
   mapMilestoneContent: { flex: 1, paddingBottom: 14, paddingLeft: 10 },
   mapMilestoneTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", lineHeight: 20 },
   mapMilestoneOutcome: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
@@ -818,7 +823,7 @@ const styles = StyleSheet.create({
   },
   goalCompleteTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", marginTop: 6 },
   goalCompleteBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6 },
-  actionError: { color: "#A13B32", fontSize: 14, marginBottom: 22 },
+  actionError: { color: colors.danger, fontSize: 14, marginBottom: 22 },
   path: { gap: 30 },
   milestoneHeader: {
     backgroundColor: colors.card,
@@ -845,7 +850,7 @@ const styles = StyleSheet.create({
   rail: { alignItems: "center", width: 54 },
   node: {
     alignItems: "center",
-    backgroundColor: "#E7ECE8",
+    backgroundColor: colors.cardMuted,
     borderColor: colors.line,
     borderRadius: 24,
     borderWidth: 2,
@@ -867,7 +872,7 @@ const styles = StyleSheet.create({
   connector: { backgroundColor: colors.line, flex: 1, minHeight: 28, width: 3 },
   connectorCompleted: { backgroundColor: colors.forest },
   stepCard: {
-    backgroundColor: "#F0F3F0",
+    backgroundColor: colors.cardMuted,
     borderColor: colors.line,
     borderRadius: 18,
     borderWidth: 1,

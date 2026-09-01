@@ -2,12 +2,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { Body, Brand, Button, colors, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
+import { Body, Brand, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Roadmap } from "@/lib/types";
+import { ThemeColors, useTheme } from "@/lib/theme";
 
 export default function ReviewRoute() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { goalId, roadmapId } = useLocalSearchParams<{ goalId: string; roadmapId: string }>();
   const router = useRouter();
   const { token } = useSession();
@@ -109,7 +112,7 @@ export default function ReviewRoute() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   eyebrow: { color: colors.forest, fontSize: 14, fontWeight: "800", marginBottom: 12 },
   notice: { backgroundColor: colors.forestSoft, borderRadius: 18, marginBottom: 24, padding: 18 },
   noticeTitle: { color: colors.forestDark, fontSize: 16, fontWeight: "800", marginBottom: 5 },
@@ -130,5 +133,5 @@ const styles = StyleSheet.create({
   stepCopy: { flex: 1 },
   stepTitle: { color: colors.ink, fontSize: 15, fontWeight: "700", lineHeight: 21 },
   stepMeta: { color: colors.muted, fontSize: 12, marginTop: 3, textTransform: "capitalize" },
-  error: { color: "#A43E38", fontSize: 14, marginBottom: 14 },
+  error: { color: colors.danger, fontSize: 14, marginBottom: 14 },
 });

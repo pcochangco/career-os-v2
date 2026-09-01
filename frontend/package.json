@@ -12,6 +12,7 @@
     "export:web": "expo export --platform web"
   },
   "dependencies": {
+    "expo-secure-store": "~57.0.2",
     "expo": "~57.0.10",
     "expo-constants": "~57.0.9",
     "expo-linking": "~57.0.5",

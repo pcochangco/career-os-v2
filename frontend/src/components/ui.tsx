@@ -11,6 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useTheme } from "@/lib/theme";
+
 export const colors = {
   background: "#F6F8F4",
   card: "#FFFFFF",
@@ -30,8 +32,9 @@ export function Screen({
   children: ReactNode;
   scrollViewRef?: RefObject<ScrollView | null>;
 }) {
+  const { colors } = useTheme();
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}> 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
@@ -44,15 +47,18 @@ export function Screen({
 }
 
 export function Brand() {
-  return <Text style={styles.brand}>CareerOS</Text>;
+  const { colors } = useTheme();
+  return <Text style={[styles.brand, { color: colors.forest }]}>CareerOS</Text>;
 }
 
 export function Heading({ children }: { children: ReactNode }) {
-  return <Text style={styles.heading}>{children}</Text>;
+  const { colors } = useTheme();
+  return <Text style={[styles.heading, { color: colors.ink }]}>{children}</Text>;
 }
 
 export function Body({ children }: { children: ReactNode }) {
-  return <Text style={styles.body}>{children}</Text>;
+  const { colors } = useTheme();
+  return <Text style={[styles.body, { color: colors.muted }]}>{children}</Text>;
 }
 
 type ButtonProps = {
@@ -64,6 +70,7 @@ type ButtonProps = {
 };
 
 export function Button({ children, disabled, loading, onPress, secondary }: ButtonProps) {
+  const { colors } = useTheme();
   return (
     <Pressable
       accessibilityRole="button"
@@ -71,7 +78,7 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
-        secondary ? styles.buttonSecondary : styles.buttonPrimary,
+        secondary ? { backgroundColor: colors.forestSoft } : { backgroundColor: colors.forest },
         (disabled || loading) && styles.buttonDisabled,
         pressed && styles.buttonPressed,
       ]}
@@ -79,28 +86,30 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
       {loading ? (
         <ActivityIndicator color={secondary ? colors.forest : colors.white} />
       ) : (
-        <Text style={[styles.buttonLabel, secondary && styles.buttonLabelSecondary]}>{children}</Text>
+        <Text style={[styles.buttonLabel, { color: secondary ? colors.forestDark : colors.white }]}>{children}</Text>
       )}
     </Pressable>
   );
 }
 
 export function Field(props: TextInputProps) {
+  const { colors } = useTheme();
   return (
     <TextInput
-      placeholderTextColor="#8A978F"
+      placeholderTextColor={colors.fieldPlaceholder}
       {...props}
-      style={[styles.field, props.multiline && styles.fieldMultiline, props.style]}
+      style={[styles.field, { backgroundColor: colors.card, borderColor: colors.line, color: colors.ink }, props.multiline && styles.fieldMultiline, props.style]}
     />
   );
 }
 
 export function LoadingState({ label = "Opening your path…" }: { label?: string }) {
+  const { colors } = useTheme();
   return (
     <Screen>
       <View style={styles.centered}>
         <ActivityIndicator color={colors.forest} size="large" />
-        <Text style={styles.loadingLabel}>{label}</Text>
+        <Text style={[styles.loadingLabel, { color: colors.muted }]}>{label}</Text>
       </View>
     </Screen>
   );

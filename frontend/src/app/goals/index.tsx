@@ -2,10 +2,11 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Body, Brand, Button, colors, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
+import { Body, Brand, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
+import { ThemeColors, useTheme } from "@/lib/theme";
 
 function routeForGoal(goal: Goal): string {
   if (goal.active_roadmap_id) return `/goals/${goal.id}/roadmap?roadmapId=${goal.active_roadmap_id}`;
@@ -14,6 +15,8 @@ function routeForGoal(goal: Goal): string {
 }
 
 export default function GoalsRoute() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
   const { token } = useSession();
   const [goals, setGoals] = useState<Goal[] | null>(null);
@@ -39,6 +42,9 @@ export default function GoalsRoute() {
   return (
     <Screen>
       <Brand />
+      <Pressable accessibilityRole="button" onPress={() => router.push("/settings" as never)} style={styles.appearanceLink}>
+        <Text style={styles.appearanceText}>Appearance</Text>
+      </Pressable>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Heading>Your goals</Heading>
@@ -96,7 +102,9 @@ export default function GoalsRoute() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  appearanceLink: { alignSelf: "flex-start", marginBottom: 14, minHeight: 34, justifyContent: "center" },
+  appearanceText: { color: colors.forest, fontSize: 14, fontWeight: "800" },
   header: { gap: 10, marginBottom: 18 },
   headerCopy: { flex: 1 },
   newGoalButton: { alignSelf: "flex-start", minWidth: 130 },

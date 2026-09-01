@@ -2,12 +2,15 @@ import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
-import { Body, Brand, Button, colors, Field, Heading, Screen } from "@/components/ui";
+import { Body, Brand, Button, Field, Heading, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
+import { ThemeColors, useTheme } from "@/lib/theme";
 
 export default function NewGoalRoute() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const router = useRouter();
   const { token } = useSession();
   const [title, setTitle] = useState("");
@@ -57,7 +60,7 @@ export default function NewGoalRoute() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   step: { color: colors.forest, fontSize: 14, fontWeight: "800", marginBottom: 12 },
-  error: { color: "#A43E38", fontSize: 14, marginBottom: 14 },
+  error: { color: colors.danger, fontSize: 14, marginBottom: 14 },
 });

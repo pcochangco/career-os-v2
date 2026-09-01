@@ -13,7 +13,6 @@ import {
   Body,
   Brand,
   Button,
-  colors,
   ErrorState,
   Field,
   Heading,
@@ -23,8 +22,11 @@ import {
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
+import { ThemeColors, useTheme } from "@/lib/theme";
 
 export default function DiscoveryRoute() {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
   const router = useRouter();
   const { token } = useSession();
@@ -281,7 +283,7 @@ export default function DiscoveryRoute() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   eyebrow: { color: colors.forest, fontSize: 13, fontWeight: "800", letterSpacing: 0.3, marginBottom: 12, textTransform: "uppercase" },
   progress: { marginBottom: 24 },
   progressCopy: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 9 },
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: "row", gap: 12 },
   secondaryAction: { flex: 0.88 },
   primaryAction: { flex: 1 },
-  error: { color: "#A43E38", fontSize: 14, marginBottom: 14 },
+  error: { color: colors.danger, fontSize: 14, marginBottom: 14 },
   note: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 15, textAlign: "center" },
   summaryCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, gap: 12, marginBottom: 22, padding: 18 },
   summaryItem: { color: colors.ink, fontSize: 15, lineHeight: 22 },
