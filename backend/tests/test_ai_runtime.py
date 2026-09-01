@@ -220,6 +220,13 @@ def test_prompts_encode_schedule_free_effort_and_exact_critic_contract() -> None
     assert "exactly four top-level keys: passed, score, summary, and issues" in CRITIC_PROMPT
     assert "exactly severity, code, message, path, and repair_instruction" in CRITIC_PROMPT
     assert "Do not use overall_pass, category, description, suggestion" in CRITIC_PROMPT
+    assert "thoughtful expert mentor, not a syllabus generator" in SYSTEM_PROMPT
+    assert "Never reteach a" in SYSTEM_PROMPT
+    assert "demonstrated skill as a beginner topic" in SYSTEM_PROMPT
+    assert "chains tutorials without" in CRITIC_PROMPT
+    assert "independent practice" in CRITIC_PROMPT
+    assert "merely because it is" in CRITIC_PROMPT
+    assert "structurally valid" in CRITIC_PROMPT
 
 
 def test_validation_diagnostic_excludes_generated_values() -> None:
