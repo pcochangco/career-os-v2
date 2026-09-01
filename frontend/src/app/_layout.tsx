@@ -1,6 +1,6 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppErrorBoundary } from "@/components/app-error-boundary";
@@ -14,12 +14,16 @@ function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useSession();
+  const [mounted, setMounted] = useState(false);
   const publicRoute = publicRoutes.includes(pathname);
 
-  useEffect(() => {
-    if (!publicRoute && session.ready && !session.token) router.replace("/");
-  }, [publicRoute, router, session.ready, session.token]);
+  useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    if (mounted && !publicRoute && session.ready && !session.token) router.replace("/");
+  }, [mounted, publicRoute, router, session.ready, session.token]);
+
+  if (!mounted) return <LoadingState />;
   if (publicRoute) return children;
   if (!session.ready || !session.token) return <LoadingState label="Sign in to continue…" />;
   return children;
