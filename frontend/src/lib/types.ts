@@ -89,7 +89,7 @@ export type Roadmap = {
   starting_state_summary: string;
   assumptions: string[];
   schema_version: string;
-  generation_source: "fixture" | "openai";
+  generation_source: string;
   provider_model: string;
   prompt_version: string;
   quality_report: QualityReport;

@@ -53,7 +53,9 @@ export default function ReviewRoute() {
       <Body>{roadmap.summary}</Body>
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>
-          {roadmap.generation_source === "openai" ? "AI-generated and quality checked" : "Preview path quality checked"}
+          {roadmap.generation_source === "fixture"
+            ? "Preview path quality checked"
+            : "AI-generated and quality checked"}
         </Text>
         <Text style={styles.noticeBody}>
           CareerOS validated the structure, sequence, actions, and completion evidence before showing this draft.
