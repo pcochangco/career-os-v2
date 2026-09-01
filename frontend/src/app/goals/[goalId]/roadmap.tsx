@@ -43,6 +43,7 @@ export default function RoadmapRoute() {
   const [refreshingResources, setRefreshingResources] = useState(false);
   const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
   const [dismissingResourceId, setDismissingResourceId] = useState<string | null>(null);
+  const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
   const [currentMilestoneOffset, setCurrentMilestoneOffset] = useState<number | null>(null);
@@ -236,6 +237,15 @@ export default function RoadmapRoute() {
         token,
       });
       setRoadmap(updated);
+      const nextStep = updated.milestones
+        .flatMap((milestone) => milestone.steps)
+        .find((candidate) => candidate.progress_status === "current");
+      setCompletionNotice(
+        nextStep
+          ? `Nice work. Your next step, “${nextStep.title},” is ready when you are.`
+          : "Nice work. You completed the final step in this roadmap.",
+      );
+      scrollViewRef.current?.scrollTo({ animated: true, y: 0 });
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Progress could not be saved.");
     } finally {
@@ -257,6 +267,22 @@ export default function RoadmapRoute() {
         </Pressable>
       </View>
       <Text style={styles.title}>{roadmap.title}</Text>
+      {completionNotice ? (
+        <View accessibilityLiveRegion="polite" style={styles.completionNotice}>
+          <View style={styles.completionNoticeCopy}>
+            <Text style={styles.completionNoticeLabel}>Step complete</Text>
+            <Text style={styles.completionNoticeText}>{completionNotice}</Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Dismiss completion message"
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={() => setCompletionNotice(null)}
+          >
+            <Text style={styles.completionNoticeDismiss}>×</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View style={styles.progressHeader}>
         <Text style={styles.progressText}>
           {roadmap.completed_steps} of {roadmap.total_steps} steps
@@ -672,6 +698,21 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     lineHeight: 35,
   },
+  completionNotice: {
+    alignItems: "flex-start",
+    backgroundColor: colors.forestSoft,
+    borderColor: "#B7D5C0",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+    padding: 14,
+  },
+  completionNoticeCopy: { flex: 1 },
+  completionNoticeLabel: { color: colors.forestDark, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  completionNoticeText: { color: colors.forestDark, fontSize: 14, fontWeight: "700", lineHeight: 20, marginTop: 4 },
+  completionNoticeDismiss: { color: colors.forestDark, fontSize: 24, fontWeight: "400", lineHeight: 23 },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", marginTop: 18 },
   progressText: { color: colors.muted, fontSize: 14 },
   progressPercent: { color: colors.forest, fontSize: 14, fontWeight: "800" },
