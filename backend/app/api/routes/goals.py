@@ -527,6 +527,31 @@ def generate_roadmap(
     generation_service: GenerationService,
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
+    accepted_roadmap = db.scalar(
+        select(RoadmapVersion.id).where(
+            RoadmapVersion.goal_id == goal.id,
+            RoadmapVersion.status == "accepted",
+        )
+    )
+    if accepted_roadmap is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This goal already has an active roadmap.",
+        )
+    existing_draft = db.scalar(
+        select(RoadmapVersion)
+        .where(
+            RoadmapVersion.goal_id == goal.id,
+            RoadmapVersion.status == "draft",
+        )
+        .order_by(RoadmapVersion.version.desc())
+        .limit(1)
+        .options(
+            selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps)
+        )
+    )
+    if existing_draft is not None:
+        return existing_draft
     generation_input = latest_discovery(db, goal)
     attempt, use_quota_fallback = start_generation_attempt(db, user)
     settings = get_settings()

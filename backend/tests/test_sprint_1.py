@@ -19,6 +19,12 @@ def auth(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+class SuccessfulLiveService:
+    def generate(self, generation_input):
+        preview = fixture_service(Settings()).generate(generation_input)
+        return replace(preview, provider="test-live", model="test-live-model")
+
+
 def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     token = create_session(client)
     headers = auth(token)
@@ -104,13 +110,9 @@ def test_roadmap_generation_uses_preview_after_per_user_limit(
 ) -> None:
     settings = Settings(ai_mode="auto", ai_api_key="test-key")
     monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
+    app.dependency_overrides[get_generation_service] = SuccessfulLiveService
     token = create_session(client)
     headers = auth(token)
-    goal = client.post(
-        "/api/v1/goals",
-        headers=headers,
-        json={"title": "Learn secure API design"},
-    ).json()
     discovery = {
         "desired_outcome": "Design and explain a secure production API",
         "current_level": "Python backend developer",
@@ -118,21 +120,91 @@ def test_roadmap_generation_uses_preview_after_per_user_limit(
         "relevant_constraints": "Prefer practical exercises",
         "proof_of_completion": "A threat-modeled API with security tests",
     }
-    response = client.put(
+    generated_sources: list[str] = []
+    for attempt_number in range(4):
+        goal = client.post(
+            "/api/v1/goals",
+            headers=headers,
+            json={"title": f"Learn secure API design {attempt_number}"},
+        ).json()
+        assert client.put(
+            f"/api/v1/goals/{goal['id']}/discovery",
+            headers=headers,
+            json=discovery,
+        ).status_code == 200
+        generated = client.post(
+            f"/api/v1/goals/{goal['id']}/roadmaps",
+            headers=headers,
+        )
+        assert generated.status_code == 201
+        generated_sources.append(generated.json()["generation_source"])
+
+    assert generated_sources == ["test-live", "test-live", "test-live", "fixture"]
+
+
+def test_repeated_generation_returns_the_existing_draft(client: TestClient) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Build a reliable Python service"},
+    ).json()
+    discovery = {
+        "desired_outcome": "Build and explain a reliable production service",
+        "current_level": "Python backend developer",
+        "existing_experience": "FastAPI and PostgreSQL",
+        "relevant_constraints": "Prefer practical exercises",
+        "proof_of_completion": "A deployed service with tests",
+    }
+    assert client.put(
         f"/api/v1/goals/{goal['id']}/discovery",
         headers=headers,
         json=discovery,
-    )
-    assert response.status_code == 200
+    ).status_code == 200
 
-    for _ in range(3):
-        response = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
-        assert response.status_code == 201
+    first = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+    repeated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
 
-    fallback = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
-    assert fallback.status_code == 201
-    assert fallback.json()["generation_source"] == "fixture"
-    assert fallback.json()["provider_model"] == "deterministic-fixture"
+    assert first.status_code == 201
+    assert repeated.status_code == 201
+    assert repeated.json()["id"] == first.json()["id"]
+    assert repeated.json()["version"] == 1
+
+
+def test_generation_does_not_replace_an_active_roadmap(client: TestClient) -> None:
+    token = create_session(client)
+    headers = auth(token)
+    goal = client.post(
+        "/api/v1/goals",
+        headers=headers,
+        json={"title": "Learn production API design"},
+    ).json()
+    discovery = {
+        "desired_outcome": "Design and explain a secure production API",
+        "current_level": "Python backend developer",
+        "existing_experience": "FastAPI and PostgreSQL",
+        "relevant_constraints": "Prefer practical exercises",
+        "proof_of_completion": "A threat-modeled API with tests",
+    }
+    assert client.put(
+        f"/api/v1/goals/{goal['id']}/discovery",
+        headers=headers,
+        json=discovery,
+    ).status_code == 200
+    roadmap = client.post(
+        f"/api/v1/goals/{goal['id']}/roadmaps",
+        headers=headers,
+    ).json()
+    assert client.post(
+        f"/api/v1/roadmaps/{roadmap['id']}/accept",
+        headers=headers,
+    ).status_code == 200
+
+    repeated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+
+    assert repeated.status_code == 409
+    assert repeated.json()["detail"] == "This goal already has an active roadmap."
 
 
 def test_global_generation_capacity_applies_across_anonymous_sessions(
@@ -145,11 +217,6 @@ def test_global_generation_capacity_applies_across_anonymous_sessions(
         ai_global_generation_limit_per_hour=2,
     )
     monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
-
-    class SuccessfulLiveService:
-        def generate(self, generation_input):
-            preview = fixture_service(Settings()).generate(generation_input)
-            return replace(preview, provider="test-live", model="test-live-model")
 
     app.dependency_overrides[get_generation_service] = SuccessfulLiveService
     discovery = {

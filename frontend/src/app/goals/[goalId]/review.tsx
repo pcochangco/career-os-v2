@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { Body, Brand, Button, colors, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
@@ -15,21 +15,30 @@ export default function ReviewRoute() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const acceptingRef = useRef(false);
 
   useEffect(() => {
     if (!token || !roadmapId) return;
     let active = true;
     apiRequest<Roadmap>(`/roadmaps/${roadmapId}`, { token })
-      .then((value) => active && setRoadmap(value))
+      .then((value) => {
+        if (!active) return;
+        if (value.status === "accepted" && goalId) {
+          router.replace(`/goals/${goalId}/roadmap?roadmapId=${value.id}` as never);
+          return;
+        }
+        setRoadmap(value);
+      })
       .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Roadmap could not load."));
     return () => {
       active = false;
     };
-  }, [attempt, roadmapId, token]);
+  }, [attempt, goalId, roadmapId, router, token]);
 
   async function acceptRoadmap() {
-    if (!token || !roadmapId || !goalId) return;
+    if (!token || !roadmapId || !goalId || acceptingRef.current) return;
     try {
+      acceptingRef.current = true;
       setAccepting(true);
       setError(null);
       await apiRequest<Roadmap>(`/roadmaps/${roadmapId}/accept`, { method: "POST", token });
@@ -37,6 +46,7 @@ export default function ReviewRoute() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Roadmap could not be accepted.");
       setAccepting(false);
+      acceptingRef.current = false;
     }
   }
 

@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { DiscoveryState, Roadmap } from "@/lib/types";
+import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
 
 export default function DiscoveryRoute() {
   const { goalId } = useLocalSearchParams<{ goalId: string }>();
@@ -36,6 +36,8 @@ export default function DiscoveryRoute() {
   const [generating, setGenerating] = useState(false);
   const [generationStage, setGenerationStage] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const answerRequestRef = useRef(false);
+  const generationRequestRef = useRef(false);
 
   const generationStages = [
     "Understanding your goal and starting point…",
@@ -48,6 +50,19 @@ export default function DiscoveryRoute() {
     if (!token || !goalId) return;
     try {
       setError(null);
+      const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
+      if (goal.active_roadmap_id) {
+        router.replace(
+          `/goals/${goalId}/roadmap?roadmapId=${goal.active_roadmap_id}` as never,
+        );
+        return;
+      }
+      if (goal.latest_draft_roadmap_id) {
+        router.replace(
+          `/goals/${goalId}/review?roadmapId=${goal.latest_draft_roadmap_id}` as never,
+        );
+        return;
+      }
       const current = await apiRequest<DiscoveryState>(`/goals/${goalId}/discovery`, { token });
       const next = current.status === "unstarted"
         ? await apiRequest<DiscoveryState>(`/goals/${goalId}/discovery/questions/next`, { method: "POST", token })
@@ -56,7 +71,7 @@ export default function DiscoveryRoute() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not tailor your questions.");
     }
-  }, [goalId, token]);
+  }, [goalId, router, token]);
 
   useEffect(() => {
     void loadDiscovery();
@@ -87,8 +102,9 @@ export default function DiscoveryRoute() {
   }
 
   async function submitAnswer(skipped: boolean) {
-    if (!token || !goalId || !question) return;
+    if (!token || !goalId || !question || answerRequestRef.current) return;
     try {
+      answerRequestRef.current = true;
       setSaving(true);
       setError(null);
       const next = await apiRequest<DiscoveryState>(
@@ -109,13 +125,15 @@ export default function DiscoveryRoute() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not save that answer.");
     } finally {
+      answerRequestRef.current = false;
       setSaving(false);
     }
   }
 
   async function createRoadmap() {
-    if (!token || !goalId) return;
+    if (!token || !goalId || generationRequestRef.current) return;
     try {
+      generationRequestRef.current = true;
       setGenerationStage(0);
       setGenerating(true);
       setError(null);
@@ -124,6 +142,7 @@ export default function DiscoveryRoute() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Your roadmap could not be generated.");
       setGenerating(false);
+      generationRequestRef.current = false;
     }
   }
 

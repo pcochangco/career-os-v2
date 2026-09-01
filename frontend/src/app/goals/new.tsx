@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { StyleSheet, Text } from "react-native";
 
 import { Body, Brand, Button, colors, Field, Heading, Screen } from "@/components/ui";
@@ -13,10 +13,12 @@ export default function NewGoalRoute() {
   const [title, setTitle] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
 
   async function createGoal() {
-    if (!token || title.trim().length < 3) return;
+    if (!token || title.trim().length < 3 || submittingRef.current) return;
     try {
+      submittingRef.current = true;
       setSaving(true);
       setError(null);
       const goal = await apiRequest<Goal>("/goals", {
@@ -28,6 +30,7 @@ export default function NewGoalRoute() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Your goal could not be created.");
       setSaving(false);
+      submittingRef.current = false;
     }
   }
 
