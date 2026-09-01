@@ -264,6 +264,18 @@ export default function RoadmapRoute() {
         />
       </View>
 
+      {currentStep ? (
+        <View style={styles.nextCard}>
+          <Text style={styles.nextEyebrow}>Your next move</Text>
+          <Text style={styles.nextTitle}>{currentStep.title}</Text>
+          <Text numberOfLines={2} style={styles.nextAction}>{currentStep.action}</Text>
+          <View style={styles.nextMeta}>
+            <Text style={styles.nextMetaText}>Step {stepNumberById.get(currentStep.id)} of {roadmap.total_steps}</Text>
+            <Text style={styles.nextMetaText}>{currentStep.effort_label}</Text>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.mapCard}>
         <Text style={styles.mapEyebrow}>Your roadmap map</Text>
         <Text style={styles.mapTitle}>Build toward: {roadmap.goal_outcome}</Text>
@@ -650,6 +662,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: { backgroundColor: colors.forest, borderRadius: 4, height: 7 },
+  nextCard: {
+    backgroundColor: colors.forest,
+    borderRadius: 20,
+    marginBottom: 16,
+    padding: 18,
+  },
+  nextEyebrow: { color: "#D8E9DC", fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  nextTitle: { color: colors.white, fontSize: 19, fontWeight: "800", lineHeight: 25, marginTop: 5 },
+  nextAction: { color: "#EDF6EF", fontSize: 14, lineHeight: 20, marginTop: 7 },
+  nextMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+  nextMetaText: { color: "#D8E9DC", fontSize: 11, fontWeight: "800" },
   mapCard: {
     backgroundColor: colors.forestSoft,
     borderColor: "#C7D9CB",
