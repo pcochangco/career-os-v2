@@ -46,7 +46,10 @@ export default function NewGoalRoute() {
       <Field
         autoFocus
         maxLength={140}
-        onChangeText={setTitle}
+        onChangeText={(value) => {
+          setTitle(value);
+          if (error) setError(null);
+        }}
         onSubmitEditing={() => void createGoal()}
         placeholder="e.g. Become confident building AI agents"
         returnKeyType="next"

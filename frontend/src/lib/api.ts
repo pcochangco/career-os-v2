@@ -37,7 +37,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     const message = typeof detail === "string"
       ? detail
       : Array.isArray(detail) && typeof detail[0]?.msg === "string"
-        ? detail[0].msg
+        ? detail[0].msg.replace(/^Value error,\s*/i, "")
         : "Something went wrong. Please try again.";
     throw new ApiError(message, response.status);
   }

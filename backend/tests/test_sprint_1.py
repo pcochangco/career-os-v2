@@ -107,7 +107,7 @@ def test_goal_endpoints_require_authentication(client: TestClient) -> None:
 def test_goal_creation_rejects_clear_placeholder_or_gibberish_titles(client: TestClient) -> None:
     token = create_session(client)
 
-    for title in ("asdfghjkl", "qwerty", "!!!!", "aaaa"):
+    for title in ("asdfghjkl", "qwerty", "!!!!", "aaaa", "havduwh", "havduwh wozzle"):
         response = client.post(
             "/api/v1/goals",
             headers=auth(token),
@@ -115,6 +115,26 @@ def test_goal_creation_rejects_clear_placeholder_or_gibberish_titles(client: Tes
         )
         assert response.status_code == 422
         assert "clear goal" in response.json()["detail"][0]["msg"]
+
+
+def test_goal_creation_accepts_clear_short_and_specialized_goals(client: TestClient) -> None:
+    token = create_session(client)
+
+    for title in (
+        "Learn AWS",
+        "Run a marathon",
+        "EMJM AI scholarship",
+        "Fitness",
+        "CFA",
+        "Spanish B2",
+        "Build a CareerOS iOS app",
+    ):
+        response = client.post(
+            "/api/v1/goals",
+            headers=auth(token),
+            json={"title": title},
+        )
+        assert response.status_code == 201
 
 
 def test_roadmap_generation_uses_preview_after_per_user_limit(

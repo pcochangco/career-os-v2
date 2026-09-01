@@ -25,6 +25,8 @@ export type ThemeColors = {
   ink: string;
   line: string;
   muted: string;
+  onForest: string;
+  onForestMuted: string;
   softBorder: string;
   white: string;
 };
@@ -42,6 +44,8 @@ const lightColors: ThemeColors = {
   ink: "#17211B",
   line: "#D7E0D9",
   muted: "#607067",
+  onForest: "#FFFFFF",
+  onForestMuted: "#D8E9DC",
   softBorder: "#B7D5C0",
   white: "#FFFFFF",
 };
@@ -59,6 +63,8 @@ const darkColors: ThemeColors = {
   ink: "#F1F7F3",
   line: "#2C3A32",
   muted: "#AAB9B0",
+  onForest: "#07110C",
+  onForestMuted: "#214D39",
   softBorder: "#315D46",
   white: "#F4FAF6",
 };

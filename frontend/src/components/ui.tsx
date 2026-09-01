@@ -84,9 +84,9 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={secondary ? colors.forest : colors.white} />
+        <ActivityIndicator color={secondary ? colors.forest : colors.onForest} />
       ) : (
-        <Text style={[styles.buttonLabel, { color: secondary ? colors.forestDark : colors.white }]}>{children}</Text>
+        <Text style={[styles.buttonLabel, { color: secondary ? colors.forestDark : colors.onForest }]}>{children}</Text>
       )}
     </Pressable>
   );
