@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.ai.dependencies import DiscoveryService, GenerationService
+from app.ai.dependencies import DiscoveryService, GenerationService, fixture_service
 from app.ai.schema import DiscoveryContextAnswer, RoadmapGenerationInput
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import (
@@ -464,41 +464,44 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
     )
 
 
-def start_generation_attempt(db: Session, user: User) -> RoadmapGenerationAttempt:
+def start_generation_attempt(
+    db: Session, user: User
+) -> tuple[RoadmapGenerationAttempt, bool]:
     settings = get_settings()
+    live_generation_requested = settings.ai_mode == "live" or (
+        settings.ai_mode == "auto" and settings.ai_configured
+    )
     window_start = datetime.now(UTC) - timedelta(hours=1)
     user_attempts = db.scalar(
         select(func.count(RoadmapGenerationAttempt.id)).where(
             RoadmapGenerationAttempt.user_id == user.id,
             RoadmapGenerationAttempt.created_at >= window_start,
+            RoadmapGenerationAttempt.requested_provider != "fixture",
         )
     )
     global_attempts = db.scalar(
         select(func.count(RoadmapGenerationAttempt.id)).where(
-            RoadmapGenerationAttempt.created_at >= window_start
+            RoadmapGenerationAttempt.created_at >= window_start,
+            RoadmapGenerationAttempt.requested_provider != "fixture",
         )
     )
-    if (user_attempts or 0) >= settings.ai_generation_limit_per_hour:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Roadmap generation limit reached. Please try again later.",
-            headers={"Retry-After": "3600"},
-        )
-    if (global_attempts or 0) >= settings.ai_global_generation_limit_per_hour:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="CareerOS is at its roadmap generation capacity. Please try again later.",
-            headers={"Retry-After": "3600"},
-        )
+    use_quota_fallback = live_generation_requested and (
+        (user_attempts or 0) >= settings.ai_generation_limit_per_hour
+        or (global_attempts or 0) >= settings.ai_global_generation_limit_per_hour
+    )
 
     attempt = RoadmapGenerationAttempt(
         user_id=user.id,
-        requested_provider=("fixture" if settings.ai_mode == "fixture" else settings.ai_provider),
+        requested_provider=(
+            "fixture"
+            if settings.ai_mode == "fixture" or use_quota_fallback
+            else settings.ai_provider
+        ),
     )
     db.add(attempt)
     db.commit()
     db.refresh(attempt)
-    return attempt
+    return attempt, use_quota_fallback
 
 
 def finish_generation_attempt(
@@ -525,20 +528,25 @@ def generate_roadmap(
 ) -> RoadmapVersion:
     goal = get_owned_goal(db, user, goal_id)
     generation_input = latest_discovery(db, goal)
-    attempt = start_generation_attempt(db, user)
+    attempt, use_quota_fallback = start_generation_attempt(db, user)
+    settings = get_settings()
+    effective_generation_service = (
+        fixture_service(settings) if use_quota_fallback else generation_service
+    )
     try:
-        generated = generation_service.generate(generation_input)
+        generated = effective_generation_service.generate(generation_input)
     except Exception:
         finish_generation_attempt(db, attempt, outcome="failed")
         raise
-    settings = get_settings()
     used_live_fallback = (
         settings.ai_mode in {"auto", "live"}
         and settings.ai_configured
         and generated.provider == "fixture"
     )
     attempt_outcome = (
-        "fallback"
+        "quota_fallback"
+        if use_quota_fallback
+        else "fallback"
         if used_live_fallback
         else "succeeded"
         if generated.provider != "fixture"

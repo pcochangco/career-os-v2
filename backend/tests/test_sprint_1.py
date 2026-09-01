@@ -1,8 +1,9 @@
 import logging
+from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-from app.ai.dependencies import get_generation_service
+from app.ai.dependencies import fixture_service, get_generation_service
 from app.ai.providers.base import RoadmapProviderError
 from app.core.config import Settings
 from app.main import app
@@ -97,7 +98,12 @@ def test_goal_endpoints_require_authentication(client: TestClient) -> None:
     assert response.status_code == 401
 
 
-def test_roadmap_generation_is_rate_limited_per_user(client: TestClient) -> None:
+def test_roadmap_generation_uses_preview_after_per_user_limit(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    settings = Settings(ai_mode="auto", ai_api_key="test-key")
+    monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
     token = create_session(client)
     headers = auth(token)
     goal = client.post(
@@ -123,17 +129,29 @@ def test_roadmap_generation_is_rate_limited_per_user(client: TestClient) -> None
         response = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
         assert response.status_code == 201
 
-    limited = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
-    assert limited.status_code == 429
-    assert limited.headers["retry-after"] == "3600"
+    fallback = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
+    assert fallback.status_code == 201
+    assert fallback.json()["generation_source"] == "fixture"
+    assert fallback.json()["provider_model"] == "deterministic-fixture"
 
 
 def test_global_generation_capacity_applies_across_anonymous_sessions(
     client: TestClient,
     monkeypatch,
 ) -> None:
-    settings = Settings(ai_global_generation_limit_per_hour=2)
+    settings = Settings(
+        ai_mode="auto",
+        ai_api_key="test-key",
+        ai_global_generation_limit_per_hour=2,
+    )
     monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
+
+    class SuccessfulLiveService:
+        def generate(self, generation_input):
+            preview = fixture_service(Settings()).generate(generation_input)
+            return replace(preview, provider="test-live", model="test-live-model")
+
+    app.dependency_overrides[get_generation_service] = SuccessfulLiveService
     discovery = {
         "desired_outcome": "Build and explain a reliable production service",
         "current_level": "Python backend developer",
@@ -160,11 +178,12 @@ def test_global_generation_capacity_applies_across_anonymous_sessions(
             f"/api/v1/goals/{goal['id']}/roadmaps",
             headers=headers,
         )
+        assert generated.status_code == 201
         if attempt_number < 2:
-            assert generated.status_code == 201
+            assert generated.json()["generation_source"] != "fixture"
         else:
-            assert generated.status_code == 503
-            assert generated.headers["retry-after"] == "3600"
+            assert generated.json()["generation_source"] == "fixture"
+            assert generated.json()["provider_model"] == "deterministic-fixture"
 
 
 def test_live_provider_failure_logs_only_the_safe_diagnostic(
