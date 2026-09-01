@@ -35,6 +35,9 @@ class User(Base):
     resource_refresh_attempts: Mapped[list[RoadmapStepResourceRefreshAttempt]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    resource_feedback: Mapped[list[RoadmapStepResourceFeedback]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -149,6 +152,27 @@ class RoadmapStepResourceRefreshAttempt(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="resource_refresh_attempts")
+
+
+class RoadmapStepResourceFeedback(Base):
+    __tablename__ = "roadmap_step_resource_feedback"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "step_id", "resource_url", name="uq_user_step_resource_feedback"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    step_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_steps.id", ondelete="CASCADE"), index=True
+    )
+    resource_url: Mapped[str] = mapped_column(String(2048))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
+
+    user: Mapped[User] = relationship(back_populates="resource_feedback")
 
 
 class RoadmapVersion(Base):

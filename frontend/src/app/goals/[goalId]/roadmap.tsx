@@ -42,6 +42,7 @@ export default function RoadmapRoute() {
   const [resourceAttempt, setResourceAttempt] = useState(0);
   const [refreshingResources, setRefreshingResources] = useState(false);
   const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
+  const [dismissingResourceId, setDismissingResourceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token || !roadmapId) return;
@@ -146,6 +147,36 @@ export default function RoadmapRoute() {
       );
     } finally {
       setRefreshingResources(false);
+    }
+  }
+
+  async function markResourceNotUseful(resourceId: string) {
+    if (!token || !currentStep || dismissingResourceId) return;
+    setDismissingResourceId(resourceId);
+    setResourcesError(null);
+    try {
+      await apiRequest<void>(
+        `/roadmap-steps/${currentStep.id}/resources/${resourceId}/not-useful`,
+        { method: "POST", token },
+      );
+      setStepResources((current) => {
+        if (!current) return current;
+        const resources = current.resources.filter((resource) => resource.id !== resourceId);
+        return {
+          ...current,
+          available: resources.length > 0,
+          message: resources.length
+            ? ""
+            : "We’ll avoid that recommendation. Find another set whenever you’re ready.",
+          resources,
+        };
+      });
+    } catch (caught) {
+      setResourcesError(
+        caught instanceof Error ? caught.message : "That resource could not be dismissed.",
+      );
+    } finally {
+      setDismissingResourceId(null);
     }
   }
 
@@ -398,49 +429,67 @@ export default function RoadmapRoute() {
                                         (item) => item.resource_type === "video",
                                       );
                                   return (
-                                  <Pressable
-                                    accessibilityHint={
-                                      isPrimaryVideo
-                                        ? "Opens the primary video course or tutorial"
-                                        : "Opens this recommended resource"
-                                    }
-                                    accessibilityRole="link"
-                                    key={resource.id}
-                                    onPress={() => void Linking.openURL(resource.url)}
-                                    style={({ pressed }) => [
-                                      styles.resourceCard,
-                                      isPrimaryVideo && styles.primaryVideoCard,
-                                      pressed && styles.resourceLinkPressed,
-                                    ]}
-                                  >
-                                    {isPrimaryVideo && resource.thumbnail_url ? (
-                                      <Image
-                                        accessibilityLabel={`${resource.title} video thumbnail`}
-                                        source={{ uri: resource.thumbnail_url }}
-                                        style={styles.courseThumbnail}
-                                      />
-                                    ) : null}
-                                    <View style={styles.resourceMeta}>
-                                      <Text style={styles.resourceType}>
-                                        {isPrimaryVideo ? "Start here · video course" : resource.resource_type}
+                                  <View key={resource.id} style={styles.resourceCardShell}>
+                                    <Pressable
+                                      accessibilityHint={
+                                        isPrimaryVideo
+                                          ? "Opens the primary video course or tutorial"
+                                          : "Opens this recommended resource"
+                                      }
+                                      accessibilityRole="link"
+                                      onPress={() => void Linking.openURL(resource.url)}
+                                      style={({ pressed }) => [
+                                        styles.resourceCard,
+                                        isPrimaryVideo && styles.primaryVideoCard,
+                                        pressed && styles.resourceLinkPressed,
+                                      ]}
+                                    >
+                                      {isPrimaryVideo && resource.thumbnail_url ? (
+                                        <Image
+                                          accessibilityLabel={`${resource.title} video thumbnail`}
+                                          source={{ uri: resource.thumbnail_url }}
+                                          style={styles.courseThumbnail}
+                                        />
+                                      ) : null}
+                                      <View style={styles.resourceMeta}>
+                                        <Text style={styles.resourceType}>
+                                          {isPrimaryVideo ? "Start here · video course" : resource.resource_type}
+                                        </Text>
+                                        <Text style={styles.resourceSource}>
+                                          {resource.source_name}
+                                        </Text>
+                                      </View>
+                                      <Text style={styles.resourceTitle}>{resource.title}</Text>
+                                      {resource.description ? (
+                                        <Text numberOfLines={3} style={styles.resourceDescription}>
+                                          {resource.description}
+                                        </Text>
+                                      ) : null}
+                                      <Text style={styles.resourceReason}>
+                                        Why this fits: {resource.why_relevant}
                                       </Text>
-                                      <Text style={styles.resourceSource}>
-                                        {resource.source_name}
+                                      <Text style={styles.resourceOpen}>
+                                        {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
                                       </Text>
-                                    </View>
-                                    <Text style={styles.resourceTitle}>{resource.title}</Text>
-                                    {resource.description ? (
-                                      <Text numberOfLines={3} style={styles.resourceDescription}>
-                                        {resource.description}
+                                    </Pressable>
+                                    <Pressable
+                                      accessibilityHint="Removes this resource and prevents it appearing again for this step"
+                                      accessibilityRole="button"
+                                      disabled={dismissingResourceId !== null}
+                                      onPress={() => void markResourceNotUseful(resource.id)}
+                                      style={({ pressed }) => [
+                                        styles.notUseful,
+                                        (pressed || dismissingResourceId === resource.id) &&
+                                          styles.resourceLinkPressed,
+                                      ]}
+                                    >
+                                      <Text style={styles.notUsefulText}>
+                                        {dismissingResourceId === resource.id
+                                          ? "Removing…"
+                                          : "Not useful for me"}
                                       </Text>
-                                    ) : null}
-                                    <Text style={styles.resourceReason}>
-                                      Why this fits: {resource.why_relevant}
-                                    </Text>
-                                    <Text style={styles.resourceOpen}>
-                                      {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
-                                    </Text>
-                                  </Pressable>
+                                    </Pressable>
+                                  </View>
                                   );
                                 })
                               : null}
@@ -733,6 +782,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 14,
   },
+  resourceCardShell: { gap: 7 },
   primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
   courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
   resourceLinkPressed: { opacity: 0.72 },
@@ -769,6 +819,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
+  notUseful: { alignSelf: "flex-start", minHeight: 30, paddingHorizontal: 2, paddingVertical: 4 },
+  notUsefulText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
   resourceNotice: {
     backgroundColor: colors.background,
     borderColor: colors.line,

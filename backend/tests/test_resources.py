@@ -206,6 +206,79 @@ def test_refresh_replaces_cached_resources_with_different_urls(client: TestClien
     assert [resource["url"] for resource in refreshed.json()["resources"]] == [next_video.url]
 
 
+def test_not_useful_resource_is_removed_and_never_selected_again(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    rejected_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=rejected",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    replacement_video = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=replacement",
+        title="Build an AI agent project",
+        resource_type="video",
+    )
+    provider = RecordingProvider([rejected_video], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    initial = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    rejected = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/"
+        f"{initial.json()['resources'][0]['id']}/not-useful",
+        headers=auth(token),
+    )
+
+    provider.candidates = [rejected_video, replacement_video]
+    replacement = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    assert rejected.status_code == 204
+    assert replacement.status_code == 200
+    assert [resource["url"] for resource in replacement.json()["resources"]] == [
+        replacement_video.url
+    ]
+
+
+def test_not_useful_requires_the_current_step_owner(client: TestClient) -> None:
+    owner_token = create_session(client)
+    other_token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, owner_token)
+    current_step = steps_in(roadmap)[0]
+    provider = RecordingProvider(
+        [
+            candidate(
+                provider="youtube",
+                url="https://www.youtube.com/watch?v=owner-only",
+                title="AI agent full course",
+                resource_type="video",
+            )
+        ],
+        name="youtube",
+    )
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    initial = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(owner_token),
+    )
+
+    response = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/"
+        f"{initial.json()['resources'][0]['id']}/not-useful",
+        headers=auth(other_token),
+    )
+
+    assert response.status_code == 404
+
+
 def test_refresh_is_limited_per_user_and_step(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

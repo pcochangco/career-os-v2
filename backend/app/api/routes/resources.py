@@ -3,7 +3,7 @@ from math import ceil
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
@@ -12,7 +12,11 @@ from app.api.routes.progress import get_owned_active_step
 from app.api.routes.roadmaps import get_owned_roadmap
 from app.api.schemas import LearningResourceRead, StepResourcesRead
 from app.core.config import get_settings
-from app.db.models import RoadmapStepResource, RoadmapStepResourceRefreshAttempt
+from app.db.models import (
+    RoadmapStepResource,
+    RoadmapStepResourceFeedback,
+    RoadmapStepResourceRefreshAttempt,
+)
 from app.resources.dependencies import get_resource_resolver
 from app.resources.service import ResourceResolver
 from app.services.progress import calculate_roadmap_progress
@@ -27,6 +31,17 @@ def read_cached_resources(db: DbSession, step_id: UUID) -> list[RoadmapStepResou
             select(RoadmapStepResource)
             .where(RoadmapStepResource.step_id == step_id)
             .order_by(RoadmapStepResource.created_at, RoadmapStepResource.id)
+        ).all()
+    )
+
+
+def read_rejected_resource_urls(db: DbSession, *, user_id: UUID, step_id: UUID) -> set[str]:
+    return set(
+        db.scalars(
+            select(RoadmapStepResourceFeedback.resource_url).where(
+                RoadmapStepResourceFeedback.user_id == user_id,
+                RoadmapStepResourceFeedback.step_id == step_id,
+            )
         ).all()
     )
 
@@ -65,6 +80,22 @@ def remove_irrelevant_cached_resources(
             description=resource.description,
             queries=queries,
         ):
+            continue
+        db.delete(resource)
+        removed = True
+    if removed:
+        db.commit()
+    return removed
+
+
+def remove_rejected_cached_resources(
+    db: DbSession,
+    resources: list[RoadmapStepResource],
+    rejected_urls: set[str],
+) -> bool:
+    removed = False
+    for resource in resources:
+        if resource.url not in rejected_urls:
             continue
         db.delete(resource)
         removed = True
@@ -140,15 +171,24 @@ def resolve_step_resources(
     if refresh:
         start_resource_refresh_attempt(db, user_id=user.id, step_id=step.id)
 
+    rejected_urls = read_rejected_resource_urls(db, user_id=user.id, step_id=step.id)
     cached = read_cached_resources(db, step.id)
-    cache_changed = remove_irrelevant_cached_resources(
+    cache_changed = remove_rejected_cached_resources(db, cached, rejected_urls)
+    if cache_changed:
+        cached = read_cached_resources(db, step.id)
+    cache_changed = (
+        remove_irrelevant_cached_resources(
         db,
         resolver,
         cached,
         step.resource_queries,
+        )
+        or cache_changed
     )
     cached = read_cached_resources(db, step.id) if cache_changed else cached
-    excluded_urls = {resource.url for resource in cached} if refresh else set()
+    excluded_urls = set(rejected_urls)
+    if refresh:
+        excluded_urls.update(resource.url for resource in cached)
     # Refresh pre-video-first caches once. This makes the new recommendation policy
     # useful immediately instead of waiting for the old seven-day cache window.
     needs_primary_video = resolver.has_video_provider and (
@@ -187,3 +227,48 @@ def resolve_step_resources(
     except IntegrityError:
         db.rollback()
     return to_resource_response(step.id, read_cached_resources(db, step.id), cached=False)
+
+
+@router.post(
+    "/{step_id}/resources/{resource_id}/not-useful",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def reject_step_resource(
+    step_id: UUID,
+    resource_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> Response:
+    step, roadmap, _ = get_owned_active_step(db, user, step_id)
+    owned_roadmap = get_owned_roadmap(db, user, roadmap.id)
+    if calculate_roadmap_progress(db, user, owned_roadmap).current_step_id != step.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Resources are available when this step becomes current",
+        )
+    resource = db.scalar(
+        select(RoadmapStepResource).where(
+            RoadmapStepResource.id == resource_id,
+            RoadmapStepResource.step_id == step.id,
+        )
+    )
+    if resource is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource was not found")
+    already_rejected = db.scalar(
+        select(RoadmapStepResourceFeedback.id).where(
+            RoadmapStepResourceFeedback.user_id == user.id,
+            RoadmapStepResourceFeedback.step_id == step.id,
+            RoadmapStepResourceFeedback.resource_url == resource.url,
+        )
+    )
+    if already_rejected is None:
+        db.add(
+            RoadmapStepResourceFeedback(
+                user_id=user.id,
+                step_id=step.id,
+                resource_url=resource.url,
+            )
+        )
+    db.delete(resource)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -33,5 +33,6 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
     throw new ApiError(payload?.detail ?? "Something went wrong. Please try again.", response.status);
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
