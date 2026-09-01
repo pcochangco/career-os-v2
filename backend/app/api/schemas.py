@@ -131,6 +131,26 @@ class AnonymousSessionRead(BaseModel):
     user_id: UUID
 
 
+class IdentityLinkWrite(BaseModel):
+    identity_token: str = Field(min_length=40, max_length=8192)
+
+
+class AuthProviderConfigRead(BaseModel):
+    apple: bool = False
+    google: bool = False
+    google_web_client_id: str = ""
+    google_ios_client_id: str = ""
+    google_android_client_id: str = ""
+
+
+class AccountRead(BaseModel):
+    user_id: UUID
+    status: Literal["guest", "saved"]
+    providers: list[Literal["apple", "google"]] = Field(default_factory=list)
+    email: str = ""
+    provider_config: AuthProviderConfigRead
+
+
 class GoalCreate(BaseModel):
     title: str = Field(min_length=3, max_length=140)
 

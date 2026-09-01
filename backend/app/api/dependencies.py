@@ -22,10 +22,10 @@ def hash_session_token(token: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest()
 
 
-def get_current_user(
+def get_current_session(
     credentials: BearerCredentials,
     db: DbSession,
-) -> User:
+) -> UserSession:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -37,10 +37,23 @@ def get_current_user(
             UserSession.token_hash == hash_session_token(credentials.credentials)
         )
     )
-    if session is None or session.expires_at.replace(tzinfo=UTC) <= datetime.now(UTC):
+    if (
+        session is None
+        or session.revoked_at is not None
+        or session.expires_at.replace(tzinfo=UTC) <= datetime.now(UTC)
+    ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+    return session
 
-    user = db.get(User, session.user_id)
+
+CurrentSession = Annotated[UserSession, Depends(get_current_session)]
+
+
+def get_current_user(
+    current_session: CurrentSession,
+    db: DbSession,
+) -> User:
+    user = db.get(User, current_session.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
     return user

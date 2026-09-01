@@ -203,8 +203,8 @@ Public AI safeguards use a durable attempt ledger with both per-user and global
 hourly ceilings. Attempts are counted before the provider call, including failed
 requests and new anonymous sessions. The preview remains deterministic until the
 configured provider key is stored as a backend secret; `auto` mode then enables live
-generation with deterministic failover. Before a wider beta, add account upgrades, usage
-budgets, request tracing, and asynchronous generation if measured latency requires it.
+generation with deterministic failover. Before a wider beta, add usage budgets,
+request tracing, and asynchronous generation if measured latency requires it.
 
 ## Security baseline
 
@@ -218,16 +218,24 @@ budgets, request tracing, and asynchronous generation if measured latency requir
 - Do not send private notes or evidence to an AI provider without an explicit
   feature need and clear user understanding.
 
-### Sprint 1 identity boundary
+### Guest-first identity boundary
 
 The first vertical slice creates an anonymous bearer session automatically. The
 raw opaque token is returned once, stored by the web client, and only its SHA-256
 digest is persisted. Every goal and roadmap query is scoped to the session's
 user. This removes sign-up friction without weakening server-side ownership.
 
-Before public beta, anonymous users can upgrade to a verified account without
-changing ownership IDs. Native persistent secure-token storage and session
-revocation UI are added with the mobile release boundary.
+Guest tokens persist in browser storage on web and encrypted SecureStore on native
+devices. A verified Apple or Google identity attaches to the same user record, so
+linking an account preserves goals, roadmaps, evidence, and progress. If a returning
+identity is opened from a new guest session, the current guest-owned data is merged
+into the saved user before a replacement session is issued.
+
+The backend validates provider ID-token signatures, issuer, audience, expiry, and
+subject against configured client IDs. Provider tokens are never stored. Identity
+linking and logout rotate or revoke the opaque CareerOS session, and account deletion
+cascades through user-owned data. Provider client IDs remain environment configuration;
+the Settings UI stays in guest mode until the relevant provider is configured.
 
 ## Implemented vertical slices
 

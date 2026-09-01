@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     resource_cache_ttl_hours: int = Field(default=168, ge=1, le=720)
     resource_alternate_limit_per_step_per_day: int = Field(default=3, ge=1, le=20)
     resource_alternate_cooldown_seconds: int = Field(default=12, ge=0, le=300)
+    google_web_client_id: str = ""
+    google_ios_client_id: str = ""
+    google_android_client_id: str = ""
+    apple_client_ids: str = ""
     ai_api_key: SecretStr | None = None
     youtube_api_key: SecretStr | None = None
     brave_search_api_key: SecretStr | None = None
@@ -97,6 +101,22 @@ class Settings(BaseSettings):
             raise ValueError("AI base URL must be a credential-free HTTPS endpoint")
         return normalized
 
+    @field_validator(
+        "google_web_client_id",
+        "google_ios_client_id",
+        "google_android_client_id",
+        "apple_client_ids",
+        mode="before",
+    )
+    @classmethod
+    def normalize_oauth_client_ids(cls, value: object) -> object:
+        if not isinstance(value, str):
+            raise ValueError("OAuth client identifiers must be strings")
+        normalized = ",".join(item.strip() for item in value.split(",") if item.strip())
+        if normalized and not re.fullmatch(r"[A-Za-z0-9._,:/-]{3,1000}", normalized):
+            raise ValueError("OAuth client identifiers contain unsupported characters")
+        return normalized
+
     @field_validator("ai_reasoning_effort", mode="before")
     @classmethod
     def use_optional_reasoning_effort(cls, value: object) -> object:
@@ -124,6 +144,24 @@ class Settings(BaseSettings):
             self.brave_search_api_key is not None
             and self.brave_search_api_key.get_secret_value().strip()
         )
+
+    @property
+    def google_client_ids(self) -> list[str]:
+        return list(
+            dict.fromkeys(
+                value
+                for value in (
+                    self.google_web_client_id,
+                    self.google_ios_client_id,
+                    self.google_android_client_id,
+                )
+                if value
+            )
+        )
+
+    @property
+    def allowed_apple_client_ids(self) -> list[str]:
+        return [value for value in self.apple_client_ids.split(",") if value]
 
     @property
     def resolved_ai_critic_model(self) -> str:

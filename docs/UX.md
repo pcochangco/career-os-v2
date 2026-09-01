@@ -17,6 +17,16 @@ The baseline navigation contains:
 
 There is no dashboard or Today destination.
 
+## Guest and saved accounts
+
+- A new user starts as a guest without registration.
+- Guest progress persists on the current device.
+- Settings explains that Apple or Google sign-in saves progress for other devices.
+- Linking keeps all existing goals and progress and does not create a blank second account.
+- A returning sign-in restores the saved account and also keeps work started in the current guest session.
+- Sign out returns the device to a fresh guest session.
+- Account deletion requires explicit confirmation and names the data that will be removed.
+
 ## App opening behavior
 
 - With no goals, show a calm goal-creation empty state.

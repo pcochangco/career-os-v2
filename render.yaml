@@ -69,6 +69,14 @@ services:
         sync: false
       - key: CAREEROS_BRAVE_SEARCH_API_KEY
         sync: false
+      - key: CAREEROS_GOOGLE_WEB_CLIENT_ID
+        sync: false
+      - key: CAREEROS_GOOGLE_IOS_CLIENT_ID
+        sync: false
+      - key: CAREEROS_GOOGLE_ANDROID_CLIENT_ID
+        sync: false
+      - key: CAREEROS_APPLE_CLIENT_IDS
+        sync: false
 
 databases:
   - name: career-os-db

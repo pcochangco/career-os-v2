@@ -43,7 +43,7 @@ export default function GoalsRoute() {
     <Screen>
       <Brand />
       <Pressable accessibilityRole="button" onPress={() => router.push("/settings" as never)} style={styles.appearanceLink}>
-        <Text style={styles.appearanceText}>Appearance</Text>
+        <Text style={styles.appearanceText}>Settings</Text>
       </Pressable>
       <View style={styles.header}>
         <View style={styles.headerCopy}>

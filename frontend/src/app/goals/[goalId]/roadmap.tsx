@@ -289,7 +289,7 @@ export default function RoadmapRoute() {
           <Text style={styles.goalsLink}>All goals</Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push("/settings" as never)}>
-          <Text style={styles.goalsLink}>Appearance</Text>
+          <Text style={styles.goalsLink}>Settings</Text>
         </Pressable>
       </View>
       <Text style={styles.title}>{roadmap.title}</Text>
