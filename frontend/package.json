@@ -12,6 +12,8 @@
     "export:web": "expo export --platform web"
   },
   "dependencies": {
+    "expo-apple-authentication": "~57.0.1",
+    "expo-dev-client": "~57.0.16",
     "expo-secure-store": "~57.0.2",
     "expo": "~57.0.10",
     "expo-constants": "~57.0.9",
@@ -21,6 +23,8 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-nitro-google-signin": "^2.1.0",
+    "react-native-nitro-modules": "^0.37.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-web": "~0.21.0"

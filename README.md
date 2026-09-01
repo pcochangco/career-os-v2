@@ -164,6 +164,46 @@ Run all available foundation checks:
 ./scripts/check.sh
 ```
 
+## Native builds and account providers
+
+The native Expo app lives in `frontend`. Its iOS bundle identifier and Android
+package are both `com.careeros.app`. Provider ID tokens are verified by the
+FastAPI backend; CareerOS does not need a Google client secret or an Apple `.p8`
+key for native sign-in.
+
+Configure these public identifiers on the Render service:
+
+```dotenv
+CAREEROS_GOOGLE_WEB_CLIENT_ID=
+CAREEROS_GOOGLE_IOS_CLIENT_ID=
+CAREEROS_GOOGLE_ANDROID_CLIENT_ID=
+CAREEROS_APPLE_CLIENT_IDS=com.careeros.app
+```
+
+Configure these build-time values in each EAS environment:
+
+```dotenv
+EXPO_PUBLIC_API_URL=https://career-os-41i5.onrender.com/api/v1
+GOOGLE_IOS_CLIENT_ID=
+```
+
+The Google web client ID is also used as the audience of native Google ID tokens.
+The iOS client ID is supplied separately so Expo can register its reversed URL
+scheme. The Android client registration must use package `com.careeros.app` and
+the SHA-1 fingerprint of each EAS or Play signing certificate.
+
+After linking the project to an Expo account with `eas init`, build from the
+frontend directory:
+
+```bash
+cd frontend
+eas build --profile development --platform all
+```
+
+Development and preview builds use internal distribution; Android preview builds
+produce an installable APK. Production builds use store-ready signing and version
+auto-incrementing.
+
 The backend health endpoint is `GET /api/v1/health`, and local API documentation
 is available at `/api/docs`. Representative roadmap evaluations live in
 `backend/evals/cases.json` and run as part of the backend test suite without

@@ -26,6 +26,8 @@ There is no dashboard or Today destination.
 - A returning sign-in restores the saved account and also keeps work started in the current guest session.
 - Sign out returns the device to a fresh guest session.
 - Account deletion requires explicit confirmation and names the data that will be removed.
+- Native builds use the provider's official Apple and Google buttons and show a
+  clear setup state when a provider has not been configured.
 
 ## App opening behavior
 

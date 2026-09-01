@@ -237,6 +237,15 @@ linking and logout rotate or revoke the opaque CareerOS session, and account del
 cascades through user-owned data. Provider client IDs remain environment configuration;
 the Settings UI stays in guest mode until the relevant provider is configured.
 
+Native iOS and Android builds use EAS profiles in `frontend/eas.json`. The iOS
+client enables the Apple capability through Expo's Apple Authentication plugin.
+Google sign-in uses Android Credential Manager and the native Google iOS SDK
+through the Nitro Google Sign-In config plugin. Both clients send only the
+provider-issued ID token to the existing `/api/v1/auth/link/{provider}` boundary.
+The production API URL and the Google iOS client ID are supplied to EAS at build
+time; OAuth client IDs are public identifiers, while provider secrets are neither
+required nor accepted by the app.
+
 ## Implemented vertical slices
 
 The first implemented slice is deliberately narrow:
