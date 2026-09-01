@@ -85,7 +85,7 @@ function isThemePreference(value: string | null): value is ThemePreference {
 }
 
 function readWebPreference(): ThemePreference {
-  if (Platform.OS !== "web" || typeof localStorage === "undefined") return "system";
+  if (typeof localStorage === "undefined") return "system";
   const stored = localStorage.getItem(THEME_KEY);
   return isThemePreference(stored) ? stored : "system";
 }
@@ -100,10 +100,13 @@ async function storePreference(preference: ThemePreference): Promise<void> {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>(readWebPreference);
+  const [preference, setPreferenceState] = useState<ThemePreference>("system");
 
   useEffect(() => {
-    if (Platform.OS === "web") return;
+    if (Platform.OS === "web") {
+      setPreferenceState(readWebPreference());
+      return;
+    }
     let active = true;
     SecureStore.getItemAsync(THEME_KEY)
       .then((stored) => {
