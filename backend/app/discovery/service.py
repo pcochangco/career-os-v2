@@ -75,14 +75,18 @@ class FixtureDiscoveryProvider:
         answers: list[DiscoveryContextAnswer],
         used_question_keys: list[str],
     ) -> ProviderResult[DiscoveryQuestionDraft]:
-        del goal_title, used_question_keys
+        del used_question_keys
         if not answers:
             return ProviderResult(
                 value=DiscoveryQuestionDraft(
                     is_complete=False,
                     question_key="focus-area",
-                    question="Which part of this goal matters most to you right now?",
-                    help_text="Choose the direction that would make the roadmap most useful.",
+                    question=(
+                        f'For "{goal_title}", what would make the biggest difference right now?'
+                    ),
+                    help_text=(
+                        "Choose the direction that would make this particular roadmap most useful."
+                    ),
                     selection_mode="multiple",
                     options=[
                         DiscoveryOption(key="practical-project", label="Build a practical project"),
@@ -92,7 +96,9 @@ class FixtureDiscoveryProvider:
                             key="solve-current-work", label="Solve a current work problem"
                         ),
                     ],
-                    placeholder="Describe the result you want in your own words…",
+                    placeholder=(
+                        f'What would meaningful progress in "{goal_title}" look like to you?'
+                    ),
                 )
             )
         if len(answers) == 1:

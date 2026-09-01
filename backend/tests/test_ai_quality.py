@@ -36,6 +36,50 @@ def test_fixture_passes_representative_eval_cases(
     )
 
 
+def test_fixture_uses_goal_domain_to_vary_the_learner_path() -> None:
+    provider = FixtureRoadmapProvider()
+    technical = provider.generate(base_input()).value
+    language = provider.generate(
+        base_input().model_copy(
+            update={
+                "goal_title": "Reach conversational Spanish",
+                "desired_outcome": "Hold a useful Spanish conversation",
+            }
+        )
+    ).value
+    business = provider.generate(
+        base_input().model_copy(
+            update={
+                "goal_title": "Grow Casual Coffee",
+                "desired_outcome": "Run a repeatable small coffee business",
+            }
+        )
+    ).value
+
+    assert technical.milestones[0].title == "Build on the right technical base"
+    assert language.milestones[0].title == "Build usable language foundations"
+    assert business.milestones[0].title == "Clarify the offer and customer"
+
+    technical_steps = [step for milestone in technical.milestones for step in milestone.steps]
+    language_steps = [step for milestone in language.milestones for step in milestone.steps]
+    business_steps = [step for milestone in business.milestones for step in milestone.steps]
+
+    assert {step.title for step in technical_steps}.isdisjoint(
+        step.title for step in language_steps
+    )
+    assert {step.title for step in technical_steps}.isdisjoint(
+        step.title for step in business_steps
+    )
+    assert "failure path" in technical_steps[3].action
+    assert "role-play" in language_steps[3].title.lower()
+    assert "responses" in business_steps[3].completion_condition
+    assert technical_steps[-1].evidence_suggestion == ("Technical case study and evidence package")
+    assert language_steps[-1].evidence_suggestion == ("Shareable communication evidence package")
+    assert business_steps[-1].evidence_suggestion == (
+        "One-page operating playbook and evidence package"
+    )
+
+
 def base_input() -> RoadmapGenerationInput:
     return RoadmapGenerationInput(
         goal_title="Learn API system design",
