@@ -1,3 +1,4 @@
+import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 
@@ -18,21 +19,20 @@ type SessionContextValue = {
 
 const TOKEN_KEY = "careeros.session";
 const SessionContext = createContext<SessionContextValue | null>(null);
-let nativeSessionToken: string | null = null;
 
-function readStoredToken(): string | null {
+async function readStoredToken(): Promise<string | null> {
   if (Platform.OS === "web" && typeof localStorage !== "undefined") {
     return localStorage.getItem(TOKEN_KEY);
   }
-  return nativeSessionToken;
+  return SecureStore.getItemAsync(TOKEN_KEY);
 }
 
-function storeToken(token: string): void {
+async function storeToken(token: string): Promise<void> {
   if (Platform.OS === "web" && typeof localStorage !== "undefined") {
     localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    nativeSessionToken = token;
+    return;
   }
+  await SecureStore.setItemAsync(TOKEN_KEY, token);
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -45,13 +45,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     async function initialize() {
       try {
         setError(null);
-        const stored = readStoredToken();
+        const stored = await readStoredToken();
         if (stored) {
           if (active) setToken(stored);
           return;
         }
         const session = await apiRequest<SessionResponse>("/auth/anonymous", { method: "POST" });
-        storeToken(session.access_token);
+        await storeToken(session.access_token);
         if (active) setToken(session.access_token);
       } catch (caught) {
         if (active) {
