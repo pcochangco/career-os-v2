@@ -46,6 +46,9 @@ class DiscoveryStateRead(BaseModel):
     question: DiscoveryQuestionRead | None = None
     context_summary: list[str] = Field(default_factory=list)
     completion_reason: str = ""
+    answered_questions: int = 0
+    minimum_questions: int = 3
+    maximum_questions: int = 6
 
 
 class DiscoveryAnswerWrite(BaseModel):

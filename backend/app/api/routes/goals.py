@@ -30,6 +30,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.discovery.service import MAX_DISCOVERY_QUESTIONS, MIN_DISCOVERY_QUESTIONS
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -192,14 +193,25 @@ def to_discovery_question_read(question: GoalDiscoveryQuestion) -> DiscoveryQues
 def to_discovery_state(db: Session, goal: Goal) -> DiscoveryStateRead:
     revision = latest_question_revision(db, goal)
     if revision is None:
-        return DiscoveryStateRead(status="unstarted", goal_title=goal.title)
+        return DiscoveryStateRead(
+            status="unstarted",
+            goal_title=goal.title,
+            minimum_questions=MIN_DISCOVERY_QUESTIONS,
+            maximum_questions=MAX_DISCOVERY_QUESTIONS,
+        )
     questions = adaptive_questions(db, goal, revision)
+    answered_questions = sum(question.status in {"answered", "skipped"} for question in questions)
     pending = next(
         (question for question in reversed(questions) if question.status == "pending"), None
     )
     if pending is not None:
         return DiscoveryStateRead(
-            status="question", goal_title=goal.title, question=to_discovery_question_read(pending)
+            status="question",
+            goal_title=goal.title,
+            question=to_discovery_question_read(pending),
+            answered_questions=answered_questions,
+            minimum_questions=MIN_DISCOVERY_QUESTIONS,
+            maximum_questions=MAX_DISCOVERY_QUESTIONS,
         )
     context = adaptive_context(db, goal, revision)
     if goal.status == "ready_to_generate":
@@ -208,8 +220,17 @@ def to_discovery_state(db: Session, goal: Goal) -> DiscoveryStateRead:
             goal_title=goal.title,
             context_summary=[f"{answer.question}: {answer.answer}" for answer in context],
             completion_reason="You have given enough detail to shape a focused roadmap.",
+            answered_questions=answered_questions,
+            minimum_questions=MIN_DISCOVERY_QUESTIONS,
+            maximum_questions=MAX_DISCOVERY_QUESTIONS,
         )
-    return DiscoveryStateRead(status="unstarted", goal_title=goal.title)
+    return DiscoveryStateRead(
+        status="unstarted",
+        goal_title=goal.title,
+        answered_questions=answered_questions,
+        minimum_questions=MIN_DISCOVERY_QUESTIONS,
+        maximum_questions=MAX_DISCOVERY_QUESTIONS,
+    )
 
 
 def apply_goal_title_suggestion(goal: Goal, suggested_title: str) -> None:

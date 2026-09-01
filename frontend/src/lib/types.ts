@@ -136,4 +136,7 @@ export type DiscoveryState = {
   question: DiscoveryQuestion | null;
   context_summary: string[];
   completion_reason: string;
+  answered_questions: number;
+  minimum_questions: number;
+  maximum_questions: number;
 };

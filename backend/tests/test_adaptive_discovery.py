@@ -42,6 +42,9 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert first_question["question_key"] == "focus-area"
     assert first_question["selection_mode"] == "multiple"
     assert len(first_question["options"]) >= 3
+    assert started.json()["answered_questions"] == 0
+    assert started.json()["minimum_questions"] == 3
+    assert started.json()["maximum_questions"] == 6
 
     reloaded = client.get(f"/api/v1/goals/{goal['id']}/discovery", headers=headers)
     assert reloaded.status_code == 200
@@ -58,6 +61,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert second.status_code == 200
     second_question = second.json()["question"]
     assert second_question["question_key"] == "starting-point"
+    assert second.json()["answered_questions"] == 1
 
     third = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{second_question['id']}/answer",
@@ -75,6 +79,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     )
     assert ready.status_code == 200
     assert ready.json()["status"] == "ready"
+    assert ready.json()["answered_questions"] == 3
     assert len(ready.json()["context_summary"]) == 3
     assert "Skipped" in ready.json()["context_summary"][1]
 
@@ -153,9 +158,7 @@ def test_first_discovery_turn_applies_the_suggested_goal_title(client: TestClien
         "/api/v1/goals", headers=headers, json={"title": "become ai automation engineer"}
     ).json()
 
-    response = client.post(
-        f"/api/v1/goals/{goal['id']}/discovery/questions/next", headers=headers
-    )
+    response = client.post(f"/api/v1/goals/{goal['id']}/discovery/questions/next", headers=headers)
     assert response.status_code == 200
     assert response.json()["goal_title"] == "Become an AI Automation Engineer"
     assert client.get(f"/api/v1/goals/{goal['id']}", headers=headers).json()["title"] == (
