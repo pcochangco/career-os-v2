@@ -60,7 +60,7 @@ const darkColors: ThemeColors = {
   line: "#2C3A32",
   muted: "#AAB9B0",
   softBorder: "#315D46",
-  white: "#07110C",
+  white: "#F4FAF6",
 };
 
 const THEME_KEY = "careeros.theme";

@@ -104,6 +104,19 @@ def test_goal_endpoints_require_authentication(client: TestClient) -> None:
     assert response.status_code == 401
 
 
+def test_goal_creation_rejects_clear_placeholder_or_gibberish_titles(client: TestClient) -> None:
+    token = create_session(client)
+
+    for title in ("asdfghjkl", "qwerty", "!!!!", "aaaa"):
+        response = client.post(
+            "/api/v1/goals",
+            headers=auth(token),
+            json={"title": title},
+        )
+        assert response.status_code == 422
+        assert "clear goal" in response.json()["detail"][0]["msg"]
+
+
 def test_roadmap_generation_uses_preview_after_per_user_limit(
     client: TestClient,
     monkeypatch,

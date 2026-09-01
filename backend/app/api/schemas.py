@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -14,6 +15,24 @@ class AnonymousSessionRead(BaseModel):
 
 class GoalCreate(BaseModel):
     title: str = Field(min_length=3, max_length=140)
+
+    @field_validator("title")
+    @classmethod
+    def require_meaningful_title(cls, value: str) -> str:
+        title = " ".join(value.split())
+        lower_title = title.lower()
+        letters_only = re.sub(r"[^a-z]", "", lower_title)
+        keyboard_patterns = ("qwerty", "asdf", "zxcv", "poiuy", "lkjh")
+        is_repeated_character = bool(re.fullmatch(r"(.)\1{2,}", title))
+
+        if (
+            len(title) < 3
+            or not letters_only
+            or is_repeated_character
+            or any(pattern in letters_only for pattern in keyboard_patterns)
+        ):
+            raise ValueError("Write a clear goal, not placeholder or random text")
+        return title
 
 
 class DiscoveryWrite(BaseModel):

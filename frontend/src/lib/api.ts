@@ -30,8 +30,16 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new ApiError(payload?.detail ?? "Something went wrong. Please try again.", response.status);
+    const payload = (await response.json().catch(() => null)) as {
+      detail?: string | Array<{ msg?: string }>;
+    } | null;
+    const detail = payload?.detail;
+    const message = typeof detail === "string"
+      ? detail
+      : Array.isArray(detail) && typeof detail[0]?.msg === "string"
+        ? detail[0].msg
+        : "Something went wrong. Please try again.";
+    throw new ApiError(message, response.status);
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
