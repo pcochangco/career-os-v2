@@ -10,7 +10,9 @@ from fastapi import FastAPI, Request, Response
 
 from app.core.config import Settings
 
-logger = logging.getLogger("careeros.request")
+# Uvicorn configures this logger with an INFO-level production handler. Reusing
+# it keeps request events visible without adding a second, duplicate handler.
+logger = logging.getLogger("uvicorn.error")
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 

@@ -1,3 +1,6 @@
+import json
+import logging
+
 from fastapi.testclient import TestClient
 
 from app.core.rate_limit import SlidingWindowRateLimiter
@@ -31,6 +34,36 @@ def test_invalid_request_reference_is_replaced(client: TestClient) -> None:
     assert request_id != "unsafe request id with spaces"
     assert len(request_id) == 32
     assert request_id.isalnum()
+
+
+def test_request_log_is_structured_and_excludes_credentials(
+    client: TestClient,
+    caplog,
+) -> None:
+    with caplog.at_level(logging.INFO, logger="uvicorn.error"):
+        response = client.get(
+            "/api/v1/auth/account",
+            headers={
+                "Authorization": "Bearer private-session-value",
+                "X-Request-ID": "log-safety-check",
+            },
+        )
+
+    assert response.status_code == 401
+    event = next(
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"http_request_completed"' in record.message
+    )
+    assert event == {
+        "duration_ms": event["duration_ms"],
+        "event": "http_request_completed",
+        "method": "GET",
+        "path": "/api/v1/auth/account",
+        "request_id": "log-safety-check",
+        "status_code": 401,
+    }
+    assert "private-session-value" not in caplog.text
 
 
 def test_auth_rate_limiter_uses_a_sliding_window() -> None:
