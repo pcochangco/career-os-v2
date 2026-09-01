@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, RefObject } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -23,10 +23,20 @@ export const colors = {
   white: "#FFFFFF",
 };
 
-export function Screen({ children }: { children: ReactNode }) {
+export function Screen({
+  children,
+  scrollViewRef,
+}: {
+  children: ReactNode;
+  scrollViewRef?: RefObject<ScrollView | null>;
+}) {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        ref={scrollViewRef}
+      >
         <View style={styles.content}>{children}</View>
       </ScrollView>
     </SafeAreaView>
