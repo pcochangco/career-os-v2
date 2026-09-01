@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     google_ios_client_id: str = ""
     google_android_client_id: str = ""
     apple_client_ids: str = ""
+    allow_guest_access: bool = True
     auth_anonymous_limit_per_15_minutes: int = Field(default=120, ge=10, le=5000)
     auth_identity_limit_per_15_minutes: int = Field(default=20, ge=5, le=200)
     auth_deletion_limit_per_15_minutes: int = Field(default=5, ge=1, le=50)

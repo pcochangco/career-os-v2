@@ -77,6 +77,8 @@ services:
         sync: false
       - key: CAREEROS_APPLE_CLIENT_IDS
         sync: false
+      - key: CAREEROS_ALLOW_GUEST_ACCESS
+        value: false
       - key: CAREEROS_AUTH_ANONYMOUS_LIMIT_PER_15_MINUTES
         value: 120
       - key: CAREEROS_AUTH_IDENTITY_LIMIT_PER_15_MINUTES

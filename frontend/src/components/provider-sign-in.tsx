@@ -6,45 +6,47 @@ import {
   GoogleOneTapSignIn,
 } from "react-native-nitro-google-signin";
 
-import { Account, IdentityProvider } from "@/lib/session";
+import { IdentityProvider, ProviderConfig } from "@/lib/session";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
 export type ProviderSignInProps = {
-  account: Account;
   disabled: boolean;
+  mode?: "link" | "sign-in";
   onError: (message: string) => void;
   onIdentityToken: (provider: IdentityProvider, token: string) => void;
+  providerConfig: ProviderConfig;
 };
 
 export function ProviderSignIn({
-  account,
   disabled,
+  mode = "sign-in",
   onError,
   onIdentityToken,
+  providerConfig,
 }: ProviderSignInProps) {
   const { colors, isDark } = useTheme();
   const styles = createStyles(colors);
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [providerLoading, setProviderLoading] = useState<IdentityProvider | null>(null);
   const googleConfigured = Boolean(
-    account.provider_config.google && account.provider_config.google_web_client_id,
+    providerConfig.google && providerConfig.google_web_client_id,
   );
 
   useEffect(() => {
     if (!googleConfigured) return;
     GoogleOneTapSignIn.configure({
       autoSelectOnSignIn: false,
-      iosClientId: account.provider_config.google_ios_client_id || undefined,
-      webClientId: account.provider_config.google_web_client_id,
+      iosClientId: providerConfig.google_ios_client_id || undefined,
+      webClientId: providerConfig.google_web_client_id,
     });
   }, [
-    account.provider_config.google_ios_client_id,
-    account.provider_config.google_web_client_id,
+    providerConfig.google_ios_client_id,
+    providerConfig.google_web_client_id,
     googleConfigured,
   ]);
 
   useEffect(() => {
-    if (Platform.OS !== "ios" || !account.provider_config.apple) return;
+    if (Platform.OS !== "ios" || !providerConfig.apple) return;
     let active = true;
     AppleAuthentication.isAvailableAsync()
       .then((available) => active && setAppleAvailable(available))
@@ -52,7 +54,7 @@ export function ProviderSignIn({
     return () => {
       active = false;
     };
-  }, [account.provider_config.apple]);
+  }, [providerConfig.apple]);
 
   async function handleAppleSignIn() {
     try {
@@ -84,10 +86,10 @@ export function ProviderSignIn({
   if (!googleConfigured && !appleAvailable) {
     return (
       <View style={styles.note}>
-        <Text style={styles.title}>Account linking is ready for provider setup.</Text>
+        <Text style={styles.title}>Sign-in setup is the final activation step.</Text>
         <Text style={styles.body}>
-          Add the Apple and Google client IDs to activate sign-in. Guest progress remains safely
-          stored on this device in the meantime.
+          Add the Apple and Google OAuth client IDs to activate secure sign-in. CareerOS does not
+          save goals before sign-in.
         </Text>
       </View>
     );
@@ -102,7 +104,11 @@ export function ProviderSignIn({
               ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
               : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
           }
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+          buttonType={
+            mode === "link"
+              ? AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+              : AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+          }
           cornerRadius={22}
           onPress={() => {
             if (!disabled && providerLoading === null) void handleAppleSignIn();

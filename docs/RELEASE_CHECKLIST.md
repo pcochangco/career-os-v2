@@ -13,11 +13,12 @@ Use this checklist for web, API, and native beta releases. A release is not comp
 
 ## Privacy and authentication
 
-- Verify guest use still works without sign-in.
-- Verify linking Apple or Google keeps the current user ID and data.
-- Verify returning sign-in restores the saved user and rotates the session.
+- Verify the public preview creates no user and stores no typed goal.
+- Verify Apple or Google sign-in creates a saved account before the first goal write.
+- Verify returning sign-in restores only the saved user and never merges browser-local data.
+- Verify linking a second provider keeps the current user ID and data.
 - Verify sign-out revokes the previous session.
-- Verify guest deletion and saved-account deletion remove the user-owned data and invalidate access.
+- Verify account deletion removes the user-owned data and invalidates access.
 - Keep provider identity tokens out of the database and application logs.
 - Publish a real `EXPO_PUBLIC_SUPPORT_EMAIL` before public beta.
 - Recheck `/privacy`, `/terms`, `/account-deletion`, and `/support` in both themes and on a narrow mobile viewport.
@@ -34,12 +35,12 @@ Use this checklist for web, API, and native beta releases. A release is not comp
 
 ## Live smoke test
 
-- Open CareerOS as a new guest.
-- Create one valid goal and reject one invalid goal.
+- Open CareerOS signed out and inspect the example path.
+- Type a goal, sign in, confirm it is created once, and reject one invalid goal.
 - Complete discovery, generate a roadmap, accept it, save step notes, and mark one step complete.
 - Refresh and confirm the app resumes the same state without duplicate goals or roadmaps.
 - Open Settings, change appearance, and confirm all legal/support links work.
-- Delete the test guest or saved account and confirm the old session returns `401`.
+- Delete the test account and confirm the old session returns `401`.
 
 ## Rollback
 

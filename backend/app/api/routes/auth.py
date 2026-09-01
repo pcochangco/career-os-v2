@@ -4,7 +4,7 @@ from secrets import token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.api.dependencies import (
     CurrentSession,
@@ -20,17 +20,7 @@ from app.api.schemas import (
 )
 from app.core.config import get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
-from app.db.models import (
-    AuthIdentity,
-    Goal,
-    RoadmapGenerationAttempt,
-    RoadmapStepProgress,
-    RoadmapStepResourceFeedback,
-    RoadmapStepResourceRefreshAttempt,
-    RoadmapStepWork,
-    User,
-    UserSession,
-)
+from app.db.models import AuthIdentity, User, UserSession
 from app.services.identity import (
     IdentityProvider,
     IdentityProviderNotConfigured,
@@ -78,7 +68,6 @@ def issue_session(db: DbSession, user: User) -> AnonymousSessionRead:
 
 
 def account_response(user: User) -> AccountRead:
-    settings = get_settings()
     providers = sorted(identity.provider for identity in user.identities)
     email = next((identity.email for identity in user.identities if identity.email), "")
     return AccountRead(
@@ -86,13 +75,18 @@ def account_response(user: User) -> AccountRead:
         status="saved" if providers else "guest",
         providers=providers,
         email=email,
-        provider_config=AuthProviderConfigRead(
-            apple=bool(settings.allowed_apple_client_ids),
-            google=bool(settings.google_client_ids),
-            google_web_client_id=settings.google_web_client_id,
-            google_ios_client_id=settings.google_ios_client_id,
-            google_android_client_id=settings.google_android_client_id,
-        ),
+        provider_config=provider_config_response(),
+    )
+
+
+def provider_config_response() -> AuthProviderConfigRead:
+    settings = get_settings()
+    return AuthProviderConfigRead(
+        apple=bool(settings.allowed_apple_client_ids),
+        google=bool(settings.google_client_ids),
+        google_web_client_id=settings.google_web_client_id,
+        google_ios_client_id=settings.google_ios_client_id,
+        google_android_client_id=settings.google_android_client_id,
     )
 
 
@@ -102,23 +96,6 @@ def update_identity(identity: AuthIdentity, verified: VerifiedIdentity) -> None:
     if verified.display_name:
         identity.display_name = verified.display_name
     identity.last_sign_in_at = datetime.now(UTC)
-
-
-def merge_guest_data(db: DbSession, source_user: User, target_user: User) -> None:
-    owned_models = (
-        Goal,
-        RoadmapGenerationAttempt,
-        RoadmapStepProgress,
-        RoadmapStepWork,
-        RoadmapStepResourceRefreshAttempt,
-        RoadmapStepResourceFeedback,
-    )
-    for model in owned_models:
-        db.execute(
-            update(model).where(model.user_id == source_user.id).values(user_id=target_user.id)
-        )
-    db.flush()
-    db.delete(source_user)
 
 
 @router.post(
@@ -132,6 +109,11 @@ def create_anonymous_session(
     limiter: AuthRateLimiter,
 ) -> AnonymousSessionRead:
     settings = get_settings()
+    if not settings.allow_guest_access:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Guest access is not available",
+        )
     client_host = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("User-Agent", "")[:160]
     enforce_rate_limit(
@@ -143,6 +125,74 @@ def create_anonymous_session(
     user = User()
     db.add(user)
     db.flush()
+    session = issue_session(db, user)
+    db.commit()
+    return session
+
+
+@router.get("/config", response_model=AuthProviderConfigRead)
+def read_provider_config() -> AuthProviderConfigRead:
+    return provider_config_response()
+
+
+@router.post("/sign-in/{provider}", response_model=AnonymousSessionRead)
+def sign_in(
+    provider: IdentityProvider,
+    payload: IdentityLinkWrite,
+    request: Request,
+    db: DbSession,
+    verifier: IdentityVerifier,
+    limiter: AuthRateLimiter,
+) -> AnonymousSessionRead:
+    settings = get_settings()
+    client_host = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("User-Agent", "")[:160]
+    enforce_rate_limit(
+        limiter,
+        action=f"sign-in:{provider}",
+        source=f"{client_host}:{user_agent}",
+        limit=settings.auth_identity_limit_per_15_minutes,
+    )
+    try:
+        verified = verifier.verify(provider, payload.identity_token)
+    except IdentityProviderNotConfigured as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(error),
+        ) from error
+    except IdentityTokenError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="The sign-in response could not be verified",
+        ) from error
+
+    identity = db.scalar(
+        select(AuthIdentity).where(
+            AuthIdentity.provider == provider,
+            AuthIdentity.subject == verified.subject,
+        )
+    )
+    if identity is None:
+        user = User()
+        db.add(user)
+        db.flush()
+        identity = AuthIdentity(
+            user_id=user.id,
+            provider=provider,
+            subject=verified.subject,
+            email=verified.email,
+            display_name=verified.display_name,
+        )
+        db.add(identity)
+    else:
+        user = db.get(User, identity.user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="The saved account could not be opened",
+            )
+        update_identity(identity, verified)
+
     session = issue_session(db, user)
     db.commit()
     return session
@@ -164,6 +214,11 @@ def link_identity(
     limiter: AuthRateLimiter,
 ) -> AnonymousSessionRead:
     settings = get_settings()
+    if not user.identities:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sign in before linking another provider",
+        )
     enforce_rate_limit(
         limiter,
         action=f"link:{provider}",
@@ -204,22 +259,12 @@ def link_identity(
             detail=f"A different {provider.title()} account is already linked",
         )
 
-    target_user = user
     current_session.revoked_at = datetime.now(UTC)
     if existing_identity is not None and existing_identity.user_id != user.id:
-        if user.identities:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Sign out before switching to a different saved account",
-            )
-        target_user = db.get(User, existing_identity.user_id)
-        if target_user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="The saved account could not be opened",
-            )
-        update_identity(existing_identity, verified)
-        merge_guest_data(db, user, target_user)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"That {provider.title()} account belongs to another CareerOS account",
+        )
     elif existing_identity is not None:
         update_identity(existing_identity, verified)
     else:
@@ -233,7 +278,7 @@ def link_identity(
             )
         )
 
-    replacement = issue_session(db, target_user)
+    replacement = issue_session(db, user)
     db.commit()
     return replacement
 

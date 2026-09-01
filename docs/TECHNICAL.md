@@ -218,30 +218,31 @@ request tracing, and asynchronous generation if measured latency requires it.
 - Do not send private notes or evidence to an AI provider without an explicit
   feature need and clear user understanding.
 
-### Guest-first identity boundary
+### Required-account identity boundary
 
-The first vertical slice creates an anonymous bearer session automatically. The
-raw opaque token is returned once, stored by the web client, and only its SHA-256
-digest is persisted. Every goal and roadmap query is scoped to the session's
-user. This removes sign-up friction without weakening server-side ownership.
+The public start screen creates no user and persists no goal. A visitor may type a
+goal in component memory, but CareerOS sends it to the API only after verified Apple
+or Google sign-in. Direct provider sign-in creates or opens the provider identity's
+saved user and issues a random opaque CareerOS bearer token. Only the token's SHA-256
+digest is persisted, and every goal and roadmap query is scoped to that user.
 
-Guest tokens persist in browser storage on web and encrypted SecureStore on native
-devices. A verified Apple or Google identity attaches to the same user record, so
-linking an account preserves goals, roadmaps, evidence, and progress. If a returning
-identity is opened from a new guest session, the current guest-owned data is merged
-into the saved user before a replacement session is issued.
+Returning sign-in opens only the identity's saved account. CareerOS never merges
+browser-local or anonymous data into an existing saved account. The anonymous session
+endpoint remains available only for local development and automated tests behind
+`CAREEROS_ALLOW_GUEST_ACCESS`; production sets the flag to `false`.
 
 The backend validates provider ID-token signatures, issuer, audience, expiry, and
 subject against configured client IDs. Provider tokens are never stored. Identity
-linking and logout rotate or revoke the opaque CareerOS session, and account deletion
+provider linking and logout rotate or revoke the opaque CareerOS session, and account deletion
 cascades through user-owned data. Provider client IDs remain environment configuration;
-the Settings UI stays in guest mode until the relevant provider is configured.
+the public UI shows an explicit setup state until the relevant provider is configured.
 
 Native iOS and Android builds use EAS profiles in `frontend/eas.json`. The iOS
 client enables the Apple capability through Expo's Apple Authentication plugin.
 Google sign-in uses Android Credential Manager and the native Google iOS SDK
 through the Nitro Google Sign-In config plugin. Both clients send only the
-provider-issued ID token to the existing `/api/v1/auth/link/{provider}` boundary.
+provider-issued ID token to `/api/v1/auth/sign-in/{provider}`. Saved users can attach
+a second provider through `/api/v1/auth/link/{provider}`.
 The production API URL and the Google iOS client ID are supplied to EAS at build
 time; OAuth client IDs are public identifiers, while provider secrets are neither
 required nor accepted by the app.

@@ -41,8 +41,8 @@ Android and iOS use the same backend, domain contracts, and navigation model.
 
 The implemented product slice covers the complete first-run path:
 
-1. Start an anonymous authenticated session.
-2. Create a user-owned goal.
+1. Preview an example path and enter a goal without saving it.
+2. Sign in with Apple or Google, then create a user-owned goal.
 3. Answer five focused discovery questions, one at a time.
 4. Generate, quality-check, and review a structured roadmap.
 5. Accept the roadmap and open it as a mobile-first vertical path.
@@ -205,8 +205,8 @@ Development and preview builds use internal distribution; Android preview builds
 produce an installable APK. Production builds use store-ready signing and version
 auto-incrementing.
 
-Public web routes are available at `/privacy`, `/terms`, `/account-deletion`, and
-`/support`. They do not create a guest session merely by being opened. Set a real
+Public web routes are available at `/`, `/privacy`, `/terms`, `/account-deletion`,
+and `/support`. They do not create a user or session merely by being opened. Set a real
 `EXPO_PUBLIC_SUPPORT_EMAIL` and rebuild the web/native clients before public beta;
 do not publish a personal address unintentionally.
 
@@ -225,7 +225,7 @@ managed PostgreSQL database in Render's Singapore region. The web service:
 - Uses `/api/v1/health` for deployment health checks.
 - Deploys from `main` only after GitHub CI passes.
 - Limits each user to three roadmap generations per hour.
-- Caps total public generation attempts across anonymous sessions.
+- Caps total roadmap-generation attempts across accounts.
 - Reports whether live AI or the deterministic preview is active through health metadata.
 - Adds request references, structured request logs, no-store API caching, browser
   security headers, narrowed CORS, and bounded account-sensitive operations.

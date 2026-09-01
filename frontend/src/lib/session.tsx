@@ -14,15 +14,17 @@ import { ApiError, apiRequest } from "@/lib/api";
 
 export type IdentityProvider = "apple" | "google";
 
+export type ProviderConfig = {
+  apple: boolean;
+  google: boolean;
+  google_android_client_id: string;
+  google_ios_client_id: string;
+  google_web_client_id: string;
+};
+
 export type Account = {
   email: string;
-  provider_config: {
-    apple: boolean;
-    google: boolean;
-    google_android_client_id: string;
-    google_ios_client_id: string;
-    google_web_client_id: string;
-  };
+  provider_config: ProviderConfig;
   providers: IdentityProvider[];
   status: "guest" | "saved";
   user_id: string;
@@ -40,12 +42,21 @@ type SessionContextValue = {
   deleteAccount: () => Promise<void>;
   error: string | null;
   linkIdentity: (provider: IdentityProvider, identityToken: string) => Promise<void>;
+  providerConfig: ProviderConfig;
   ready: boolean;
   retry: () => void;
+  signIn: (provider: IdentityProvider, identityToken: string) => Promise<string>;
   signOut: () => Promise<void>;
   token: string | null;
 };
 
+const EMPTY_PROVIDER_CONFIG: ProviderConfig = {
+  apple: false,
+  google: false,
+  google_android_client_id: "",
+  google_ios_client_id: "",
+  google_web_client_id: "",
+};
 const TOKEN_KEY = "careeros.session";
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -72,10 +83,6 @@ async function removeStoredToken(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
-async function createGuestSession(): Promise<SessionResponse> {
-  return apiRequest<SessionResponse>("/auth/anonymous", { method: "POST" });
-}
-
 async function readAccount(token: string): Promise<Account> {
   return apiRequest<Account>("/auth/account", { token });
 }
@@ -89,19 +96,33 @@ export function SessionProvider({
 }) {
   const [token, setToken] = useState<string | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
+  const [providerConfig, setProviderConfig] = useState(EMPTY_PROVIDER_CONFIG);
   const [accountLoading, setAccountLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const activateSession = useCallback(async (session: SessionResponse) => {
-    await storeToken(session.access_token);
+  const clearSession = useCallback(async () => {
+    await removeStoredToken();
+    setToken(null);
+    setAccount(null);
+  }, []);
+
+  const activateSession = useCallback(async (session: SessionResponse): Promise<string> => {
     const nextAccount = await readAccount(session.access_token);
+    if (nextAccount.status !== "saved") {
+      throw new Error("A saved account is required to use CareerOS.");
+    }
+    await storeToken(session.access_token);
     setToken(session.access_token);
     setAccount(nextAccount);
+    setProviderConfig(nextAccount.provider_config);
+    return session.access_token;
   }, []);
 
   useEffect(() => {
     if (!enabled) {
+      setReady(true);
       setAccountLoading(false);
       return;
     }
@@ -109,34 +130,37 @@ export function SessionProvider({
     async function initialize() {
       try {
         setError(null);
+        setReady(false);
         setAccountLoading(true);
+        const config = await apiRequest<ProviderConfig>("/auth/config");
+        if (active) setProviderConfig(config);
+
         const stored = await readStoredToken();
         if (stored) {
           try {
             const storedAccount = await readAccount(stored);
-            if (active) {
-              setToken(stored);
-              setAccount(storedAccount);
-              setAccountLoading(false);
+            if (storedAccount.status === "saved") {
+              if (active) {
+                setToken(stored);
+                setAccount(storedAccount);
+                setProviderConfig(storedAccount.provider_config);
+              }
+            } else {
+              await removeStoredToken();
             }
-            return;
           } catch (caught) {
             if (!(caught instanceof ApiError) || caught.status !== 401) throw caught;
             await removeStoredToken();
           }
         }
-        const session = await createGuestSession();
-        await storeToken(session.access_token);
-        const guestAccount = await readAccount(session.access_token);
-        if (active) {
-          setToken(session.access_token);
-          setAccount(guestAccount);
-          setAccountLoading(false);
-        }
       } catch (caught) {
         if (active) {
-          setAccountLoading(false);
           setError(caught instanceof Error ? caught.message : "CareerOS could not start.");
+        }
+      } finally {
+        if (active) {
+          setReady(true);
+          setAccountLoading(false);
         }
       }
     }
@@ -146,9 +170,25 @@ export function SessionProvider({
     };
   }, [attempt, enabled]);
 
+  const signIn = useCallback(
+    async (provider: IdentityProvider, identityToken: string): Promise<string> => {
+      setAccountLoading(true);
+      try {
+        const session = await apiRequest<SessionResponse>(`/auth/sign-in/${provider}`, {
+          body: { identity_token: identityToken },
+          method: "POST",
+        });
+        return await activateSession(session);
+      } finally {
+        setAccountLoading(false);
+      }
+    },
+    [activateSession],
+  );
+
   const linkIdentity = useCallback(
     async (provider: IdentityProvider, identityToken: string) => {
-      if (!token) throw new Error("CareerOS is still opening. Please try again.");
+      if (!token) throw new Error("Sign in before linking another provider.");
       setAccountLoading(true);
       try {
         const session = await apiRequest<SessionResponse>(`/auth/link/${provider}`, {
@@ -164,35 +204,27 @@ export function SessionProvider({
     [activateSession, token],
   );
 
-  const beginFreshGuestSession = useCallback(async () => {
-    await removeStoredToken();
-    setToken(null);
-    setAccount(null);
-    const session = await createGuestSession();
-    await activateSession(session);
-  }, [activateSession]);
-
   const signOut = useCallback(async () => {
     if (!token) return;
     setAccountLoading(true);
     try {
       await apiRequest<void>("/auth/logout", { method: "POST", token });
-      await beginFreshGuestSession();
+      await clearSession();
     } finally {
       setAccountLoading(false);
     }
-  }, [beginFreshGuestSession, token]);
+  }, [clearSession, token]);
 
   const deleteAccount = useCallback(async () => {
     if (!token) return;
     setAccountLoading(true);
     try {
       await apiRequest<void>("/auth/account", { method: "DELETE", token });
-      await beginFreshGuestSession();
+      await clearSession();
     } finally {
       setAccountLoading(false);
     }
-  }, [beginFreshGuestSession, token]);
+  }, [clearSession, token]);
 
   const value = useMemo(
     () => ({
@@ -201,12 +233,25 @@ export function SessionProvider({
       deleteAccount,
       error,
       linkIdentity,
-      ready: token !== null,
+      providerConfig,
+      ready,
       retry: () => setAttempt((value) => value + 1),
+      signIn,
       signOut,
       token,
     }),
-    [account, accountLoading, deleteAccount, error, linkIdentity, signOut, token],
+    [
+      account,
+      accountLoading,
+      deleteAccount,
+      error,
+      linkIdentity,
+      providerConfig,
+      ready,
+      signIn,
+      signOut,
+      token,
+    ],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

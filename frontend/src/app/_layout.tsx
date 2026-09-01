@@ -1,21 +1,40 @@
-import { Stack, usePathname } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { ReactNode, useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppErrorBoundary } from "@/components/app-error-boundary";
-import { SessionProvider } from "@/lib/session";
+import { LoadingState } from "@/components/ui";
+import { SessionProvider, useSession } from "@/lib/session";
 import { ThemeProvider, useTheme } from "@/lib/theme";
+
+const publicRoutes = ["/", "/account-deletion", "/privacy", "/support", "/terms"];
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const session = useSession();
+  const publicRoute = publicRoutes.includes(pathname);
+
+  useEffect(() => {
+    if (!publicRoute && session.ready && !session.token) router.replace("/");
+  }, [publicRoute, router, session.ready, session.token]);
+
+  if (publicRoute) return children;
+  if (!session.ready || !session.token) return <LoadingState label="Sign in to continue…" />;
+  return children;
+}
 
 function AppNavigator() {
   const { isDark } = useTheme();
-  const pathname = usePathname();
-  const publicRoute = ["/account-deletion", "/privacy", "/support", "/terms"].includes(pathname);
   return (
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
       <AppErrorBoundary>
-        <SessionProvider enabled={!publicRoute}>
-          <Stack screenOptions={{ headerShown: false }} />
+        <SessionProvider>
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthGate>
         </SessionProvider>
       </AppErrorBoundary>
     </>

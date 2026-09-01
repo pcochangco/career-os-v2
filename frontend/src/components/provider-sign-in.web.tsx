@@ -50,16 +50,17 @@ function loadGoogleIdentity(): Promise<void> {
 }
 
 export function ProviderSignIn({
-  account,
   disabled,
+  mode = "sign-in",
   onError,
   onIdentityToken,
+  providerConfig,
 }: ProviderSignInProps) {
   const { colors, isDark } = useTheme();
   const styles = createStyles(colors);
   const buttonHost = useRef<View>(null);
   const [loading, setLoading] = useState(false);
-  const clientId = account.provider_config.google_web_client_id;
+  const clientId = providerConfig.google_web_client_id;
 
   useEffect(() => {
     if (!clientId || disabled) return;
@@ -80,7 +81,7 @@ export function ProviderSignIn({
         window.google.accounts.id.renderButton(element, {
           shape: "pill",
           size: "large",
-          text: account.status === "guest" ? "continue_with" : "signin_with",
+          text: mode === "sign-in" ? "continue_with" : "signin_with",
           theme: isDark ? "filled_black" : "outline",
           width: Math.min(360, element.clientWidth || 320),
         });
@@ -92,15 +93,15 @@ export function ProviderSignIn({
     return () => {
       active = false;
     };
-  }, [account.status, clientId, disabled, isDark, onError, onIdentityToken]);
+  }, [clientId, disabled, isDark, mode, onError, onIdentityToken]);
 
   if (!clientId) {
     return (
       <View style={styles.note}>
-        <Text style={styles.title}>Account linking is ready for provider setup.</Text>
+        <Text style={styles.title}>Sign-in setup is the final activation step.</Text>
         <Text style={styles.body}>
-          Add the Apple and Google OAuth client IDs to activate sign-in. Guest progress remains on
-          this device in the meantime.
+          Add the Apple and Google OAuth client IDs to activate secure sign-in. CareerOS does not
+          save goals before sign-in.
         </Text>
       </View>
     );
@@ -110,7 +111,7 @@ export function ProviderSignIn({
     <View style={styles.providerArea}>
       <View accessibilityLabel="Sign in with Google" ref={buttonHost} style={styles.googleHost} />
       {loading ? <Text style={styles.loading}>Loading secure Google sign-in…</Text> : null}
-      {!account.provider_config.apple ? (
+      {!providerConfig.apple ? (
         <Text style={styles.body}>Sign in with Apple activates with the iOS build configuration.</Text>
       ) : null}
     </View>

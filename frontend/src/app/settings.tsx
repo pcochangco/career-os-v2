@@ -38,6 +38,7 @@ export default function SettingsRoute() {
     try {
       setActionError(null);
       await signOut();
+      router.replace("/");
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "You could not be signed out.");
     }
@@ -48,6 +49,7 @@ export default function SettingsRoute() {
       setActionError(null);
       await deleteAccount();
       setConfirmDelete(false);
+      router.replace("/");
     } catch (caught) {
       setActionError(caught instanceof Error ? caught.message : "Your account could not be deleted.");
     }
@@ -63,19 +65,18 @@ export default function SettingsRoute() {
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.accountCard}>
         <Text style={styles.accountStatus}>
-          {account?.status === "saved" ? "Progress saved" : "Guest mode"}
+          Progress saved
         </Text>
         <Text style={styles.accountDescription}>
-          {account?.status === "saved"
-            ? account.email || `Connected with ${account.providers.map((provider) => provider === "apple" ? "Apple" : "Google").join(" and ")}`
-            : "Start immediately. Link an account when you want your goals on another device."}
+          {account?.email || (account ? `Connected with ${account.providers.map((provider) => provider === "apple" ? "Apple" : "Google").join(" and ")}` : "Opening your saved account…")}
         </Text>
         {account ? (
           <ProviderSignIn
-            account={account}
             disabled={accountLoading}
+            mode="link"
             onError={handleProviderError}
             onIdentityToken={handleIdentityToken}
+            providerConfig={account.provider_config}
           />
         ) : (
           <Text style={styles.accountDescription}>Opening your account settings…</Text>
@@ -85,20 +86,17 @@ export default function SettingsRoute() {
         ) : null}
         {account ? (
           <View style={styles.accountActions}>
-            {account.status === "saved" ? (
-              <Button disabled={accountLoading} loading={accountLoading} onPress={handleSignOut} secondary>
-                Sign out
-              </Button>
-            ) : null}
+            <Button disabled={accountLoading} loading={accountLoading} onPress={handleSignOut} secondary>
+              Sign out
+            </Button>
             {confirmDelete ? (
               <View style={styles.deleteConfirm}>
                 <Text style={styles.deleteWarning}>
-                  {account.status === "saved"
-                    ? "This permanently deletes your account, goals, roadmaps, notes, and progress on every device."
-                    : "This permanently deletes this guest’s goals, roadmaps, notes, and progress. A new empty guest session will open."}
+                  This permanently deletes your account, goals, roadmaps, notes, and progress on
+                  every device.
                 </Text>
                 <Button disabled={accountLoading} loading={accountLoading} onPress={handleDeleteAccount}>
-                  {account.status === "saved" ? "Delete account permanently" : "Delete guest data permanently"}
+                  Delete account permanently
                 </Button>
                 <Pressable
                   accessibilityRole="button"
@@ -117,7 +115,7 @@ export default function SettingsRoute() {
                 style={styles.textAction}
               >
                 <Text style={styles.deleteLabel}>
-                  {account.status === "saved" ? "Delete account" : "Delete guest data"}
+                  Delete account
                 </Text>
               </Pressable>
             )}

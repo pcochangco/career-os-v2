@@ -13,10 +13,10 @@ export default function TermsRoute() {
         Use CareerOS lawfully and only for information you are permitted to submit. Do not try to disrupt the service, bypass limits, access another user’s data, upload malicious content, or use generated material to mislead others.
       </LegalSection>
       <LegalSection title="Accounts and availability">
-        Guest access is tied to the session stored on that device. Linking Apple or Google enables account recovery and cross-device access once those providers are configured. Features may change during beta, and the service may be paused for maintenance or provider outages.
+        You may view the public example without an account. Apple or Google sign-in is required before CareerOS saves a goal or opens personal roadmap data. Features may change during beta, and the service may be paused for maintenance or provider outages.
       </LegalSection>
       <LegalSection title="Your content and deletion">
-        You keep responsibility for the content you submit. You allow CareerOS and its service providers to process that content only as needed to operate the app. You may permanently delete guest data or a saved account from Settings.
+        You keep responsibility for the content you submit. You allow CareerOS and its service providers to process that content only as needed to operate the app. You may permanently delete your account and its data from Settings.
       </LegalSection>
       <LegalSection title="Contact">
         {SUPPORT_EMAIL

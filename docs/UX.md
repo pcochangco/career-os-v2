@@ -17,21 +17,21 @@ The baseline navigation contains:
 
 There is no dashboard or Today destination.
 
-## Guest and saved accounts
+## Public preview and saved accounts
 
-- A new user starts as a guest without registration.
-- Guest progress persists on the current device.
-- Settings explains that Apple or Google sign-in saves progress for other devices.
-- Linking keeps all existing goals and progress and does not create a blank second account.
-- A returning sign-in restores the saved account and also keeps work started in the current guest session.
-- Sign out returns the device to a fresh guest session.
+- A new visitor can view a representative roadmap and type a goal without creating an account.
+- The typed goal stays only in the current screen until the visitor chooses to build it.
+- Apple or Google sign-in is required before CareerOS saves the confirmed goal.
+- A returning sign-in opens only that identity’s saved account; browser-local data is never merged.
+- Sign out returns the device to the public preview.
 - Account deletion requires explicit confirmation and names the data that will be removed.
 - Native builds use the provider's official Apple and Google buttons and show a
   clear setup state when a provider has not been configured.
 
 ## App opening behavior
 
-- With no goals, show a calm goal-creation empty state.
+- Without a signed-in account, show the public example and goal entry.
+- With an account but no goals, show a calm goal-creation empty state.
 - With one active goal, open its roadmap directly.
 - With several active goals, restore the last opened goal when available;
   otherwise show Goals.
