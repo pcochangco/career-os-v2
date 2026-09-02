@@ -30,7 +30,11 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
-from app.discovery.service import MAX_DISCOVERY_QUESTIONS, MIN_DISCOVERY_QUESTIONS
+from app.discovery.service import (
+    MAX_DISCOVERY_QUESTIONS,
+    MIN_DISCOVERY_QUESTIONS,
+    deduplicate_context,
+)
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -165,16 +169,18 @@ def adaptive_context(
             )
         ).all()
     }
-    return [
-        DiscoveryContextAnswer(
-            question_key=question.question_key,
-            question=question.question,
-            answer=answers[question.question_key],
-            skipped=question.status == "skipped",
-        )
-        for question in questions
-        if question.status in {"answered", "skipped"} and question.question_key in answers
-    ]
+    return deduplicate_context(
+        [
+            DiscoveryContextAnswer(
+                question_key=question.question_key,
+                question=question.question,
+                answer=answers[question.question_key],
+                skipped=question.status == "skipped",
+            )
+            for question in questions
+            if question.status in {"answered", "skipped"} and question.question_key in answers
+        ]
+    )
 
 
 def to_discovery_question_read(question: GoalDiscoveryQuestion) -> DiscoveryQuestionRead:

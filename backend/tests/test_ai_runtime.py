@@ -457,6 +457,60 @@ def test_compatible_provider_routes_each_stage_to_its_configured_budget() -> Non
         ("openai/gpt-oss-20b", 1600),
         ("qwen/qwen3.8-27b", 4800),
     ]
+    repair_payload = str(requests[-1]["messages"][-1]["content"])
+    assert '"input"' not in repair_payload
+    assert '"roadmap"' in repair_payload
+
+
+def test_compatible_provider_retries_a_token_capacity_rejection_with_a_smaller_budget() -> None:
+    fixture = FixtureRoadmapProvider().generate(generation_input()).value
+    limits: list[int] = []
+
+    class TokenCapacityError(ValueError):
+        status_code = 413
+        code = "rate_limit_exceeded"
+        type = "tokens"
+
+    class Message:
+        refusal = None
+        content = fixture.model_dump_json()
+
+    class Choice:
+        finish_reason = "stop"
+        message = Message()
+
+    class Completion:
+        choices = [Choice()]
+        usage = None
+        id = "smaller-budget-response"
+
+    class Completions:
+        def create(self, **kwargs: object) -> Completion:
+            limits.append(int(kwargs["max_completion_tokens"]))
+            if len(limits) == 1:
+                raise TokenCapacityError("provider token reservation was too large")
+            return Completion()
+
+    class Chat:
+        completions = Completions()
+
+    class Client:
+        chat = Chat()
+
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="unused-test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        response_format_mode="json_object",
+        max_completion_tokens=5000,
+        client=Client(),
+    )
+
+    result = provider.generate(generation_input())
+
+    assert result.value == fixture
+    assert limits == [5000, 3250]
 
 
 def test_completion_length_limit_is_reported_before_parsing_truncated_json() -> None:

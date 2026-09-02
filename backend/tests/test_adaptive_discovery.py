@@ -8,6 +8,7 @@ from app.discovery.service import (
     AdaptiveDiscoveryService,
     DiscoveryValidationError,
     FixtureDiscoveryProvider,
+    deduplicate_context,
 )
 from app.main import app
 
@@ -232,6 +233,72 @@ def test_discovery_stops_after_four_answers_even_if_provider_wants_more() -> Non
     )
 
     assert result.value.is_complete is True
+
+
+def test_discovery_stops_on_a_semantic_repeat_and_keeps_the_useful_answer() -> None:
+    class RepeatingProvider:
+        def next_question(self, **kwargs):
+            del kwargs
+            return ProviderResult(
+                value=DiscoveryQuestionDraft(
+                    is_complete=False,
+                    question_key="field-again",
+                    question=(
+                        "Which academic field or discipline do you plan to pursue for the "
+                        "scholarship?"
+                    ),
+                    help_text="Choose the field that best matches your intended course.",
+                    options=[
+                        {"key": "stem", "label": "STEM"},
+                        {"key": "business", "label": "Business"},
+                        {"key": "arts", "label": "Arts and humanities"},
+                    ],
+                )
+            )
+
+    answers = [
+        DiscoveryContextAnswer(
+            question_key="scholarship-type",
+            question="What type of scholarship are you targeting?",
+            answer="Graduate",
+        ),
+        DiscoveryContextAnswer(
+            question_key="academic-field",
+            question=(
+                "Which academic field or discipline are you planning to pursue for the scholarship?"
+            ),
+            answer="Skipped",
+            skipped=True,
+        ),
+        DiscoveryContextAnswer(
+            question_key="experience",
+            question="What research or project experience do you already have?",
+            answer="No experience",
+        ),
+    ]
+
+    result = AdaptiveDiscoveryService(RepeatingProvider()).next_question(
+        goal_title="University scholarship in Europe",
+        answers=answers,
+        used_question_keys=[answer.question_key for answer in answers],
+    )
+    assert result.value.is_complete is True
+
+    context = deduplicate_context(
+        [
+            *answers,
+            DiscoveryContextAnswer(
+                question_key="field-again",
+                question=(
+                    "Which academic field or discipline do you plan to pursue for the scholarship?"
+                ),
+                answer="STEM",
+            ),
+        ]
+    )
+    assert len(context) == 3
+    assert context[1].answer == "STEM"
+    assert context[1].skipped is False
 
 
 def test_incomplete_discovery_turn_requires_an_actionable_question() -> None:

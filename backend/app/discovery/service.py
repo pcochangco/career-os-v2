@@ -1,8 +1,78 @@
+import re
+
 from app.ai.providers.base import DiscoveryProvider, ProviderResult
 from app.ai.schema import DiscoveryContextAnswer, DiscoveryOption, DiscoveryQuestionDraft
 
 MAX_DISCOVERY_QUESTIONS = 4
 MIN_DISCOVERY_QUESTIONS = 3
+
+_QUESTION_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "do",
+    "does",
+    "for",
+    "in",
+    "is",
+    "of",
+    "or",
+    "the",
+    "to",
+    "what",
+    "which",
+    "with",
+    "you",
+    "your",
+}
+_QUESTION_WORD_ALIASES = {
+    "intended": "intend",
+    "planning": "plan",
+    "planned": "plan",
+    "pursuing": "pursue",
+    "targeting": "target",
+}
+
+
+def question_terms(question: str) -> set[str]:
+    return {
+        _QUESTION_WORD_ALIASES.get(word, word)
+        for word in re.findall(r"[a-z0-9]+", question.lower())
+        if word not in _QUESTION_STOP_WORDS
+    }
+
+
+def questions_are_similar(first: str, second: str) -> bool:
+    first_terms = question_terms(first)
+    second_terms = question_terms(second)
+    overlap = first_terms & second_terms
+    union = first_terms | second_terms
+    return len(overlap) >= 3 and bool(union) and len(overlap) / len(union) >= 0.72
+
+
+def deduplicate_context(
+    answers: list[DiscoveryContextAnswer],
+) -> list[DiscoveryContextAnswer]:
+    unique: list[DiscoveryContextAnswer] = []
+    for answer in answers:
+        duplicate_index = next(
+            (
+                index
+                for index, existing in enumerate(unique)
+                if questions_are_similar(existing.question, answer.question)
+            ),
+            None,
+        )
+        if duplicate_index is None:
+            unique.append(answer)
+            continue
+        existing = unique[duplicate_index]
+        if (existing.skipped and not answer.skipped) or (
+            existing.skipped == answer.skipped and len(answer.answer) > len(existing.answer)
+        ):
+            unique[duplicate_index] = answer
+    return unique
 
 
 class DiscoveryValidationError(RuntimeError):
@@ -40,6 +110,21 @@ class AdaptiveDiscoveryService:
                     "Discovery completed before enough context was gathered"
                 )
             return result
+
+        if any(questions_are_similar(question.question, answer.question) for answer in answers):
+            if len(answers) >= MIN_DISCOVERY_QUESTIONS:
+                return ProviderResult(
+                    value=DiscoveryQuestionDraft(
+                        is_complete=True,
+                        completion_reason=(
+                            "You have given enough detail to shape a focused roadmap."
+                        ),
+                    ),
+                    response_id=result.response_id,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                )
+            raise DiscoveryValidationError("Discovery question repeats an earlier topic")
 
         self._validate_question(question, used_question_keys)
         return result

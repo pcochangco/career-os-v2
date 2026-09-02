@@ -9,6 +9,8 @@ import {
   Field,
   LoadingState,
   Screen,
+  SettingsGlyph,
+  ThumbDownGlyph,
 } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -350,7 +352,7 @@ export default function RoadmapRoute() {
           onPress={() => router.push("/settings" as never)}
           style={styles.settingsButton}
         >
-          <Text style={styles.settingsIcon}>⚙</Text>
+          <SettingsGlyph />
         </Pressable>
       </AppHeader>
       <Text style={styles.title}>{roadmap.title}</Text>
@@ -584,7 +586,13 @@ export default function RoadmapRoute() {
                                         (item) => item.resource_type === "video",
                                       );
                                   return (
-                                  <View key={resource.id} style={styles.resourceCardShell}>
+                                  <View
+                                    key={resource.id}
+                                    style={[
+                                      styles.resourceCardShell,
+                                      isPrimaryVideo && styles.primaryVideoCard,
+                                    ]}
+                                  >
                                     <Pressable
                                       accessibilityHint={
                                         isPrimaryVideo
@@ -594,8 +602,7 @@ export default function RoadmapRoute() {
                                       accessibilityRole="link"
                                       onPress={() => void Linking.openURL(resource.url)}
                                       style={({ pressed }) => [
-                                        styles.resourceCard,
-                                        isPrimaryVideo && styles.primaryVideoCard,
+                                        styles.resourceCardContent,
                                         pressed && styles.resourceLinkPressed,
                                       ]}
                                     >
@@ -639,11 +646,11 @@ export default function RoadmapRoute() {
                                           styles.resourceLinkPressed,
                                       ]}
                                     >
-                                      <Text style={styles.notUsefulText}>
-                                        {dismissingResourceId === resource.id
-                                          ? "…"
-                                          : "👎"}
-                                      </Text>
+                                      {dismissingResourceId === resource.id ? (
+                                        <Text style={styles.notUsefulText}>…</Text>
+                                      ) : (
+                                        <ThumbDownGlyph />
+                                      )}
                                     </Pressable>
                                   </View>
                                   );
@@ -790,7 +797,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   headerTextAction: { justifyContent: "center", minHeight: 38, paddingHorizontal: 6 },
   goalsLink: { color: colors.forest, fontSize: 14, fontWeight: "800" },
   settingsButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 19, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
-  settingsIcon: { color: colors.forest, fontSize: 18, fontWeight: "800", lineHeight: 22 },
   title: {
     color: colors.ink,
     fontSize: 29,
@@ -975,14 +981,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: "uppercase",
   },
   verifiedLabel: { color: colors.forest, fontSize: 11, fontWeight: "700" },
-  resourceCard: {
+  resourceCardShell: {
     backgroundColor: colors.background,
     borderColor: colors.line,
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
+    position: "relative",
   },
-  resourceCardShell: { gap: 5 },
+  resourceCardContent: { paddingBottom: 30 },
   primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
   courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
   resourceLinkPressed: { opacity: 0.72 },
@@ -1021,15 +1028,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
   notUseful: {
     alignItems: "center",
-    alignSelf: "flex-end",
-    backgroundColor: colors.cardMuted,
-    borderRadius: 15,
+    backgroundColor: "transparent",
+    borderColor: colors.line,
+    borderRadius: 14,
+    borderWidth: 1,
+    bottom: 9,
     height: 32,
     justifyContent: "center",
-    marginRight: 2,
-    width: 38,
+    position: "absolute",
+    right: 9,
+    width: 34,
   },
-  notUsefulText: { color: colors.muted, fontSize: 15, fontWeight: "700" },
+  notUsefulText: { alignItems: "center", color: colors.muted, fontSize: 14, fontWeight: "700", justifyContent: "center" },
   undoNotice: {
     alignItems: "center",
     alignSelf: "stretch",

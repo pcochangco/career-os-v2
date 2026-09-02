@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AppHeader, Body, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
+import { AppHeader, Body, Button, ErrorState, Heading, LoadingState, Screen, SettingsGlyph } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
@@ -48,7 +48,7 @@ export default function GoalsRoute() {
           onPress={() => router.push("/settings" as never)}
           style={({ pressed }) => [styles.settingsButton, pressed && styles.cardPressed]}
         >
-          <Text style={styles.settingsIcon}>⚙</Text>
+          <SettingsGlyph />
         </Pressable>
       </AppHeader>
       <View style={styles.header}>
@@ -110,7 +110,6 @@ export default function GoalsRoute() {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   settingsButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 19, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
-  settingsIcon: { color: colors.forest, fontSize: 18, fontWeight: "800", lineHeight: 22 },
   header: { gap: 10, marginBottom: 18 },
   headerCopy: { flex: 1 },
   newGoalButton: { alignSelf: "flex-start", minWidth: 130 },

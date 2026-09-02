@@ -17,6 +17,13 @@ from app.ai.schema import (
 T = TypeVar("T", bound=BaseModel)
 
 
+def is_token_capacity_error(error: Exception) -> bool:
+    """Identify provider rejections caused by an oversized token reservation."""
+    return getattr(error, "status_code", None) == 413 and "type=tokens" in (
+        safe_provider_diagnostic(error)
+    )
+
+
 PORTABLE_SCHEMA_KEYS = {
     "$defs",
     "$ref",
@@ -273,6 +280,10 @@ class OpenAICompatibleRoadmapProvider:
             try:
                 completion = self.client.chat.completions.create(**request)
             except (OpenAIError, ValueError) as error:
+                if attempt == 0 and is_token_capacity_error(error):
+                    current_limit = int(request["max_completion_tokens"])
+                    request["max_completion_tokens"] = max(1200, round(current_limit * 0.65))
+                    continue
                 if attempt == 0 and getattr(error, "code", None) == "json_validate_failed":
                     request["temperature"] = 0
                     continue
@@ -417,7 +428,6 @@ class OpenAICompatibleRoadmapProvider:
     ) -> ProviderResult[RoadmapDraft]:
         payload = json.dumps(
             {
-                "input": generation_input.model_dump(),
                 "roadmap": draft.model_dump(),
                 "quality_issues": [item.model_dump() for item in issues],
             },
@@ -430,7 +440,8 @@ class OpenAICompatibleRoadmapProvider:
                     "role": "user",
                     "content": (
                         "Repair every listed quality issue while preserving valid personalized "
-                        f"content. Return the complete repaired roadmap JSON:\n{payload}"
+                        "content, learner context, and goal already encoded in the roadmap. "
+                        f"Return the complete repaired roadmap JSON:\n{payload}"
                     ),
                 },
             ],

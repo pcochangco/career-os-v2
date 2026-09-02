@@ -70,6 +70,44 @@ export function AppHeader({ children }: { children?: ReactNode }) {
   );
 }
 
+export function SettingsGlyph() {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.settingsGlyph}
+    >
+      {([3, 10, 6] as const).map((left, index) => (
+        <View key={index} style={styles.settingsGlyphRow}>
+          <View style={[styles.settingsGlyphLine, { backgroundColor: colors.forest }]} />
+          <View
+            style={[
+              styles.settingsGlyphKnob,
+              { backgroundColor: colors.card, borderColor: colors.forest, left },
+            ]}
+          />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function ThumbDownGlyph() {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.thumbGlyph}
+    >
+      <View style={[styles.thumbCuff, { borderColor: colors.muted }]} />
+      <View style={[styles.thumbPalm, { borderColor: colors.muted }]} />
+      <View style={[styles.thumbStem, { borderColor: colors.muted }]} />
+    </View>
+  );
+}
+
 export function Heading({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
   return <Text style={[styles.heading, { color: colors.ink }]}>{children}</Text>;
@@ -200,8 +238,16 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   fieldMultiline: { minHeight: 140, textAlignVertical: "top" },
-  centered: { flex: 1, gap: 14, justifyContent: "center", minHeight: 420 },
+  centered: { alignItems: "center", flex: 1, gap: 14, justifyContent: "center", minHeight: 420 },
   loadingBrand: { fontSize: 18, fontWeight: "900", letterSpacing: 0.4, marginBottom: 4 },
   loadingLabel: { color: colors.muted, fontSize: 16, textAlign: "center" },
   loadingMark: { alignSelf: "center", height: 92, width: 92 },
+  settingsGlyph: { height: 18, justifyContent: "space-between", paddingVertical: 1, width: 18 },
+  settingsGlyphRow: { height: 5, justifyContent: "center", position: "relative", width: 18 },
+  settingsGlyphLine: { borderRadius: 1, height: 2, width: 18 },
+  settingsGlyphKnob: { borderRadius: 3, borderWidth: 1.5, height: 6, position: "absolute", top: -0.5, width: 6 },
+  thumbGlyph: { height: 18, position: "relative", width: 19 },
+  thumbCuff: { borderRadius: 2, borderWidth: 1.5, height: 8, left: 1, position: "absolute", top: 3, width: 4 },
+  thumbPalm: { borderRadius: 3, borderWidth: 1.5, height: 10, left: 4, position: "absolute", top: 2, width: 13 },
+  thumbStem: { borderBottomLeftRadius: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, height: 7, left: 11, position: "absolute", top: 9, width: 5 },
 });

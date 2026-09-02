@@ -268,8 +268,7 @@ export default function DiscoveryRoute() {
               ) : null}
               <Text
                 style={[
-                  styles.choiceText,
-                  useCompactChoices && styles.choiceChipText,
+                  useCompactChoices ? styles.choiceChipText : styles.choiceText,
                   active && styles.choiceTextActive,
                 ]}
               >
@@ -315,14 +314,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   choices: { gap: 10, marginBottom: 22, width: "100%" },
   choiceChips: { flexDirection: "row", flexWrap: "wrap" },
   choice: { alignItems: "center", alignSelf: "stretch", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 16, borderWidth: 1, flexDirection: "row", gap: 12, minHeight: 52, paddingHorizontal: 15, paddingVertical: 13, width: "100%" },
-  choiceChip: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: "row", maxWidth: "100%", minHeight: 44, paddingHorizontal: 15, paddingVertical: 10 },
+  choiceChip: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: "row", flexShrink: 1, maxWidth: "100%", minHeight: 44, paddingHorizontal: 15, paddingVertical: 10 },
   choiceActive: { backgroundColor: colors.forest, borderColor: colors.forest },
   choicePressed: { opacity: 0.78 },
   choiceMark: { alignItems: "center", borderColor: colors.muted, borderRadius: 7, borderWidth: 1.5, flexShrink: 0, height: 22, justifyContent: "center", width: 22 },
   choiceMarkActive: { backgroundColor: colors.onForest, borderColor: colors.onForest },
   choiceCheck: { color: colors.forest, fontSize: 14, fontWeight: "900", lineHeight: 17 },
   choiceText: { color: colors.ink, flex: 1, flexShrink: 1, fontSize: 15, fontWeight: "700", lineHeight: 21, minWidth: 0 },
-  choiceChipText: { flex: 0, maxWidth: "100%" },
+  choiceChipText: { color: colors.ink, flexShrink: 1, fontSize: 15, fontWeight: "700", lineHeight: 21, maxWidth: "100%" },
   choiceTextActive: { color: colors.onForest },
   or: { color: colors.muted, fontSize: 13, fontWeight: "700", marginBottom: 9 },
   actions: { flexDirection: "row", gap: 12 },
