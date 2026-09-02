@@ -111,9 +111,14 @@ def get_discovery_service() -> AdaptiveDiscoveryService:
     return AdaptiveDiscoveryService(provider)
 
 
+def get_goal_intent_service() -> AdaptiveDiscoveryService:
+    return get_discovery_service()
+
+
 GenerationService = Annotated[
     RoadmapGenerationService | RetryingRoadmapGenerationService | FallbackRoadmapGenerationService,
     Depends(get_generation_service),
 ]
 
 DiscoveryService = Annotated[AdaptiveDiscoveryService, Depends(get_discovery_service)]
+GoalIntentService = Annotated[AdaptiveDiscoveryService, Depends(get_goal_intent_service)]

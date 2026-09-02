@@ -5,7 +5,12 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.ai.dependencies import DiscoveryService, GenerationService, fixture_service
+from app.ai.dependencies import (
+    DiscoveryService,
+    GenerationService,
+    GoalIntentService,
+    fixture_service,
+)
 from app.ai.schema import DiscoveryContextAnswer, RoadmapGenerationInput
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import (
@@ -91,8 +96,18 @@ def create_goal(
     payload: GoalCreate,
     user: CurrentUser,
     db: DbSession,
+    goal_intent_service: GoalIntentService,
 ) -> GoalRead:
-    goal = Goal(user_id=user.id, title=payload.title.strip())
+    assessment = goal_intent_service.assess_goal(goal_title=payload.title)
+    if not assessment.value.is_meaningful:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Describe a clear outcome you genuinely want to achieve, such as a skill, role, "
+                "project, credential, or personal milestone."
+            ),
+        )
+    goal = Goal(user_id=user.id, title=assessment.value.normalized_title.strip())
     db.add(goal)
     db.commit()
     db.refresh(goal)

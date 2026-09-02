@@ -1,9 +1,14 @@
 import re
 
 from app.ai.providers.base import DiscoveryProvider, ProviderResult
-from app.ai.schema import DiscoveryContextAnswer, DiscoveryOption, DiscoveryQuestionDraft
+from app.ai.schema import (
+    DiscoveryContextAnswer,
+    DiscoveryOption,
+    DiscoveryQuestionDraft,
+    GoalIntentAssessment,
+)
 
-MAX_DISCOVERY_QUESTIONS = 4
+MAX_DISCOVERY_QUESTIONS = 6
 MIN_DISCOVERY_QUESTIONS = 3
 
 _QUESTION_STOP_WORDS = {
@@ -83,6 +88,9 @@ class AdaptiveDiscoveryService:
     def __init__(self, provider: DiscoveryProvider) -> None:
         self.provider = provider
 
+    def assess_goal(self, *, goal_title: str) -> ProviderResult[GoalIntentAssessment]:
+        return self.provider.assess_goal(goal_title=goal_title)
+
     def next_question(
         self,
         *,
@@ -152,6 +160,32 @@ class AdaptiveDiscoveryService:
 
 class FixtureDiscoveryProvider:
     """A deterministic local preview of adaptive discovery, never used in strict live mode."""
+
+    def assess_goal(self, *, goal_title: str) -> ProviderResult[GoalIntentAssessment]:
+        normalized = " ".join(goal_title.split())
+        words = re.findall(r"[a-z]+", normalized.lower())
+        letters_only = "".join(words)
+        keyboard_patterns = ("qwerty", "asdf", "zxcv", "poiuy", "lkjh")
+        known_fixture_gibberish = {"havduwh", "wozzle"}
+        vowels = sum(character in "aeiou" for character in letters_only)
+        looks_invented = (
+            not words
+            or any(pattern in letters_only for pattern in keyboard_patterns)
+            or any(word in known_fixture_gibberish for word in words)
+            or bool(re.fullmatch(r"(.)\1{2,}", letters_only))
+            or (len(letters_only) >= 6 and vowels == 0)
+            or all(
+                len(word) >= 6 and sum(character in "aeiou" for character in word) <= 1
+                for word in words
+            )
+        )
+        return ProviderResult(
+            value=GoalIntentAssessment(
+                is_meaningful=not looks_invented,
+                normalized_title=normalized if not looks_invented else "",
+                reason="meaningful" if not looks_invented else "nonsense",
+            )
+        )
 
     def next_question(
         self,

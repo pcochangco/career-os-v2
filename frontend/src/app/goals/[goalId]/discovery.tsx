@@ -197,10 +197,7 @@ export default function DiscoveryRoute() {
   }
 
   const questionPosition = question?.position ?? state.answered_questions + 1;
-  const progressWidth = `${Math.min(
-    100,
-    (questionPosition / state.maximum_questions) * 100,
-  )}%` as `${number}%`;
+  const progressWidth = `${Math.min(92, 14 + questionPosition * 13)}%` as `${number}%`;
   const mayFinishAfterThisQuestion = questionPosition >= state.minimum_questions;
   const useCompactChoices = Boolean(
     question &&
@@ -213,29 +210,24 @@ export default function DiscoveryRoute() {
     <Screen>
       <Brand />
       <View
-        accessibilityLabel={`Discovery progress. Question ${questionPosition} of up to ${state.maximum_questions}.`}
+        accessibilityLabel={`Discovery progress. Question ${questionPosition}.`}
         accessibilityRole="progressbar"
         accessibilityValue={{
-          max: state.maximum_questions,
-          min: 0,
-          now: questionPosition,
-          text: `Question ${questionPosition} of up to ${state.maximum_questions}`,
+          text: `Question ${questionPosition}. CareerOS will stop when it has enough context.`,
         }}
         style={styles.progress}
       >
         <View style={styles.progressCopy}>
           <Text style={styles.progressLabel}>Shaping your roadmap</Text>
-          <Text style={styles.progressCount}>
-            Question {questionPosition} of up to {state.maximum_questions}
-          </Text>
+          <Text style={styles.progressCount}>Question {questionPosition}</Text>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: progressWidth }]} />
         </View>
         <Text style={styles.progressHint}>
           {mayFinishAfterThisQuestion
-            ? "This may be the final question if CareerOS has enough context."
-            : "CareerOS will stop as soon as it has enough useful context."}
+            ? "CareerOS will stop when it has enough useful context."
+            : "CareerOS is learning what matters for this goal."}
         </Text>
       </View>
       <Text style={styles.eyebrow}>{state.goal_title || "Your goal"}</Text>

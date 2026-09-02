@@ -6,124 +6,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-GOAL_SIGNAL_WORDS = {
-    "abroad",
-    "achieve",
-    "advance",
-    "apply",
-    "application",
-    "app",
-    "automate",
-    "be",
-    "become",
-    "build",
-    "business",
-    "buy",
-    "cafe",
-    "career",
-    "certification",
-    "change",
-    "complete",
-    "course",
-    "create",
-    "debt",
-    "degree",
-    "design",
-    "develop",
-    "developer",
-    "engineer",
-    "earn",
-    "engineering",
-    "exam",
-    "exercise",
-    "fitness",
-    "fit",
-    "fluency",
-    "gain",
-    "graduate",
-    "get",
-    "goal",
-    "grow",
-    "growth",
-    "health",
-    "healthy",
-    "home",
-    "house",
-    "improve",
-    "increase",
-    "income",
-    "interview",
-    "invest",
-    "investment",
-    "job",
-    "launch",
-    "language",
-    "lead",
-    "learn",
-    "license",
-    "lose",
-    "loss",
-    "manager",
-    "make",
-    "marathon",
-    "master",
-    "mastery",
-    "migrate",
-    "move",
-    "open",
-    "own",
-    "pass",
-    "pay",
-    "portfolio",
-    "practice",
-    "prepare",
-    "product",
-    "project",
-    "promotion",
-    "publish",
-    "quit",
-    "race",
-    "read",
-    "reach",
-    "reduce",
-    "relocate",
-    "relocation",
-    "research",
-    "run",
-    "save",
-    "salary",
-    "savings",
-    "scholarship",
-    "secure",
-    "skill",
-    "speak",
-    "start",
-    "stop",
-    "study",
-    "system",
-    "train",
-    "travel",
-    "visa",
-    "website",
-    "weight",
-    "work",
-    "write",
-}
-
-ALLOWED_SINGLE_WORD_GOALS = {
-    "fitness",
-    "health",
-    "leadership",
-    "meditation",
-    "networking",
-    "programming",
-    "promotion",
-    "retirement",
-    "running",
-    "scholarship",
-    "writing",
-}
-
 
 class AnonymousSessionRead(BaseModel):
     access_token: str
@@ -158,27 +40,15 @@ class GoalCreate(BaseModel):
     @classmethod
     def require_meaningful_title(cls, value: str) -> str:
         title = " ".join(value.split())
-        lower_title = title.lower()
-        words = re.findall(r"[a-z]+", lower_title)
-        letters_only = "".join(words)
+        letters_only = "".join(re.findall(r"[a-z]+", title.lower()))
         keyboard_patterns = ("qwerty", "asdf", "zxcv", "poiuy", "lkjh")
         is_repeated_character = bool(re.fullmatch(r"(.)\1{2,}", title))
-        has_goal_signal = any(word in GOAL_SIGNAL_WORDS for word in words)
-        is_allowed_single_word = len(words) == 1 and words[0] in ALLOWED_SINGLE_WORD_GOALS
-        is_short_acronym = bool(re.fullmatch(r"[A-Z]{2,8}", title))
-        has_proficiency_target = bool(re.search(r"\b[ABC][12]\b", title.upper()))
 
         if (
             len(title) < 3
             or not letters_only
             or is_repeated_character
             or any(pattern in letters_only for pattern in keyboard_patterns)
-            or not (
-                has_goal_signal
-                or is_allowed_single_word
-                or is_short_acronym
-                or has_proficiency_target
-            )
         ):
             raise ValueError(
                 "Write a clear goal with an action or outcome, such as “Learn Spanish” "
@@ -219,7 +89,7 @@ class DiscoveryStateRead(BaseModel):
     completion_reason: str = ""
     answered_questions: int = 0
     minimum_questions: int = 3
-    maximum_questions: int = 4
+    maximum_questions: int = 6
 
 
 class DiscoveryAnswerWrite(BaseModel):

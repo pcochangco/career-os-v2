@@ -58,7 +58,11 @@ export default function SettingsRoute() {
   return (
     <Screen>
       <AppHeader>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace("/goals" as never)}
+          style={styles.back}
+        >
           <Text style={styles.backText}>Done</Text>
         </Pressable>
       </AppHeader>

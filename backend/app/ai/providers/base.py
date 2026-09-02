@@ -4,6 +4,7 @@ from typing import Protocol
 from app.ai.schema import (
     DiscoveryContextAnswer,
     DiscoveryQuestionDraft,
+    GoalIntentAssessment,
     ProviderCritique,
     QualityIssue,
     RoadmapDraft,
@@ -44,6 +45,8 @@ class RoadmapProvider(Protocol):
 
 
 class DiscoveryProvider(Protocol):
+    def assess_goal(self, *, goal_title: str) -> ProviderResult[GoalIntentAssessment]: ...
+
     def next_question(
         self,
         *,

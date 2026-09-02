@@ -90,7 +90,7 @@ export function ThumbDownGlyph() {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[styles.iconFrame, styles.thumbIconFrame]}
+      style={styles.iconFrame}
     >
       <ThumbsDown color={colors.muted} size={19} strokeWidth={1.8} />
     </View>
@@ -232,5 +232,4 @@ const styles = StyleSheet.create({
   loadingLabel: { color: colors.muted, fontSize: 16, textAlign: "center" },
   loadingMark: { alignSelf: "center", height: 92, width: 92 },
   iconFrame: { alignItems: "center", height: 20, justifyContent: "center", width: 20 },
-  thumbIconFrame: { transform: [{ translateY: 1 }] },
 });

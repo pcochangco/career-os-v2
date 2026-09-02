@@ -45,7 +45,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert len(first_question["options"]) >= 3
     assert started.json()["answered_questions"] == 0
     assert started.json()["minimum_questions"] == 3
-    assert started.json()["maximum_questions"] == 4
+    assert started.json()["maximum_questions"] == 6
 
     reloaded = client.get(f"/api/v1/goals/{goal['id']}/discovery", headers=headers)
     assert reloaded.status_code == 200
@@ -200,7 +200,7 @@ def test_discovery_service_rejects_early_or_repeated_provider_questions() -> Non
     assert second.question_key == "starting-point"
 
 
-def test_discovery_stops_after_four_answers_even_if_provider_wants_more() -> None:
+def test_discovery_stops_after_six_answers_even_if_provider_wants_more() -> None:
     class NeverFinishedProvider:
         def next_question(self, **kwargs):
             position = len(kwargs["answers"]) + 1
@@ -224,7 +224,7 @@ def test_discovery_stops_after_four_answers_even_if_provider_wants_more() -> Non
             question="Which direction would help you make meaningful progress?",
             answer="More practice",
         )
-        for position in range(1, 5)
+        for position in range(1, 7)
     ]
     result = AdaptiveDiscoveryService(NeverFinishedProvider()).next_question(
         goal_title="Build a portfolio",

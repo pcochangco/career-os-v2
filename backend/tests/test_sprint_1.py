@@ -3,8 +3,9 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-from app.ai.dependencies import fixture_service, get_generation_service
-from app.ai.providers.base import RoadmapProviderError
+from app.ai.dependencies import fixture_service, get_generation_service, get_goal_intent_service
+from app.ai.providers.base import ProviderResult, RoadmapProviderError
+from app.ai.schema import GoalIntentAssessment
 from app.core.config import Settings
 from app.main import app
 
@@ -114,7 +115,37 @@ def test_goal_creation_rejects_clear_placeholder_or_gibberish_titles(client: Tes
             json={"title": title},
         )
         assert response.status_code == 422
-        assert "clear goal" in response.json()["detail"][0]["msg"]
+        detail = response.json()["detail"]
+        message = detail if isinstance(detail, str) else detail[0]["msg"]
+        assert "clear goal" in message.lower() or "clear outcome" in message.lower()
+
+
+def test_goal_creation_uses_semantic_intent_validation_before_saving(
+    client: TestClient,
+) -> None:
+    class RejectingGoalIntentService:
+        def assess_goal(self, *, goal_title: str):
+            del goal_title
+            return ProviderResult(
+                value=GoalIntentAssessment(
+                    is_meaningful=False,
+                    normalized_title="",
+                    reason="nonsense",
+                )
+            )
+
+    app.dependency_overrides[get_goal_intent_service] = RejectingGoalIntentService
+    token = create_session(client)
+
+    response = client.post(
+        "/api/v1/goals",
+        headers=auth(token),
+        json={"title": "Polish the silent bicycle into a promotion"},
+    )
+
+    assert response.status_code == 422
+    assert "clear outcome" in response.json()["detail"].lower()
+    assert client.get("/api/v1/goals", headers=auth(token)).json() == []
 
 
 def test_goal_creation_accepts_clear_short_and_specialized_goals(client: TestClient) -> None:

@@ -635,7 +635,10 @@ export default function RoadmapRoute() {
                                       <Pressable
                                         accessibilityRole="link"
                                         onPress={() => void Linking.openURL(resource.url)}
-                                        style={({ pressed }) => pressed && styles.resourceLinkPressed}
+                                        style={({ pressed }) => [
+                                          styles.resourceFooterLink,
+                                          pressed && styles.resourceLinkPressed,
+                                        ]}
                                       >
                                         <Text style={styles.resourceOpen}>
                                           {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
@@ -1022,7 +1025,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
-  resourceFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  resourceFooter: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
+  resourceFooterLink: { flex: 1, justifyContent: "center", minHeight: 36 },
   resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800" },
   findAnother: {
     alignItems: "center",

@@ -24,6 +24,22 @@ class DiscoveryContextAnswer(StrictModel):
     skipped: bool = False
 
 
+class GoalIntentAssessment(StrictModel):
+    is_meaningful: bool
+    normalized_title: str = Field(default="", max_length=140)
+    reason: Literal["meaningful", "nonsense", "not_a_goal", "too_vague"]
+
+    @model_validator(mode="after")
+    def require_a_usable_normalized_title(self) -> "GoalIntentAssessment":
+        if self.is_meaningful and len(self.normalized_title.strip()) < 3:
+            raise ValueError("A meaningful goal must include a usable normalized title")
+        if self.is_meaningful != (self.reason == "meaningful"):
+            raise ValueError("Goal meaning and reason must agree")
+        if not self.is_meaningful and self.normalized_title.strip():
+            raise ValueError("A rejected goal must not include a normalized title")
+        return self
+
+
 class DiscoveryOption(StrictModel):
     key: str = Field(min_length=1, max_length=48, pattern=r"^[a-z0-9-]+$")
     label: str = Field(min_length=2, max_length=72)

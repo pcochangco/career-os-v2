@@ -5,6 +5,8 @@ from app.ai.evaluation import outcome_metrics, quality_delta
 from app.ai.providers.base import RoadmapProviderError
 from app.ai.providers.compatible import (
     CRITIC_PROMPT,
+    DISCOVERY_PROMPT,
+    GOAL_INTENT_PROMPT,
     SYSTEM_PROMPT,
     OpenAICompatibleRoadmapProvider,
     portable_strict_schema,
@@ -218,6 +220,9 @@ def test_prompts_encode_schedule_free_effort_and_exact_critic_contract() -> None
     assert 'exactly one of "Short focused session"' in SYSTEM_PROMPT
     assert "Do not request URLs" in CRITIC_PROMPT
     assert "exactly four top-level keys: passed, score, summary, and issues" in CRITIC_PROMPT
+    assert "between three and six questions" in DISCOVERY_PROMPT
+    assert "Never ask merely to reach a number" in DISCOVERY_PROMPT
+    assert "semantically incoherent" in GOAL_INTENT_PROMPT
     assert "exactly severity, code, message, path, and repair_instruction" in CRITIC_PROMPT
     assert "Do not use overall_pass, category, description, suggestion" in CRITIC_PROMPT
     assert "thoughtful expert mentor, not a syllabus generator" in SYSTEM_PROMPT
@@ -227,6 +232,42 @@ def test_prompts_encode_schedule_free_effort_and_exact_critic_contract() -> None
     assert "independent practice" in CRITIC_PROMPT
     assert "merely because it is" in CRITIC_PROMPT
     assert "structurally valid" in CRITIC_PROMPT
+
+
+def test_goal_intent_assessment_uses_the_discovery_model() -> None:
+    request: dict[str, object] = {}
+
+    class Message:
+        refusal = None
+        content = '{"is_meaningful":false,"normalized_title":"","reason":"nonsense"}'
+
+    class Completion:
+        id = "goal-assessment"
+        choices = [type("Choice", (), {"message": Message(), "finish_reason": "stop"})()]
+        usage = type("Usage", (), {"prompt_tokens": 8, "completion_tokens": 6})()
+
+    class Completions:
+        def create(self, **kwargs: object) -> Completion:
+            request.update(kwargs)
+            return Completion()
+
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    provider = OpenAICompatibleRoadmapProvider(
+        provider_name="groq",
+        api_key="test-key",
+        base_url="https://api.groq.com/openai/v1",
+        model="openai/gpt-oss-120b",
+        discovery_model="qwen/qwen3.8-27b",
+        discovery_max_completion_tokens=700,
+        client=client,
+    )
+
+    result = provider.assess_goal(goal_title="Polish the silent bicycle into a promotion")
+
+    assert result.value.is_meaningful is False
+    assert result.value.reason == "nonsense"
+    assert request["model"] == "qwen/qwen3.8-27b"
+    assert request["max_completion_tokens"] == 700
 
 
 def test_validation_diagnostic_excludes_generated_values() -> None:
