@@ -33,6 +33,26 @@ class AccountRead(BaseModel):
     provider_config: AuthProviderConfigRead
 
 
+class IssueReportWrite(BaseModel):
+    category: Literal["technical", "roadmap", "account", "other"]
+    message: str = Field(min_length=10, max_length=2000)
+    request_reference: str = Field(default="", max_length=100)
+    platform: Literal["web", "ios", "android", "unknown"] = "unknown"
+    app_version: str = Field(default="unknown", min_length=1, max_length=32)
+
+    @field_validator("message", "request_reference", "app_version", mode="before")
+    @classmethod
+    def trim_issue_report_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class IssueReportRead(BaseModel):
+    id: UUID
+    reference: str
+    category: Literal["technical", "roadmap", "account", "other"]
+    created_at: datetime
+
+
 class GoalCreate(BaseModel):
     title: str = Field(min_length=3, max_length=140)
 

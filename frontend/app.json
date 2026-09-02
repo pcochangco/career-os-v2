@@ -7,15 +7,6 @@
     "orientation": "portrait",
     "scheme": "careeros",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F6F8F4",
-      "dark": {
-        "image": "./assets/splash-icon.png",
-        "backgroundColor": "#0D1410"
-      }
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.careeros.app"
@@ -31,7 +22,23 @@
       "favicon": "./assets/favicon.png",
       "output": "static"
     },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F6F8F4",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0D1410"
+          }
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

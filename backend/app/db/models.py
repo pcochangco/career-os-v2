@@ -41,6 +41,9 @@ class User(Base):
     resource_feedback: Mapped[list[RoadmapStepResourceFeedback]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    issue_reports: Mapped[list[IssueReport]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -73,6 +76,23 @@ class AuthIdentity(Base):
     last_sign_in_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     user: Mapped[User] = relationship(back_populates="identities")
+
+
+class IssueReport(Base):
+    __tablename__ = "issue_reports"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    category: Mapped[str] = mapped_column(String(32), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    request_reference: Mapped[str] = mapped_column(String(100), default="")
+    platform: Mapped[str] = mapped_column(String(16), default="unknown")
+    app_version: Mapped[str] = mapped_column(String(32), default="unknown")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
+
+    user: Mapped[User] = relationship(back_populates="issue_reports")
 
 
 class Goal(Base):

@@ -15,7 +15,7 @@ export default function SupportRoute() {
       <LegalSection title="Contact">
         {SUPPORT_EMAIL
           ? `Email ${SUPPORT_EMAIL} for account, privacy, or technical support. Do not include passwords, provider tokens, or sensitive goal content.`
-          : "A dedicated support email will be published here before public beta. Account deletion remains available directly in Settings."}
+          : "Signed-in users can send a technical report from Settings. A dedicated support email will be published here before public beta, and account deletion remains available directly in Settings."}
       </LegalSection>
       {SUPPORT_EMAIL ? (
         <Button onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>Email support</Button>

@@ -21,7 +21,7 @@ Use this checklist for web, API, and native beta releases. A release is not comp
 - Verify account deletion removes the user-owned data and invalidates access.
 - Keep provider identity tokens out of the database and application logs.
 - Publish a real `EXPO_PUBLIC_SUPPORT_EMAIL` before public beta.
-- Recheck `/privacy`, `/terms`, `/account-deletion`, and `/support` in both themes and on a narrow mobile viewport.
+- Recheck `/privacy`, `/terms`, `/account-deletion`, `/support`, and the signed-in `/report-issue` flow in both themes and on a narrow mobile viewport.
 - Update the Apple privacy disclosure and Google Play Data safety form whenever data practices or SDKs change.
 
 ## Deployment
@@ -37,10 +37,11 @@ Use this checklist for web, API, and native beta releases. A release is not comp
 
 - Open CareerOS signed out and inspect the example path.
 - Type a goal, sign in, confirm it is created once, and reject one invalid goal.
-- Complete the three-to-four-question discovery, generate a roadmap, accept it, save one learning record, and mark one step complete.
+- Complete an adaptively sized three-to-six-question discovery, generate a roadmap, accept it, save one learning record, and mark one step complete.
 - Dismiss one current-step resource, use Undo, and confirm the same resource returns.
 - Refresh and confirm the app resumes the same state without duplicate goals or roadmaps.
 - Open Settings, change appearance, and confirm all legal/support links work.
+- Submit one issue report and retain its `CAR-` reference without placing private goal content in the report.
 - Delete the test account and confirm the old session returns `401`.
 
 ## Rollback

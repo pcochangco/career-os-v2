@@ -210,6 +210,10 @@ and `/support`. They do not create a user or session merely by being opened. Set
 `EXPO_PUBLIC_SUPPORT_EMAIL` and rebuild the web/native clients before public beta;
 do not publish a personal address unintentionally.
 
+Signed-in users can submit a private beta issue report from Settings. The API stores
+the report under that user and writes only its `CAR-` reference, category, and platform
+to application logs; it does not log the report text.
+
 The backend health endpoint is `GET /api/v1/health`, and local API documentation
 is available at `/api/docs`. Representative roadmap evaluations live in
 `backend/evals/cases.json` and run as part of the backend test suite without

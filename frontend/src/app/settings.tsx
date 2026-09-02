@@ -155,6 +155,7 @@ export default function SettingsRoute() {
           ["Privacy policy", "/privacy"],
           ["Terms of use", "/terms"],
           ["Account deletion", "/account-deletion"],
+          ["Report an issue", "/report-issue"],
           ["Support", "/support"],
         ].map(([label, route]) => (
           <Pressable

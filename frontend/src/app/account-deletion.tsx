@@ -12,7 +12,7 @@ export default function AccountDeletionRoute() {
         Sign in, open Settings, find Account, choose “Delete account,” review the warning, and confirm permanent deletion. The request takes effect immediately in CareerOS and signs out every session attached to the deleted user.
       </LegalSection>
       <LegalSection title="What is deleted">
-        Deletion removes the CareerOS user record and its provider identity links, sessions, goals, discovery answers, roadmap versions, progress, private notes, evidence links, resource feedback, and generation history. The app then returns to the public start screen.
+        Deletion removes the CareerOS user record and its provider identity links, sessions, goals, discovery answers, roadmap versions, progress, learning records, resource feedback, issue reports, and generation history. The app then returns to the public start screen.
       </LegalSection>
       <LegalSection title="If you are on another device">
         Open CareerOS, sign in with the Apple or Google identity connected to your saved account, then delete it from Settings. If provider sign-in is not yet enabled for the beta, use the support route shown on this site once the public contact address is published.

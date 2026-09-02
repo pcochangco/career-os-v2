@@ -259,9 +259,10 @@ The first implemented slice is deliberately narrow:
 6. Record explicit step completion.
 7. Enforce prerequisites and advance to the next unblocked step.
 8. Derive roadmap and goal progress from completed accepted-roadmap steps.
-9. Save private notes, output summaries, and evidence links independently of completion.
+9. Save one private learning record independently of completion.
 10. Require explicit confirmation of the step's completion condition.
 11. Retrieve, verify, cache, and display resources for only the current step.
+12. Store authenticated beta issue reports with a user-facing reference and no report text in application logs.
 
 The live provider boundary is implemented but opt-in; deterministic generation
 remains the default for local development and CI. Showcases and notifications
