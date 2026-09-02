@@ -1,4 +1,5 @@
 import { ReactNode, RefObject } from "react";
+import { SlidersHorizontal, ThumbsDown } from "lucide-react-native";
 import {
   ActivityIndicator,
   Image,
@@ -76,19 +77,9 @@ export function SettingsGlyph() {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={styles.settingsGlyph}
+      style={styles.iconFrame}
     >
-      {([3, 10, 6] as const).map((left, index) => (
-        <View key={index} style={styles.settingsGlyphRow}>
-          <View style={[styles.settingsGlyphLine, { backgroundColor: colors.forest }]} />
-          <View
-            style={[
-              styles.settingsGlyphKnob,
-              { backgroundColor: colors.card, borderColor: colors.forest, left },
-            ]}
-          />
-        </View>
-      ))}
+      <SlidersHorizontal color={colors.forest} size={18} strokeWidth={1.9} />
     </View>
   );
 }
@@ -99,11 +90,9 @@ export function ThumbDownGlyph() {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={styles.thumbGlyph}
+      style={[styles.iconFrame, styles.thumbIconFrame]}
     >
-      <View style={[styles.thumbCuff, { borderColor: colors.muted }]} />
-      <View style={[styles.thumbPalm, { borderColor: colors.muted }]} />
-      <View style={[styles.thumbStem, { borderColor: colors.muted }]} />
+      <ThumbsDown color={colors.muted} size={19} strokeWidth={1.8} />
     </View>
   );
 }
@@ -242,12 +231,6 @@ const styles = StyleSheet.create({
   loadingBrand: { fontSize: 18, fontWeight: "900", letterSpacing: 0.4, marginBottom: 4 },
   loadingLabel: { color: colors.muted, fontSize: 16, textAlign: "center" },
   loadingMark: { alignSelf: "center", height: 92, width: 92 },
-  settingsGlyph: { height: 18, justifyContent: "space-between", paddingVertical: 1, width: 18 },
-  settingsGlyphRow: { height: 5, justifyContent: "center", position: "relative", width: 18 },
-  settingsGlyphLine: { borderRadius: 1, height: 2, width: 18 },
-  settingsGlyphKnob: { borderRadius: 3, borderWidth: 1.5, height: 6, position: "absolute", top: -0.5, width: 6 },
-  thumbGlyph: { height: 18, position: "relative", width: 19 },
-  thumbCuff: { borderRadius: 2, borderWidth: 1.5, height: 8, left: 1, position: "absolute", top: 3, width: 4 },
-  thumbPalm: { borderRadius: 3, borderWidth: 1.5, height: 10, left: 4, position: "absolute", top: 2, width: 13 },
-  thumbStem: { borderBottomLeftRadius: 4, borderBottomWidth: 1.5, borderLeftWidth: 1.5, height: 7, left: 11, position: "absolute", top: 9, width: 5 },
+  iconFrame: { alignItems: "center", height: 20, justifyContent: "center", width: 20 },
+  thumbIconFrame: { transform: [{ translateY: 1 }] },
 });

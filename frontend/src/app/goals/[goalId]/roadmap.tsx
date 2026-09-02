@@ -630,28 +630,36 @@ export default function RoadmapRoute() {
                                       <Text style={styles.resourceReason}>
                                         Why this fits: {resource.why_relevant}
                                       </Text>
-                                      <Text style={styles.resourceOpen}>
-                                        {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
-                                      </Text>
                                     </Pressable>
-                                    <Pressable
-                                      accessibilityHint="Hides this resource. An Undo option will appear briefly."
-                                      accessibilityLabel="Not useful for me"
-                                      accessibilityRole="button"
-                                      disabled={dismissingResourceId !== null}
-                                      onPress={() => void markResourceNotUseful(resource.id)}
-                                      style={({ pressed }) => [
-                                        styles.notUseful,
-                                        (pressed || dismissingResourceId === resource.id) &&
-                                          styles.resourceLinkPressed,
-                                      ]}
-                                    >
-                                      {dismissingResourceId === resource.id ? (
-                                        <Text style={styles.notUsefulText}>…</Text>
-                                      ) : (
-                                        <ThumbDownGlyph />
-                                      )}
-                                    </Pressable>
+                                    <View style={styles.resourceFooter}>
+                                      <Pressable
+                                        accessibilityRole="link"
+                                        onPress={() => void Linking.openURL(resource.url)}
+                                        style={({ pressed }) => pressed && styles.resourceLinkPressed}
+                                      >
+                                        <Text style={styles.resourceOpen}>
+                                          {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
+                                        </Text>
+                                      </Pressable>
+                                      <Pressable
+                                        accessibilityHint="Hides this resource. An Undo option will appear briefly."
+                                        accessibilityLabel="Not useful for me"
+                                        accessibilityRole="button"
+                                        disabled={dismissingResourceId !== null}
+                                        onPress={() => void markResourceNotUseful(resource.id)}
+                                        style={({ pressed }) => [
+                                          styles.notUseful,
+                                          (pressed || dismissingResourceId === resource.id) &&
+                                            styles.resourceLinkPressed,
+                                        ]}
+                                      >
+                                        {dismissingResourceId === resource.id ? (
+                                          <Text style={styles.notUsefulText}>…</Text>
+                                        ) : (
+                                          <ThumbDownGlyph />
+                                        )}
+                                      </Pressable>
+                                    </View>
                                   </View>
                                   );
                                 })
@@ -987,9 +995,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
-    position: "relative",
   },
-  resourceCardContent: { paddingBottom: 30 },
+  resourceCardContent: {},
   primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
   courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
   resourceLinkPressed: { opacity: 0.72 },
@@ -1015,7 +1022,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
-  resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800", marginTop: 10 },
+  resourceFooter: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800" },
   findAnother: {
     alignItems: "center",
     borderColor: colors.line,
@@ -1030,14 +1038,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     backgroundColor: "transparent",
     borderColor: colors.line,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
-    bottom: 9,
-    height: 32,
+    height: 36,
     justifyContent: "center",
-    position: "absolute",
-    right: 9,
-    width: 34,
+    width: 36,
   },
   notUsefulText: { alignItems: "center", color: colors.muted, fontSize: 14, fontWeight: "700", justifyContent: "center" },
   undoNotice: {
