@@ -26,15 +26,15 @@ class DiscoveryContextAnswer(StrictModel):
 
 class DiscoveryOption(StrictModel):
     key: str = Field(min_length=1, max_length=48, pattern=r"^[a-z0-9-]+$")
-    label: str = Field(min_length=2, max_length=100)
+    label: str = Field(min_length=2, max_length=72)
 
 
 class DiscoveryQuestionDraft(StrictModel):
     is_complete: bool
     suggested_goal_title: str = Field(default="", max_length=140)
     question_key: str = Field(default="", max_length=64, pattern=r"^[a-z0-9-]*$")
-    question: str = Field(default="", max_length=400)
-    help_text: str = Field(default="", max_length=500)
+    question: str = Field(default="", max_length=240)
+    help_text: str = Field(default="", max_length=240)
     selection_mode: Literal["multiple"] = "multiple"
     options: list[DiscoveryOption] = Field(default_factory=list, max_length=6)
     placeholder: str = Field(default="", max_length=180)

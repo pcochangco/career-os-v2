@@ -43,14 +43,14 @@ The implemented product slice covers the complete first-run path:
 
 1. Preview an example path and enter a goal without saving it.
 2. Sign in with Apple or Google, then create a user-owned goal.
-3. Answer five focused discovery questions, one at a time.
+3. Answer three focused discovery questions, with a fourth only when a key ambiguity remains.
 4. Generate, quality-check, and review a structured roadmap.
 5. Accept the roadmap and open it as a mobile-first vertical path.
 6. Complete the current step and advance to the next unblocked step.
 7. Return later to the same position with truthful goal progress.
-8. Save private notes, an output summary, and an optional evidence link.
+8. Save one private learning record for notes, outputs, or evidence links.
 9. Confirm the concrete completion condition before progress is recorded.
-10. Open verified, cached learning-resource cards for the current step.
+10. Open verified, cached learning-resource cards and hide or undo unhelpful suggestions.
 
 Generation runs behind a provider-independent boundary. The default deterministic
 provider keeps local development and CI reliable. The opt-in OpenAI-compatible

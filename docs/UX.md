@@ -83,7 +83,7 @@ Opening a step presents one focused surface with:
 - Optional supporting resources
 - A practice or application task
 - A concrete completion condition
-- Optional notes and evidence
+- One optional learning record for notes, outputs, or evidence
 - **Complete step**
 
 Approximate effort may be shown as guidance, but never as a commitment,
@@ -94,6 +94,9 @@ state, and why the result fits the step. Only the current step resolves new
 resources; accepted metadata is cached so returning is fast and stable. A
 temporary provider failure must leave the step usable and offer a calm retry.
 Resource previews must not crowd the primary action.
+Each resource card keeps a compact thumbs-down action at its lower-right edge.
+Dismissal shows a brief Undo action and retains the cached record so recovery is real,
+not merely visual.
 
 ## Completion
 
@@ -107,9 +110,10 @@ Completing a step:
 
 No streak celebration, schedule repair, or missed-day warning is required.
 
-Notes, an output summary, and an optional web link can be saved before
-completion. They remain attached to the exact accepted-roadmap step if the step
-is completed or reopened. Saving or opening evidence never completes a step.
+One freeform learning record can be saved before completion. It remains attached
+to the exact accepted-roadmap step if the step is completed or reopened. Existing
+notes, summaries, and links are combined into this field when revisited. Saving or
+opening evidence never completes a step.
 
 ## Goal showcase
 

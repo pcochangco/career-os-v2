@@ -3,7 +3,7 @@ import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ProviderSignIn } from "@/components/provider-sign-in";
-import { Body, Brand, Button, Heading, Screen } from "@/components/ui";
+import { AppHeader, Body, Button, Heading, Screen } from "@/components/ui";
 import { IdentityProvider, useSession } from "@/lib/session";
 import { ThemeColors, ThemePreference, useTheme } from "@/lib/theme";
 
@@ -57,10 +57,11 @@ export default function SettingsRoute() {
 
   return (
     <Screen>
-      <Brand />
-      <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
-        <Text style={styles.backText}>‹ Back</Text>
-      </Pressable>
+      <AppHeader>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.back}>
+          <Text style={styles.backText}>Done</Text>
+        </Pressable>
+      </AppHeader>
       <Heading>Settings</Heading>
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.accountCard}>
@@ -172,7 +173,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   accountCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, gap: 12, marginBottom: 30, padding: 18 },
   accountDescription: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   accountStatus: { color: colors.ink, fontSize: 19, fontWeight: "800" },
-  back: { alignSelf: "flex-start", marginBottom: 18, minHeight: 44, justifyContent: "center" },
+  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
   backText: { color: colors.forest, fontSize: 15, fontWeight: "800" },
   deleteConfirm: { backgroundColor: colors.cardMuted, borderRadius: 14, gap: 12, padding: 14 },
   deleteLabel: { color: colors.danger, fontSize: 14, fontWeight: "800", textAlign: "center" },

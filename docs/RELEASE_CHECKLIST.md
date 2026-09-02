@@ -37,7 +37,8 @@ Use this checklist for web, API, and native beta releases. A release is not comp
 
 - Open CareerOS signed out and inspect the example path.
 - Type a goal, sign in, confirm it is created once, and reject one invalid goal.
-- Complete discovery, generate a roadmap, accept it, save step notes, and mark one step complete.
+- Complete the three-to-four-question discovery, generate a roadmap, accept it, save one learning record, and mark one step complete.
+- Dismiss one current-step resource, use Undo, and confirm the same resource returns.
 - Refresh and confirm the app resumes the same state without duplicate goals or roadmaps.
 - Open Settings, change appearance, and confirm all legal/support links work.
 - Delete the test account and confirm the old session returns `401`.

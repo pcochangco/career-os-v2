@@ -162,9 +162,7 @@ def test_resolver_excludes_the_current_resource_set() -> None:
         title="AI agent project tutorial",
         resource_type="video",
     )
-    resolver = ResourceResolver(
-        [RecordingProvider([first_video, next_video], name="youtube")]
-    )
+    resolver = ResourceResolver([RecordingProvider([first_video, next_video], name="youtube")])
 
     resources = resolver.resolve(
         ["AI agent engineering practical tutorial"],
@@ -248,6 +246,48 @@ def test_not_useful_resource_is_removed_and_never_selected_again(client: TestCli
     ]
 
 
+def test_not_useful_resource_can_be_restored(client: TestClient) -> None:
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    current_step = steps_in(roadmap)[0]
+    original = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=restore-me",
+        title="AI agent full course",
+        resource_type="video",
+    )
+    provider = RecordingProvider([original], name="youtube")
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([provider])
+    initial = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    resource_id = initial.json()["resources"][0]["id"]
+
+    rejected = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/{resource_id}/not-useful",
+        headers=auth(token),
+    )
+    hidden = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+    restored = client.delete(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/{resource_id}/not-useful",
+        headers=auth(token),
+    )
+    visible_again = client.post(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/resolve",
+        headers=auth(token),
+    )
+
+    assert rejected.status_code == 204
+    assert hidden.status_code == 200
+    assert hidden.json()["resources"] == []
+    assert restored.status_code == 204
+    assert [resource["url"] for resource in visible_again.json()["resources"]] == [original.url]
+
+
 def test_not_useful_requires_the_current_step_owner(client: TestClient) -> None:
     owner_token = create_session(client)
     other_token = create_session(client)
@@ -277,6 +317,14 @@ def test_not_useful_requires_the_current_step_owner(client: TestClient) -> None:
     )
 
     assert response.status_code == 404
+
+    undo = client.delete(
+        f"/api/v1/roadmap-steps/{current_step['id']}/resources/"
+        f"{initial.json()['resources'][0]['id']}/not-useful",
+        headers=auth(other_token),
+    )
+
+    assert undo.status_code == 404
 
 
 def test_refresh_is_limited_per_user_and_step(

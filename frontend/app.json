@@ -3,17 +3,32 @@
     "name": "CareerOS",
     "slug": "careeros",
     "version": "0.1.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "careeros",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F6F8F4",
+      "dark": {
+        "image": "./assets/splash-icon.png",
+        "backgroundColor": "#0D1410"
+      }
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.careeros.app"
     },
     "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F6F8F4"
+      },
       "package": "com.careeros.app"
     },
     "web": {
+      "favicon": "./assets/favicon.png",
       "output": "static"
     },
     "plugins": ["expo-router", "expo-secure-store"],

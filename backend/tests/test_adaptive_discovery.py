@@ -44,7 +44,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert len(first_question["options"]) >= 3
     assert started.json()["answered_questions"] == 0
     assert started.json()["minimum_questions"] == 3
-    assert started.json()["maximum_questions"] == 6
+    assert started.json()["maximum_questions"] == 4
 
     reloaded = client.get(f"/api/v1/goals/{goal['id']}/discovery", headers=headers)
     assert reloaded.status_code == 200
@@ -197,6 +197,41 @@ def test_discovery_service_rejects_early_or_repeated_provider_questions() -> Non
         goal_title="Learn something", answers=[answer], used_question_keys=[first.question_key]
     ).value
     assert second.question_key == "starting-point"
+
+
+def test_discovery_stops_after_four_answers_even_if_provider_wants_more() -> None:
+    class NeverFinishedProvider:
+        def next_question(self, **kwargs):
+            position = len(kwargs["answers"]) + 1
+            return ProviderResult(
+                value=DiscoveryQuestionDraft(
+                    is_complete=False,
+                    question_key=f"question-{position}",
+                    question="Which direction would help you make meaningful progress?",
+                    help_text="Choose the options that best describe what you need.",
+                    options=[
+                        {"key": "practice", "label": "More practice"},
+                        {"key": "guidance", "label": "Clear guidance"},
+                        {"key": "evidence", "label": "Stronger evidence"},
+                    ],
+                )
+            )
+
+    answers = [
+        DiscoveryContextAnswer(
+            question_key=f"question-{position}",
+            question="Which direction would help you make meaningful progress?",
+            answer="More practice",
+        )
+        for position in range(1, 5)
+    ]
+    result = AdaptiveDiscoveryService(NeverFinishedProvider()).next_question(
+        goal_title="Build a portfolio",
+        answers=answers,
+        used_question_keys=[answer.question_key for answer in answers],
+    )
+
+    assert result.value.is_complete is True
 
 
 def test_incomplete_discovery_turn_requires_an_actionable_question() -> None:

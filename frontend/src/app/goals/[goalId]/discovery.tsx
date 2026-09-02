@@ -202,6 +202,12 @@ export default function DiscoveryRoute() {
     (questionPosition / state.maximum_questions) * 100,
   )}%` as `${number}%`;
   const mayFinishAfterThisQuestion = questionPosition >= state.minimum_questions;
+  const useCompactChoices = Boolean(
+    question &&
+      questionPosition % 2 === 1 &&
+      question.options.length <= 5 &&
+      question.options.every((option) => option.label.length <= 32),
+  );
 
   return (
     <Screen>
@@ -233,9 +239,14 @@ export default function DiscoveryRoute() {
         </Text>
       </View>
       <Text style={styles.eyebrow}>{state.goal_title || "Your goal"}</Text>
-      <Heading>{question?.question ?? "Let's understand your goal."}</Heading>
+      <Text style={styles.questionTitle}>
+        {question?.question ?? "Let's understand your goal."}
+      </Text>
       <Body>{question?.help_text}</Body>
-      <View accessibilityRole="list" style={styles.choices}>
+      <View
+        accessibilityRole="list"
+        style={[styles.choices, useCompactChoices && styles.choiceChips]}
+      >
         {question?.options.map((option) => {
           const active = selected.includes(option.key);
           return (
@@ -245,22 +256,30 @@ export default function DiscoveryRoute() {
               key={option.key}
               onPress={() => toggleOption(option.key)}
               style={({ pressed }) => [
-                styles.choice,
+                useCompactChoices ? styles.choiceChip : styles.choice,
                 active && styles.choiceActive,
                 pressed && styles.choicePressed,
               ]}
             >
-              <View style={[styles.choiceMark, active && styles.choiceMarkActive]}>
-                {active ? <Text style={styles.choiceCheck}>✓</Text> : null}
-              </View>
-              <Text style={[styles.choiceText, active && styles.choiceTextActive]}>
-                {option.label}
+              {!useCompactChoices ? (
+                <View style={[styles.choiceMark, active && styles.choiceMarkActive]}>
+                  {active ? <Text style={styles.choiceCheck}>✓</Text> : null}
+                </View>
+              ) : null}
+              <Text
+                style={[
+                  styles.choiceText,
+                  useCompactChoices && styles.choiceChipText,
+                  active && styles.choiceTextActive,
+                ]}
+              >
+                {useCompactChoices && active ? `✓ ${option.label}` : option.label}
               </Text>
             </Pressable>
           );
         })}
       </View>
-      <Text style={styles.or}>Choose every suggestion that applies, or answer in your own words</Text>
+      <Text style={styles.or}>Select all that apply, or answer in your own words</Text>
       <Field
         multiline
         onChangeText={setCustomAnswer}
@@ -292,14 +311,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   progressTrack: { backgroundColor: colors.line, borderRadius: 5, height: 8, overflow: "hidden" },
   progressFill: { backgroundColor: colors.forest, borderRadius: 5, height: "100%" },
   progressHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  questionTitle: { color: colors.ink, fontSize: 30, fontWeight: "800", letterSpacing: -0.6, lineHeight: 37, marginBottom: 14 },
   choices: { gap: 10, marginBottom: 22, width: "100%" },
+  choiceChips: { flexDirection: "row", flexWrap: "wrap" },
   choice: { alignItems: "center", alignSelf: "stretch", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 16, borderWidth: 1, flexDirection: "row", gap: 12, minHeight: 52, paddingHorizontal: 15, paddingVertical: 13, width: "100%" },
+  choiceChip: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: "row", maxWidth: "100%", minHeight: 44, paddingHorizontal: 15, paddingVertical: 10 },
   choiceActive: { backgroundColor: colors.forest, borderColor: colors.forest },
   choicePressed: { opacity: 0.78 },
   choiceMark: { alignItems: "center", borderColor: colors.muted, borderRadius: 7, borderWidth: 1.5, flexShrink: 0, height: 22, justifyContent: "center", width: 22 },
   choiceMarkActive: { backgroundColor: colors.onForest, borderColor: colors.onForest },
   choiceCheck: { color: colors.forest, fontSize: 14, fontWeight: "900", lineHeight: 17 },
   choiceText: { color: colors.ink, flex: 1, flexShrink: 1, fontSize: 15, fontWeight: "700", lineHeight: 21, minWidth: 0 },
+  choiceChipText: { flex: 0, maxWidth: "100%" },
   choiceTextActive: { color: colors.onForest },
   or: { color: colors.muted, fontSize: 13, fontWeight: "700", marginBottom: 9 },
   actions: { flexDirection: "row", gap: 12 },

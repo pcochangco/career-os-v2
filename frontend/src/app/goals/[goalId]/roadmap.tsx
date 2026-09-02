@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
-  Brand,
+  AppHeader,
   Button,
   ErrorState,
   Field,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
-import { Roadmap, RoadmapStep, StepResources } from "@/lib/types";
+import { LearningResource, Roadmap, RoadmapStep, StepResources } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
 const stateLabels: Record<RoadmapStep["progress_status"], string> = {
@@ -22,6 +22,15 @@ const stateLabels: Record<RoadmapStep["progress_status"], string> = {
   blocked: "Prerequisite needed",
 };
 const resourceRefreshCooldownMs = 12_000;
+const resourceUndoWindowMs = 6_000;
+
+function learningRecordFor(step: RoadmapStep | null): string {
+  if (!step) return "";
+  return [step.notes, step.evidence_summary, step.evidence_url]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join("\n\n");
+}
 
 export default function RoadmapRoute() {
   const { colors } = useTheme();
@@ -33,9 +42,7 @@ export default function RoadmapRoute() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [savingAction, setSavingAction] = useState<"work" | "completion" | null>(null);
-  const [notes, setNotes] = useState("");
-  const [evidenceSummary, setEvidenceSummary] = useState("");
-  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [learningRecord, setLearningRecord] = useState("");
   const [completionConfirmed, setCompletionConfirmed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [stepResources, setStepResources] = useState<StepResources | null>(null);
@@ -45,9 +52,16 @@ export default function RoadmapRoute() {
   const [refreshingResources, setRefreshingResources] = useState(false);
   const [resourceRefreshCoolingDown, setResourceRefreshCoolingDown] = useState(false);
   const [dismissingResourceId, setDismissingResourceId] = useState<string | null>(null);
+  const [restoringResource, setRestoringResource] = useState(false);
+  const [dismissedResource, setDismissedResource] = useState<{
+    index: number;
+    resource: LearningResource;
+    stepId: string;
+  } | null>(null);
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
   const scrollViewRef = useRef<ScrollView>(null);
+  const resourceUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
   const [currentMilestoneOffset, setCurrentMilestoneOffset] = useState<number | null>(null);
   const [currentRowOffset, setCurrentRowOffset] = useState<number | null>(null);
@@ -125,12 +139,19 @@ export default function RoadmapRoute() {
   }
 
   useEffect(() => {
-    setNotes(currentStep?.notes ?? "");
-    setEvidenceSummary(currentStep?.evidence_summary ?? "");
-    setEvidenceUrl(currentStep?.evidence_url ?? "");
+    setLearningRecord(learningRecordFor(currentStep));
     setCompletionConfirmed(false);
     setResourceRefreshCoolingDown(false);
+    setDismissedResource(null);
+    if (resourceUndoTimerRef.current) clearTimeout(resourceUndoTimerRef.current);
   }, [currentStep?.id]);
+
+  useEffect(
+    () => () => {
+      if (resourceUndoTimerRef.current) clearTimeout(resourceUndoTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!token || !currentStep || currentStep.resource_queries.length === 0) {
@@ -184,6 +205,11 @@ export default function RoadmapRoute() {
 
   async function markResourceNotUseful(resourceId: string) {
     if (!token || !currentStep || dismissingResourceId) return;
+    const resourceIndex = stepResources?.resources.findIndex(
+      (resource) => resource.id === resourceId,
+    ) ?? -1;
+    const resource = resourceIndex >= 0 ? stepResources?.resources[resourceIndex] : null;
+    if (!resource) return;
     setDismissingResourceId(resourceId);
     setResourcesError(null);
     try {
@@ -203,6 +229,12 @@ export default function RoadmapRoute() {
           resources,
         };
       });
+      if (resourceUndoTimerRef.current) clearTimeout(resourceUndoTimerRef.current);
+      setDismissedResource({ index: resourceIndex, resource, stepId: currentStep.id });
+      resourceUndoTimerRef.current = setTimeout(() => {
+        setDismissedResource(null);
+        resourceUndoTimerRef.current = null;
+      }, resourceUndoWindowMs);
     } catch (caught) {
       setResourcesError(
         caught instanceof Error ? caught.message : "That resource could not be dismissed.",
@@ -212,17 +244,42 @@ export default function RoadmapRoute() {
     }
   }
 
+  async function undoResourceDismissal() {
+    if (!token || !dismissedResource || restoringResource) return;
+    setRestoringResource(true);
+    setResourcesError(null);
+    try {
+      await apiRequest<void>(
+        `/roadmap-steps/${dismissedResource.stepId}/resources/${dismissedResource.resource.id}/not-useful`,
+        { method: "DELETE", token },
+      );
+      setStepResources((current) => {
+        if (!current || current.step_id !== dismissedResource.stepId) return current;
+        const resources = [...current.resources];
+        resources.splice(Math.min(dismissedResource.index, resources.length), 0, dismissedResource.resource);
+        return { ...current, available: true, message: "", resources };
+      });
+      setDismissedResource(null);
+      if (resourceUndoTimerRef.current) clearTimeout(resourceUndoTimerRef.current);
+      resourceUndoTimerRef.current = null;
+    } catch (caught) {
+      setResourcesError(
+        caught instanceof Error ? caught.message : "That resource could not be restored.",
+      );
+    } finally {
+      setRestoringResource(false);
+    }
+  }
+
   const workDirty = Boolean(
     currentStep &&
-      (notes.trim() !== currentStep.notes ||
-        evidenceSummary.trim() !== currentStep.evidence_summary ||
-        evidenceUrl.trim() !== currentStep.evidence_url),
+      learningRecord.trim() !== learningRecordFor(currentStep),
   );
 
   const workPayload = {
-    evidence_summary: evidenceSummary,
-    evidence_url: evidenceUrl,
-    notes,
+    evidence_summary: "",
+    evidence_url: "",
+    notes: learningRecord,
   };
 
   async function saveStepWork(step: RoadmapStep) {
@@ -283,15 +340,19 @@ export default function RoadmapRoute() {
 
   return (
     <Screen scrollViewRef={scrollViewRef}>
-      <View style={styles.topBar}>
-        <Brand />
-        <Pressable accessibilityRole="button" onPress={() => router.push("/goals" as never)}>
+      <AppHeader>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/goals" as never)} style={styles.headerTextAction}>
           <Text style={styles.goalsLink}>All goals</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/settings" as never)}>
-          <Text style={styles.goalsLink}>Settings</Text>
+        <Pressable
+          accessibilityLabel="Open settings"
+          accessibilityRole="button"
+          onPress={() => router.push("/settings" as never)}
+          style={styles.settingsButton}
+        >
+          <Text style={styles.settingsIcon}>⚙</Text>
         </Pressable>
-      </View>
+      </AppHeader>
       <Text style={styles.title}>{roadmap.title}</Text>
       {completionNotice ? (
         <View accessibilityLiveRegion="polite" style={styles.completionNotice}>
@@ -486,22 +547,12 @@ export default function RoadmapRoute() {
                       </Text>
                     </View>
                     <Text style={styles.stepTitle}>{step.title}</Text>
-                    {isCompleted &&
-                    (step.notes || step.evidence_summary || step.evidence_url) ? (
+                    {isCompleted && learningRecordFor(step) ? (
                       <View style={styles.savedWork}>
-                        <Text style={styles.savedWorkLabel}>Your saved work</Text>
-                        {step.notes ? <Text style={styles.savedWorkText}>{step.notes}</Text> : null}
-                        {step.evidence_summary ? (
-                          <Text style={styles.savedWorkText}>{step.evidence_summary}</Text>
-                        ) : null}
-                        {step.evidence_url ? (
-                          <Pressable
-                            accessibilityRole="link"
-                            onPress={() => void Linking.openURL(step.evidence_url)}
-                          >
-                            <Text style={styles.savedWorkLink}>Open evidence ↗</Text>
-                          </Pressable>
-                        ) : null}
+                        <Text style={styles.savedWorkLabel}>Your learning record</Text>
+                        <Text selectable style={styles.savedWorkText}>
+                          {learningRecordFor(step)}
+                        </Text>
                       </View>
                     ) : null}
                     {isCurrent ? (
@@ -577,7 +628,8 @@ export default function RoadmapRoute() {
                                       </Text>
                                     </Pressable>
                                     <Pressable
-                                      accessibilityHint="Removes this resource and prevents it appearing again for this step"
+                                      accessibilityHint="Hides this resource. An Undo option will appear briefly."
+                                      accessibilityLabel="Not useful for me"
                                       accessibilityRole="button"
                                       disabled={dismissingResourceId !== null}
                                       onPress={() => void markResourceNotUseful(resource.id)}
@@ -589,8 +641,8 @@ export default function RoadmapRoute() {
                                     >
                                       <Text style={styles.notUsefulText}>
                                         {dismissingResourceId === resource.id
-                                          ? "Removing…"
-                                          : "Not useful for me"}
+                                          ? "…"
+                                          : "👎"}
                                       </Text>
                                     </Pressable>
                                   </View>
@@ -618,6 +670,28 @@ export default function RoadmapRoute() {
                                 </Text>
                               </Pressable>
                             ) : null}
+                            {dismissedResource?.stepId === step.id ? (
+                              <View
+                                accessibilityLiveRegion="polite"
+                                accessibilityRole="alert"
+                                style={styles.undoNotice}
+                              >
+                                <Text style={styles.undoNoticeText}>Resource hidden</Text>
+                                <Pressable
+                                  accessibilityRole="button"
+                                  disabled={restoringResource}
+                                  onPress={() => void undoResourceDismissal()}
+                                  style={({ pressed }) => [
+                                    styles.undoButton,
+                                    pressed && styles.resourceLinkPressed,
+                                  ]}
+                                >
+                                  <Text style={styles.undoButtonText}>
+                                    {restoringResource ? "Restoring…" : "Undo"}
+                                  </Text>
+                                </Pressable>
+                              </View>
+                            ) : null}
                             {!resourcesLoading &&
                             (resourcesError || (stepResources && !stepResources.available)) ? (
                               <View style={styles.resourceNotice}>
@@ -643,36 +717,16 @@ export default function RoadmapRoute() {
                         <View style={styles.workSection}>
                           <Text style={styles.workTitle}>Your learning record</Text>
                           <Text style={styles.workIntro}>
-                            Keep anything useful for returning to this work or showing it later.
+                            Keep what you learned, made, or want to remember in one place.
                           </Text>
                           <Field
-                            accessibilityLabel="Notes or reflections"
+                            accessibilityLabel="Learning record"
                             maxLength={4000}
                             multiline
-                            onChangeText={setNotes}
-                            placeholder="Notes or reflections (optional)"
+                            onChangeText={setLearningRecord}
+                            placeholder="What did you learn, make, or want to remember? (optional)"
                             style={styles.workField}
-                            value={notes}
-                          />
-                          <Field
-                            accessibilityLabel="Output or evidence summary"
-                            maxLength={1000}
-                            multiline
-                            onChangeText={setEvidenceSummary}
-                            placeholder="What did you produce? (optional)"
-                            style={styles.workField}
-                            value={evidenceSummary}
-                          />
-                          <Field
-                            accessibilityLabel="Evidence link"
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            keyboardType="url"
-                            maxLength={2048}
-                            onChangeText={setEvidenceUrl}
-                            placeholder="https://… evidence link (optional)"
-                            style={styles.linkField}
-                            value={evidenceUrl}
+                            value={learningRecord}
                           />
                           <View style={styles.saveRow}>
                             <View style={styles.saveButton}>
@@ -733,8 +787,10 @@ export default function RoadmapRoute() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  topBar: { alignItems: "flex-start", flexDirection: "row", justifyContent: "space-between" },
-  goalsLink: { color: colors.forest, fontSize: 15, fontWeight: "800", paddingVertical: 2 },
+  headerTextAction: { justifyContent: "center", minHeight: 38, paddingHorizontal: 6 },
+  goalsLink: { color: colors.forest, fontSize: 14, fontWeight: "800" },
+  settingsButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 19, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
+  settingsIcon: { color: colors.forest, fontSize: 18, fontWeight: "800", lineHeight: 22 },
   title: {
     color: colors.ink,
     fontSize: 29,
@@ -926,7 +982,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderWidth: 1,
     padding: 14,
   },
-  resourceCardShell: { gap: 7 },
+  resourceCardShell: { gap: 5 },
   primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
   courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
   resourceLinkPressed: { opacity: 0.72 },
@@ -963,8 +1019,30 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 12,
   },
   findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
-  notUseful: { alignSelf: "flex-start", minHeight: 30, paddingHorizontal: 2, paddingVertical: 4 },
-  notUsefulText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  notUseful: {
+    alignItems: "center",
+    alignSelf: "flex-end",
+    backgroundColor: colors.cardMuted,
+    borderRadius: 15,
+    height: 32,
+    justifyContent: "center",
+    marginRight: 2,
+    width: 38,
+  },
+  notUsefulText: { color: colors.muted, fontSize: 15, fontWeight: "700" },
+  undoNotice: {
+    alignItems: "center",
+    alignSelf: "stretch",
+    backgroundColor: colors.ink,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: 15,
+  },
+  undoNoticeText: { color: colors.background, fontSize: 13, fontWeight: "700" },
+  undoButton: { justifyContent: "center", minHeight: 44, paddingHorizontal: 8 },
+  undoButtonText: { color: colors.forest, fontSize: 14, fontWeight: "900" },
   resourceNotice: {
     backgroundColor: colors.background,
     borderColor: colors.line,

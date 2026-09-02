@@ -1,7 +1,7 @@
 from app.ai.providers.base import DiscoveryProvider, ProviderResult
 from app.ai.schema import DiscoveryContextAnswer, DiscoveryOption, DiscoveryQuestionDraft
 
-MAX_DISCOVERY_QUESTIONS = 6
+MAX_DISCOVERY_QUESTIONS = 4
 MIN_DISCOVERY_QUESTIONS = 3
 
 

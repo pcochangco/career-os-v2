@@ -88,20 +88,12 @@ def remove_irrelevant_cached_resources(
     return removed
 
 
-def remove_rejected_cached_resources(
-    db: DbSession,
+def visible_resources(
     resources: list[RoadmapStepResource],
     rejected_urls: set[str],
-) -> bool:
-    removed = False
-    for resource in resources:
-        if resource.url not in rejected_urls:
-            continue
-        db.delete(resource)
-        removed = True
-    if removed:
-        db.commit()
-    return removed
+) -> list[RoadmapStepResource]:
+    """Hide rejected recommendations without destroying the row needed for Undo."""
+    return [resource for resource in resources if resource.url not in rejected_urls]
 
 
 def start_resource_refresh_attempt(
@@ -172,20 +164,17 @@ def resolve_step_resources(
         start_resource_refresh_attempt(db, user_id=user.id, step_id=step.id)
 
     rejected_urls = read_rejected_resource_urls(db, user_id=user.id, step_id=step.id)
-    cached = read_cached_resources(db, step.id)
-    cache_changed = remove_rejected_cached_resources(db, cached, rejected_urls)
-    if cache_changed:
-        cached = read_cached_resources(db, step.id)
-    cache_changed = (
-        remove_irrelevant_cached_resources(
+    all_cached = read_cached_resources(db, step.id)
+    cached = visible_resources(all_cached, rejected_urls)
+    cache_changed = remove_irrelevant_cached_resources(
         db,
         resolver,
         cached,
         step.resource_queries,
-        )
-        or cache_changed
     )
-    cached = read_cached_resources(db, step.id) if cache_changed else cached
+    if cache_changed:
+        all_cached = read_cached_resources(db, step.id)
+        cached = visible_resources(all_cached, rejected_urls)
     excluded_urls = set(rejected_urls)
     if refresh:
         excluded_urls.update(resource.url for resource in cached)
@@ -204,7 +193,7 @@ def resolve_step_resources(
         cached = []
 
     candidates = resolver.resolve(step.resource_queries, excluded_urls=excluded_urls)
-    existing_urls = {resource.url for resource in cached}
+    existing_urls = {resource.url for resource in read_cached_resources(db, step.id)}
     resources = [
         RoadmapStepResource(
             step_id=step.id,
@@ -226,7 +215,8 @@ def resolve_step_resources(
         db.commit()
     except IntegrityError:
         db.rollback()
-    return to_resource_response(step.id, read_cached_resources(db, step.id), cached=False)
+    resolved = visible_resources(read_cached_resources(db, step.id), rejected_urls)
+    return to_resource_response(step.id, resolved, cached=False)
 
 
 @router.post(
@@ -269,6 +259,43 @@ def reject_step_resource(
                 resource_url=resource.url,
             )
         )
-    db.delete(resource)
     db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{step_id}/resources/{resource_id}/not-useful",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def restore_step_resource(
+    step_id: UUID,
+    resource_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> Response:
+    step, roadmap, _ = get_owned_active_step(db, user, step_id)
+    owned_roadmap = get_owned_roadmap(db, user, roadmap.id)
+    if calculate_roadmap_progress(db, user, owned_roadmap).current_step_id != step.id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Resources are available when this step becomes current",
+        )
+    resource = db.scalar(
+        select(RoadmapStepResource).where(
+            RoadmapStepResource.id == resource_id,
+            RoadmapStepResource.step_id == step.id,
+        )
+    )
+    if resource is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource was not found")
+    feedback = db.scalar(
+        select(RoadmapStepResourceFeedback).where(
+            RoadmapStepResourceFeedback.user_id == user.id,
+            RoadmapStepResourceFeedback.step_id == step.id,
+            RoadmapStepResourceFeedback.resource_url == resource.url,
+        )
+    )
+    if feedback is not None:
+        db.delete(feedback)
+        db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

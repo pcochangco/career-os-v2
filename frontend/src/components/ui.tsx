@@ -1,6 +1,7 @@
 import { ReactNode, RefObject } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -46,9 +47,27 @@ export function Screen({
   );
 }
 
-export function Brand() {
+export function Brand({ compact = false }: { compact?: boolean }) {
   const { colors } = useTheme();
-  return <Text style={[styles.brand, { color: colors.forest }]}>CareerOS</Text>;
+  return (
+    <View style={[styles.brand, compact && styles.brandCompact]}>
+      <Image
+        accessibilityIgnoresInvertColors
+        source={require("../../assets/logo-mark.png")}
+        style={styles.brandMark}
+      />
+      <Text style={[styles.brandText, { color: colors.forest }]}>CareerOS</Text>
+    </View>
+  );
+}
+
+export function AppHeader({ children }: { children?: ReactNode }) {
+  return (
+    <View style={styles.appHeader}>
+      <Brand compact />
+      {children ? <View style={styles.headerActions}>{children}</View> : null}
+    </View>
+  );
 }
 
 export function Heading({ children }: { children: ReactNode }) {
@@ -108,6 +127,13 @@ export function LoadingState({ label = "Opening your path…" }: { label?: strin
   return (
     <Screen>
       <View style={styles.centered}>
+        <Image
+          accessibilityLabel="CareerOS"
+          accessibilityIgnoresInvertColors
+          source={require("../../assets/logo-mark.png")}
+          style={styles.loadingMark}
+        />
+        <Text style={[styles.loadingBrand, { color: colors.forest }]}>CareerOS</Text>
         <ActivityIndicator color={colors.forest} size="large" />
         <Text style={[styles.loadingLabel, { color: colors.muted }]}>{label}</Text>
       </View>
@@ -131,14 +157,12 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.background, flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 28 },
   content: { alignSelf: "center", flex: 1, maxWidth: 680, width: "100%" },
-  brand: {
-    color: colors.forest,
-    fontSize: 15,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    marginBottom: 22,
-    textTransform: "uppercase",
-  },
+  appHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 24, minHeight: 44 },
+  brand: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 22 },
+  brandCompact: { marginBottom: 0 },
+  brandMark: { height: 30, width: 30 },
+  brandText: { fontSize: 15, fontWeight: "900", letterSpacing: 0.6 },
+  headerActions: { alignItems: "center", flexDirection: "row", gap: 8 },
   heading: {
     color: colors.ink,
     fontSize: 34,
@@ -177,5 +201,7 @@ const styles = StyleSheet.create({
   },
   fieldMultiline: { minHeight: 140, textAlignVertical: "top" },
   centered: { flex: 1, gap: 14, justifyContent: "center", minHeight: 420 },
+  loadingBrand: { fontSize: 18, fontWeight: "900", letterSpacing: 0.4, marginBottom: 4 },
   loadingLabel: { color: colors.muted, fontSize: 16, textAlign: "center" },
+  loadingMark: { alignSelf: "center", height: 92, width: 92 },
 });

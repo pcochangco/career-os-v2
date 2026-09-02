@@ -219,7 +219,7 @@ class DiscoveryStateRead(BaseModel):
     completion_reason: str = ""
     answered_questions: int = 0
     minimum_questions: int = 3
-    maximum_questions: int = 6
+    maximum_questions: int = 4
 
 
 class DiscoveryAnswerWrite(BaseModel):
