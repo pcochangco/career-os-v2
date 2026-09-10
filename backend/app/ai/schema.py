@@ -96,13 +96,18 @@ class RoadmapDraftMilestone(StrictModel):
     title: str = Field(min_length=5, max_length=180)
     outcome: str = Field(min_length=12, max_length=800)
     rationale: str = Field(min_length=12, max_length=800)
+    focus_areas: list[str] = Field(min_length=2, max_length=6)
+    proof_target: str = Field(min_length=12, max_length=600)
+    success_signal: str = Field(min_length=12, max_length=600)
     steps: list[RoadmapDraftStep] = Field(min_length=1, max_length=8)
 
 
 class RoadmapDraft(StrictModel):
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     title: str = Field(min_length=5, max_length=180)
     summary: str = Field(min_length=20, max_length=1200)
+    strategy_summary: str = Field(min_length=20, max_length=800)
+    suggested_rhythm: list[str] = Field(min_length=2, max_length=5)
     goal_outcome: str = Field(min_length=12, max_length=1000)
     starting_state_summary: str = Field(min_length=12, max_length=1000)
     assumptions: list[str] = Field(max_length=8)

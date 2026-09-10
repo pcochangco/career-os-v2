@@ -30,7 +30,12 @@ def test_fixture_passes_representative_eval_cases(
 
     assert outcome.quality.passed is True
     assert outcome.quality.final_score >= 80
-    assert outcome.draft.schema_version == "1.0"
+    assert outcome.draft.schema_version == "1.1"
+    assert len(outcome.draft.suggested_rhythm) >= 2
+    for milestone in outcome.draft.milestones:
+        assert len(milestone.focus_areas) >= 2
+        assert milestone.proof_target
+        assert milestone.success_signal
     assert any(
         step.kind == "prove" for milestone in outcome.draft.milestones for step in milestone.steps
     )

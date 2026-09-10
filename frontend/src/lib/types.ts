@@ -58,6 +58,9 @@ export type RoadmapMilestone = {
   title: string;
   outcome: string;
   rationale: string;
+  focus_areas: string[];
+  proof_target: string;
+  success_signal: string;
   steps: RoadmapStep[];
 };
 
@@ -85,6 +88,8 @@ export type Roadmap = {
   status: "draft" | "accepted" | "superseded";
   title: string;
   summary: string;
+  strategy_summary: string;
+  suggested_rhythm: string[];
   goal_outcome: string;
   starting_state_summary: string;
   assumptions: string[];

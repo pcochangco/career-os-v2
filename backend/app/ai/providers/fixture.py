@@ -63,12 +63,22 @@ class FixtureRoadmapProvider:
             ),
         }[domain]
         draft = RoadmapDraft(
-            schema_version="1.0",
+            schema_version="1.1",
             title=f"Your path to {goal_title}",
             summary=(
                 f"A focused path from your current starting point ({level}) toward {outcome}. "
                 "Each stage ends with observable evidence rather than time spent."
             ),
+            strategy_summary=(
+                "Build only the capabilities that close the gap between what you can already do "
+                "and the evidence required for this outcome. Each phase turns learning into a "
+                "visible artifact before you move on."
+            ),
+            suggested_rhythm=[
+                "Use learning sessions to unlock the next concrete build or practice task.",
+                "Return to the current step until its completion condition has real evidence.",
+                "At each phase boundary, keep the strongest artifact and explain what it proves.",
+            ],
             goal_outcome=outcome,
             starting_state_summary=(
                 f"Starting level: {level}. Relevant experience: "
@@ -79,7 +89,8 @@ class FixtureRoadmapProvider:
                 "Practice can use tools and materials available to the learner.",
             ],
             milestones=[
-                RoadmapDraftMilestone(
+                self._milestone(
+                    position=1,
                     title=foundation_title,
                     outcome=foundation_outcome,
                     rationale=(
@@ -87,7 +98,8 @@ class FixtureRoadmapProvider:
                     ),
                     steps=steps[:2],
                 ),
-                RoadmapDraftMilestone(
+                self._milestone(
+                    position=2,
                     title=workflow_title,
                     outcome=workflow_outcome,
                     rationale=(
@@ -95,7 +107,8 @@ class FixtureRoadmapProvider:
                     ),
                     steps=steps[2:4],
                 ),
-                RoadmapDraftMilestone(
+                self._milestone(
+                    position=3,
                     title=proof_title,
                     outcome="Produce and explain evidence that demonstrates the target capability.",
                     rationale="Independent proof turns learning into credible, reusable evidence.",
@@ -104,6 +117,29 @@ class FixtureRoadmapProvider:
             ],
         )
         return ProviderResult(value=draft)
+
+    @staticmethod
+    def _milestone(
+        *,
+        position: int,
+        title: str,
+        outcome: str,
+        rationale: str,
+        steps: list[RoadmapDraftStep],
+    ) -> RoadmapDraftMilestone:
+        focus_areas = [step.title for step in steps[:3]]
+        final_step = steps[-1]
+        return RoadmapDraftMilestone(
+            title=title,
+            outcome=outcome,
+            rationale=rationale,
+            focus_areas=focus_areas if len(focus_areas) > 1 else [title, final_step.objective],
+            proof_target=(
+                f"Phase {position} proof: {final_step.evidence_suggestion.rstrip('. ')}."
+            ),
+            success_signal=final_step.completion_condition,
+            steps=steps,
+        )
 
     @staticmethod
     def _domain(goal_title: str) -> str:

@@ -607,6 +607,8 @@ def generate_roadmap(
         version=(latest_version or 0) + 1,
         title=draft.title,
         summary=draft.summary,
+        strategy_summary=draft.strategy_summary,
+        suggested_rhythm=draft.suggested_rhythm,
         goal_outcome=draft.goal_outcome,
         starting_state_summary=draft.starting_state_summary,
         assumptions=draft.assumptions,
@@ -634,6 +636,9 @@ def generate_roadmap(
             title=draft_milestone.title,
             outcome=draft_milestone.outcome,
             rationale=draft_milestone.rationale,
+            focus_areas=draft_milestone.focus_areas,
+            proof_target=draft_milestone.proof_target,
+            success_signal=draft_milestone.success_signal,
         )
         db.add(milestone)
         db.flush()

@@ -228,6 +228,8 @@ class RoadmapVersion(Base):
     status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
     title: Mapped[str] = mapped_column(String(180))
     summary: Mapped[str] = mapped_column(Text)
+    strategy_summary: Mapped[str] = mapped_column(Text, default="")
+    suggested_rhythm: Mapped[list[str]] = mapped_column(JSON, default=list)
     goal_outcome: Mapped[str] = mapped_column(Text, default="")
     starting_state_summary: Mapped[str] = mapped_column(Text, default="")
     assumptions: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -265,6 +267,9 @@ class RoadmapMilestone(Base):
     title: Mapped[str] = mapped_column(String(180))
     outcome: Mapped[str] = mapped_column(Text)
     rationale: Mapped[str] = mapped_column(Text, default="")
+    focus_areas: Mapped[list[str]] = mapped_column(JSON, default=list)
+    proof_target: Mapped[str] = mapped_column(Text, default="")
+    success_signal: Mapped[str] = mapped_column(Text, default="")
 
     roadmap: Mapped[RoadmapVersion] = relationship(back_populates="milestones")
     steps: Mapped[list[RoadmapStep]] = relationship(

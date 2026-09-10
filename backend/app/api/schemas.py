@@ -231,6 +231,9 @@ class RoadmapMilestoneRead(BaseModel):
     title: str
     outcome: str
     rationale: str
+    focus_areas: list[str] = Field(default_factory=list)
+    proof_target: str = ""
+    success_signal: str = ""
     steps: list[RoadmapStepRead]
 
 
@@ -243,6 +246,8 @@ class RoadmapRead(BaseModel):
     status: str
     title: str
     summary: str
+    strategy_summary: str = ""
+    suggested_rhythm: list[str] = Field(default_factory=list)
     goal_outcome: str
     starting_state_summary: str
     assumptions: list[str]

@@ -301,7 +301,7 @@ def test_portable_schema_keeps_shape_and_defers_field_constraints_to_pydantic() 
     assert json_schema["strict"] is True
     assert schema["additionalProperties"] is False
     assert set(schema["properties"]) == set(schema["required"])
-    assert schema["properties"]["schema_version"]["enum"] == ["1.0"]
+    assert schema["properties"]["schema_version"]["enum"] == ["1.1"]
 
     def schema_keywords(value: object) -> set[str]:
         if isinstance(value, list):

@@ -62,6 +62,7 @@ export default function RoadmapRoute() {
   } | null>(null);
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
+  const [detailedMapExpanded, setDetailedMapExpanded] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const resourceUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
@@ -447,6 +448,75 @@ export default function RoadmapRoute() {
             </View>
           ))}
         </View>
+        {roadmap.milestones.length > 0 ? (
+          <Pressable
+            accessibilityHint="Shows or hides the detailed plan for every roadmap phase"
+            accessibilityRole="button"
+            accessibilityState={{ expanded: detailedMapExpanded }}
+            onPress={() => setDetailedMapExpanded((current) => !current)}
+            style={({ pressed }) => [styles.detailToggle, pressed && styles.detailTogglePressed]}
+          >
+            <Text style={styles.detailToggleText}>
+              {detailedMapExpanded ? "Hide detailed map ↑" : "View detailed map ↓"}
+            </Text>
+          </Pressable>
+        ) : null}
+        {detailedMapExpanded ? (
+          <View style={styles.detailMap}>
+            {roadmap.strategy_summary || roadmap.summary ? (
+              <View style={styles.strategyCard}>
+                <Text style={styles.detailEyebrow}>How this path works</Text>
+                <Text style={styles.strategyText}>{roadmap.strategy_summary || roadmap.summary}</Text>
+              </View>
+            ) : null}
+            {roadmap.suggested_rhythm.length > 0 ? (
+              <View style={styles.rhythmCard}>
+                <Text style={styles.detailEyebrow}>Suggested rhythm</Text>
+                {roadmap.suggested_rhythm.map((item, index) => (
+                  <View key={`${item}-${index}`} style={styles.rhythmRow}>
+                    <Text style={styles.rhythmBullet}>•</Text>
+                    <Text style={styles.rhythmText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {roadmap.milestones.map((milestone) => {
+              const focusAreas = milestone.focus_areas.length > 0
+                ? milestone.focus_areas
+                : milestone.steps.slice(0, 3).map((step) => step.title);
+              const finalStep = milestone.steps[milestone.steps.length - 1];
+              const proofTarget = milestone.proof_target || finalStep?.evidence_suggestion;
+              const successSignal = milestone.success_signal || finalStep?.completion_condition;
+              return (
+                <View key={milestone.id} style={styles.detailPhaseCard}>
+                  <Text style={styles.detailPhaseLabel}>Phase {milestone.position}</Text>
+                  <Text style={styles.detailPhaseTitle}>{milestone.title}</Text>
+                  {focusAreas.length > 0 ? (
+                    <View style={styles.focusList}>
+                      {focusAreas.map((focus, index) => (
+                        <View key={`${focus}-${index}`} style={styles.focusPill}>
+                          <Text style={styles.focusPillText}>{focus}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                  {proofTarget ? (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailItemLabel}>Build / prove</Text>
+                    <Text style={styles.detailItemText}>{proofTarget}</Text>
+                  </View>
+                  ) : null}
+                  {successSignal ? (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailItemLabel}>Checkpoint</Text>
+                    <Text style={styles.detailItemText}>{successSignal}</Text>
+                  </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
 
       {roadmap.current_step_id === null ? (
@@ -882,6 +952,29 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   mapMilestoneTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", lineHeight: 20 },
   mapMilestoneOutcome: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
   mapMilestoneProgress: { color: colors.forestDark, fontSize: 11, fontWeight: "800", marginTop: 5 },
+  detailToggle: {
+    alignItems: "center", borderColor: colors.softBorder, borderRadius: 12, borderWidth: 1,
+    justifyContent: "center", marginTop: 4, minHeight: 44, paddingHorizontal: 12,
+  },
+  detailTogglePressed: { opacity: 0.7 },
+  detailToggleText: { color: colors.forest, fontSize: 13, fontWeight: "900" },
+  detailMap: { gap: 12, marginTop: 14 },
+  strategyCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
+  rhythmCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
+  detailEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  strategyText: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  rhythmRow: { flexDirection: "row", gap: 7, marginTop: 7 },
+  rhythmBullet: { color: colors.forest, fontSize: 15, fontWeight: "900", lineHeight: 19 },
+  rhythmText: { color: colors.ink, flex: 1, fontSize: 13, lineHeight: 19 },
+  detailPhaseCard: { backgroundColor: colors.card, borderColor: colors.softBorder, borderRadius: 14, borderWidth: 1, padding: 14 },
+  detailPhaseLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  detailPhaseTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", lineHeight: 21, marginTop: 3 },
+  focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10 },
+  focusPill: { backgroundColor: colors.forestSoft, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
+  focusPillText: { color: colors.forestDark, fontSize: 12, fontWeight: "800" },
+  detailItem: { borderTopColor: colors.softBorder, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
+  detailItemLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  detailItemText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
   goalComplete: {
     backgroundColor: colors.forestSoft,
     borderRadius: 18,
