@@ -6,6 +6,7 @@ from app.ai.schema import (
     RoadmapDraftMilestone,
     RoadmapDraftStep,
     RoadmapGenerationInput,
+    RoadmapPracticeTask,
 )
 
 
@@ -63,7 +64,7 @@ class FixtureRoadmapProvider:
             ),
         }[domain]
         draft = RoadmapDraft(
-            schema_version="1.1",
+            schema_version="1.2",
             title=f"Your path to {goal_title}",
             summary=(
                 f"A focused path from your current starting point ({level}) toward {outcome}. "
@@ -79,6 +80,7 @@ class FixtureRoadmapProvider:
                 "Return to the current step until its completion condition has real evidence.",
                 "At each phase boundary, keep the strongest artifact and explain what it proves.",
             ],
+            practice_tasks=self._practice_tasks(domain=domain, steps=steps),
             goal_outcome=outcome,
             starting_state_summary=(
                 f"Starting level: {level}. Relevant experience: "
@@ -117,6 +119,81 @@ class FixtureRoadmapProvider:
             ],
         )
         return ProviderResult(value=draft)
+
+    @staticmethod
+    def _practice_tasks(
+        *, domain: str, steps: list[RoadmapDraftStep]
+    ) -> list[RoadmapPracticeTask]:
+        domain_prompts = {
+            "technical": [
+                (
+                    "Solve one focused implementation problem",
+                    "Choose a small problem related to the current capability and write a "
+                    "working solution with one edge-case check.",
+                    "Keep the solution and note the trade-off you made.",
+                ),
+                (
+                    "Explain one design decision",
+                    "Sketch the inputs, outputs, and failure cases for a small part of your "
+                    "current build before changing code.",
+                    "Save a short design note or diagram.",
+                ),
+            ],
+            "language": [
+                (
+                    "Use the language in context",
+                    "Write or say a short response about a real situation using the vocabulary "
+                    "from your current step.",
+                    "Keep the response and mark one phrase to improve.",
+                ),
+                (
+                    "Practice comprehension",
+                    "Use one short authentic clip or text and capture the main idea plus two "
+                    "useful expressions.",
+                    "Record the summary and expressions.",
+                ),
+            ],
+            "business": [
+                (
+                    "Test one customer assumption",
+                    "Write one precise question that would test an assumption in your current "
+                    "offer or workflow.",
+                    "Save the question and the evidence you would look for.",
+                ),
+                (
+                    "Improve one decision",
+                    "Review one small customer or operating signal and write the next decision "
+                    "it supports.",
+                    "Record the signal and decision in one note.",
+                ),
+            ],
+            "general": [
+                (
+                    "Rehearse the current capability",
+                    "Take one small piece of the current roadmap step and perform it without "
+                    "following a tutorial.",
+                    "Keep a short artifact or note showing what you did.",
+                ),
+                (
+                    "Explain your current learning",
+                    "Teach back one key idea from the current phase in plain language.",
+                    "Save the explanation and one remaining question.",
+                ),
+            ],
+        }[domain]
+        step_prompts = [
+            (
+                f"Make a small move on: {step.title}",
+                f"Choose one contained part of this step: {step.objective}",
+                f"Leave evidence that moves this step forward: {step.evidence_suggestion}",
+            )
+            for step in steps[:3]
+        ]
+        prompts = [*domain_prompts, *step_prompts]
+        return [
+            RoadmapPracticeTask(title=title, instruction=instruction, completion_signal=signal)
+            for title, instruction, signal in prompts[:5]
+        ]
 
     @staticmethod
     def _milestone(

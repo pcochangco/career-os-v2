@@ -59,9 +59,10 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert roadmap["status"] == "draft"
     assert roadmap["generation_source"] == "fixture"
     assert roadmap["provider_model"] == "deterministic-fixture"
-    assert roadmap["schema_version"] == "1.1"
+    assert roadmap["schema_version"] == "1.2"
     assert roadmap["strategy_summary"]
     assert len(roadmap["suggested_rhythm"]) >= 2
+    assert len(roadmap["practice_tasks"]) >= 4
     assert all(milestone["focus_areas"] for milestone in roadmap["milestones"])
     assert roadmap["quality_score"] >= 80
     assert roadmap["quality_report"]["passed"] is True

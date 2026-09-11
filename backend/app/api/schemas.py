@@ -237,6 +237,12 @@ class RoadmapMilestoneRead(BaseModel):
     steps: list[RoadmapStepRead]
 
 
+class RoadmapPracticeTaskRead(BaseModel):
+    title: str
+    instruction: str
+    completion_signal: str
+
+
 class RoadmapRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -248,6 +254,7 @@ class RoadmapRead(BaseModel):
     summary: str
     strategy_summary: str = ""
     suggested_rhythm: list[str] = Field(default_factory=list)
+    practice_tasks: list[RoadmapPracticeTaskRead] = Field(default_factory=list)
     goal_outcome: str
     starting_state_summary: str
     assumptions: list[str]

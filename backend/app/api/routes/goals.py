@@ -609,6 +609,7 @@ def generate_roadmap(
         summary=draft.summary,
         strategy_summary=draft.strategy_summary,
         suggested_rhythm=draft.suggested_rhythm,
+        practice_tasks=[task.model_dump() for task in draft.practice_tasks],
         goal_outcome=draft.goal_outcome,
         starting_state_summary=draft.starting_state_summary,
         assumptions=draft.assumptions,

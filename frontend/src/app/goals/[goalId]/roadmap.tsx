@@ -63,6 +63,7 @@ export default function RoadmapRoute() {
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
   const [detailedMapExpanded, setDetailedMapExpanded] = useState(false);
+  const [practiceTaskOffset, setPracticeTaskOffset] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const resourceUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
@@ -108,6 +109,25 @@ export default function RoadmapRoute() {
         .find((step) => step.id === roadmap.current_step_id) ?? null,
     [roadmap],
   );
+
+  const practiceTasks = useMemo(() => {
+    if ((roadmap?.practice_tasks.length ?? 0) > 0) return roadmap!.practice_tasks;
+    return (roadmap?.milestones ?? [])
+      .flatMap((milestone) => milestone.steps)
+      .slice(0, 5)
+      .map((step) => ({
+        title: `Practice: ${step.title}`,
+        instruction: `Choose one small, self-contained part of this step: ${step.objective}`,
+        completion_signal: `Keep a short note or artifact: ${step.evidence_suggestion}`,
+      }));
+  }, [roadmap]);
+  const todayPracticeIndex = useMemo(() => {
+    if (practiceTasks.length === 0) return 0;
+    const today = new Date();
+    const dayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) / 86_400_000;
+    return (Math.floor(dayKey) + practiceTaskOffset) % practiceTasks.length;
+  }, [practiceTaskOffset, practiceTasks.length]);
+  const todayPractice = practiceTasks[todayPracticeIndex];
 
   const milestoneProgress = useMemo(
     () =>
@@ -404,6 +424,28 @@ export default function RoadmapRoute() {
           </View>
           <Text style={styles.nextOpen}>Open current step ↓</Text>
         </Pressable>
+      ) : null}
+
+      {todayPractice ? (
+        <View style={styles.practiceCard}>
+          <Text style={styles.practiceEyebrow}>Today’s optional practice</Text>
+          <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
+          <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
+          <View style={styles.practiceProof}>
+            <Text style={styles.practiceProofLabel}>Done when</Text>
+            <Text style={styles.practiceProofText}>{todayPractice.completion_signal}</Text>
+          </View>
+          {practiceTasks.length > 1 ? (
+            <Pressable
+              accessibilityHint="Shows another optional practice prompt from this roadmap"
+              accessibilityRole="button"
+              onPress={() => setPracticeTaskOffset((value) => value + 1)}
+              style={({ pressed }) => [styles.practiceNext, pressed && styles.practiceNextPressed]}
+            >
+              <Text style={styles.practiceNextText}>Try a different prompt →</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
 
       <View style={styles.mapCard}>
@@ -966,12 +1008,22 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   rhythmRow: { flexDirection: "row", gap: 7, marginTop: 7 },
   rhythmBullet: { color: colors.forest, fontSize: 15, fontWeight: "900", lineHeight: 19 },
   rhythmText: { color: colors.ink, flex: 1, fontSize: 13, lineHeight: 19 },
-  detailPhaseCard: { backgroundColor: colors.card, borderColor: colors.softBorder, borderRadius: 14, borderWidth: 1, padding: 14 },
+  detailPhaseCard: { backgroundColor: colors.card, borderColor: colors.softBorder, borderRadius: 14, borderWidth: 1, minWidth: 0, overflow: "hidden", padding: 14 },
   detailPhaseLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   detailPhaseTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", lineHeight: 21, marginTop: 3 },
-  focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10 },
-  focusPill: { backgroundColor: colors.forestSoft, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6 },
-  focusPillText: { color: colors.forestDark, fontSize: 12, fontWeight: "800" },
+  focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10, minWidth: 0, width: "100%" },
+  focusPill: { alignSelf: "flex-start", backgroundColor: colors.forestSoft, borderRadius: 14, flexShrink: 1, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6 },
+  focusPillText: { color: colors.forestDark, flexShrink: 1, fontSize: 12, fontWeight: "800", lineHeight: 18 },
+  practiceCard: { backgroundColor: colors.forestSoft, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 22, padding: 18 },
+  practiceEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  practiceTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", lineHeight: 23, marginTop: 5 },
+  practiceBody: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
+  practiceProof: { borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
+  practiceProofLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  practiceProofText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  practiceNext: { alignSelf: "flex-start", marginTop: 13, paddingVertical: 4 },
+  practiceNextPressed: { opacity: 0.65 },
+  practiceNextText: { color: colors.forest, fontSize: 13, fontWeight: "900" },
   detailItem: { borderTopColor: colors.softBorder, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
   detailItemLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   detailItemText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },

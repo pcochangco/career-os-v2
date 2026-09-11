@@ -64,6 +64,12 @@ export type RoadmapMilestone = {
   steps: RoadmapStep[];
 };
 
+export type RoadmapPracticeTask = {
+  title: string;
+  instruction: string;
+  completion_signal: string;
+};
+
 export type QualityIssue = {
   severity: "warning" | "error";
   code: string;
@@ -90,6 +96,7 @@ export type Roadmap = {
   summary: string;
   strategy_summary: string;
   suggested_rhythm: string[];
+  practice_tasks: RoadmapPracticeTask[];
   goal_outcome: string;
   starting_state_summary: string;
   assumptions: string[];

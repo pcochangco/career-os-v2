@@ -230,6 +230,7 @@ class RoadmapVersion(Base):
     summary: Mapped[str] = mapped_column(Text)
     strategy_summary: Mapped[str] = mapped_column(Text, default="")
     suggested_rhythm: Mapped[list[str]] = mapped_column(JSON, default=list)
+    practice_tasks: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
     goal_outcome: Mapped[str] = mapped_column(Text, default="")
     starting_state_summary: Mapped[str] = mapped_column(Text, default="")
     assumptions: Mapped[list[str]] = mapped_column(JSON, default=list)
