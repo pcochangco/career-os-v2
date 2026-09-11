@@ -97,6 +97,8 @@ export type Roadmap = {
   strategy_summary: string;
   suggested_rhythm: string[];
   practice_tasks: RoadmapPracticeTask[];
+  practice_completed_today: boolean;
+  practice_completed_at: string | null;
   goal_outcome: string;
   starting_state_summary: string;
   assumptions: string[];

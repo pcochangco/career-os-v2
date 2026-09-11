@@ -255,6 +255,8 @@ class RoadmapRead(BaseModel):
     strategy_summary: str = ""
     suggested_rhythm: list[str] = Field(default_factory=list)
     practice_tasks: list[RoadmapPracticeTaskRead] = Field(default_factory=list)
+    practice_completed_today: bool = False
+    practice_completed_at: datetime | None = None
     goal_outcome: str
     starting_state_summary: str
     assumptions: list[str]

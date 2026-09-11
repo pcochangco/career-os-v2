@@ -43,7 +43,7 @@ export default function RoadmapRoute() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [savingAction, setSavingAction] = useState<"work" | "completion" | null>(null);
+  const [savingAction, setSavingAction] = useState<"work" | "completion" | "practice" | null>(null);
   const [learningRecord, setLearningRecord] = useState("");
   const [completionConfirmed, setCompletionConfirmed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -123,9 +123,8 @@ export default function RoadmapRoute() {
   }, [roadmap]);
   const todayPracticeIndex = useMemo(() => {
     if (practiceTasks.length === 0) return 0;
-    const today = new Date();
-    const dayKey = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) / 86_400_000;
-    return (Math.floor(dayKey) + practiceTaskOffset) % practiceTasks.length;
+    const dayKey = Math.floor(Date.now() / 86_400_000);
+    return (dayKey + practiceTaskOffset) % practiceTasks.length;
   }, [practiceTaskOffset, practiceTasks.length]);
   const todayPractice = practiceTasks[todayPracticeIndex];
 
@@ -151,6 +150,23 @@ export default function RoadmapRoute() {
       return new Set(current).add(currentMilestone.id);
     });
   }, [roadmap?.current_step_id, roadmap?.id]);
+
+  async function completeTodayPractice() {
+    if (!roadmap || !token || roadmap.practice_completed_today) return;
+    setActionError(null);
+    setSavingAction("practice");
+    try {
+      const updated = await apiRequest<Roadmap>(`/roadmaps/${roadmap.id}/practice/today`, {
+        method: "PUT",
+        token,
+      });
+      setRoadmap(updated);
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Practice could not be saved.");
+    } finally {
+      setSavingAction(null);
+    }
+  }
 
   function toggleMilestone(milestoneId: string) {
     setExpandedMilestoneIds((current) => {
@@ -426,16 +442,37 @@ export default function RoadmapRoute() {
         </Pressable>
       ) : null}
 
-      {todayPractice ? (
+      {roadmap.status === "accepted" && todayPractice ? (
         <View style={styles.practiceCard}>
-          <Text style={styles.practiceEyebrow}>Today’s optional practice</Text>
+          <View style={styles.practiceHeader}>
+            <Text style={styles.practiceEyebrow}>Daily mini win</Text>
+            {roadmap.practice_completed_today ? <Text style={styles.practiceCompleteMark}>✓ Done</Text> : null}
+          </View>
           <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
           <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
           <View style={styles.practiceProof}>
             <Text style={styles.practiceProofLabel}>Done when</Text>
             <Text style={styles.practiceProofText}>{todayPractice.completion_signal}</Text>
           </View>
-          {practiceTasks.length > 1 ? (
+          {roadmap.practice_completed_today ? (
+            <View style={styles.practiceCelebration}>
+              <Text style={styles.practiceCelebrationTitle}>Practice logged.</Text>
+              <Text style={styles.practiceCelebrationText}>That is a real piece of work toward this goal.</Text>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityHint="Records this optional practice as completed for today"
+              accessibilityRole="button"
+              accessibilityState={{ busy: savingAction === "practice" }}
+              onPress={completeTodayPractice}
+              style={({ pressed }) => [styles.practiceCompleteButton, pressed && styles.practiceCompleteButtonPressed]}
+            >
+              <Text style={styles.practiceCompleteButtonText}>
+                {savingAction === "practice" ? "Logging…" : "I completed this ✓"}
+              </Text>
+            </Pressable>
+          )}
+          {!roadmap.practice_completed_today && practiceTasks.length > 1 ? (
             <Pressable
               accessibilityHint="Shows another optional practice prompt from this roadmap"
               accessibilityRole="button"
@@ -1015,12 +1052,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   focusPill: { alignSelf: "flex-start", backgroundColor: colors.forestSoft, borderRadius: 14, flexShrink: 1, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6 },
   focusPillText: { color: colors.forestDark, flexShrink: 1, fontSize: 12, fontWeight: "800", lineHeight: 18 },
   practiceCard: { backgroundColor: colors.forestSoft, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 22, padding: 18 },
+  practiceHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   practiceEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  practiceCompleteMark: { color: colors.forest, fontSize: 12, fontWeight: "900" },
   practiceTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", lineHeight: 23, marginTop: 5 },
   practiceBody: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
   practiceProof: { borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
   practiceProofLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   practiceProofText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
+  practiceCompleteButton: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 12, justifyContent: "center", marginTop: 14, minHeight: 44, paddingHorizontal: 14 },
+  practiceCompleteButtonPressed: { opacity: 0.78 },
+  practiceCompleteButtonText: { color: colors.onForest, fontSize: 13, fontWeight: "900" },
+  practiceCelebration: { backgroundColor: colors.card, borderRadius: 12, marginTop: 14, padding: 12 },
+  practiceCelebrationTitle: { color: colors.forest, fontSize: 13, fontWeight: "900" },
+  practiceCelebrationText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 2 },
   practiceNext: { alignSelf: "flex-start", marginTop: 13, paddingVertical: 4 },
   practiceNextPressed: { opacity: 0.65 },
   practiceNextText: { color: colors.forest, fontSize: 13, fontWeight: "900" },

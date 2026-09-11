@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas import RoadmapMilestoneRead, RoadmapRead, RoadmapStepRead
 from app.db.models import (
+    RoadmapPracticeCompletion,
     RoadmapStep,
     RoadmapStepProgress,
     RoadmapStepWork,
@@ -84,6 +85,13 @@ def calculate_roadmap_progress(
 
 def to_roadmap_read(db: Session, user: User, roadmap: RoadmapVersion) -> RoadmapRead:
     snapshot = calculate_roadmap_progress(db, user, roadmap)
+    practice_completion = db.scalar(
+        select(RoadmapPracticeCompletion).where(
+            RoadmapPracticeCompletion.user_id == user.id,
+            RoadmapPracticeCompletion.roadmap_id == roadmap.id,
+            RoadmapPracticeCompletion.practice_date == datetime.now(UTC).date(),
+        )
+    )
     step_ids = [step.id for step in flattened_steps(roadmap)]
     work_by_step = (
         {
@@ -126,5 +134,9 @@ def to_roadmap_read(db: Session, user: User, roadmap: RoadmapVersion) -> Roadmap
             "progress_percent": snapshot.progress_percent,
             "current_step_id": snapshot.current_step_id,
             "milestones": milestones,
+            "practice_completed_today": practice_completion is not None,
+            "practice_completed_at": (
+                practice_completion.completed_at if practice_completion else None
+            ),
         }
     )

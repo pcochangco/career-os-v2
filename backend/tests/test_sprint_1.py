@@ -82,6 +82,13 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert accepted.status_code == 200
     assert accepted.json()["status"] == "accepted"
 
+    completed_practice = client.put(
+        f"/api/v1/roadmaps/{roadmap['id']}/practice/today", headers=headers
+    )
+    assert completed_practice.status_code == 200
+    assert completed_practice.json()["practice_completed_today"] is True
+    assert completed_practice.json()["practice_completed_at"]
+
     goals = client.get("/api/v1/goals", headers=headers)
     assert goals.status_code == 200
     assert goals.json()[0]["active_roadmap_id"] == roadmap["id"]

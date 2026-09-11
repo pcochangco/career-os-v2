@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import RoadmapRead
-from app.db.models import Goal, RoadmapMilestone, RoadmapVersion, User
+from app.db.models import Goal, RoadmapMilestone, RoadmapPracticeCompletion, RoadmapVersion, User
 from app.services.progress import to_roadmap_read
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
@@ -63,4 +63,44 @@ def accept_roadmap(
     if goal is not None:
         goal.status = "active"
     db.commit()
+    return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))
+
+
+@router.put("/{roadmap_id}/practice/today", response_model=RoadmapRead)
+def complete_today_practice(
+    roadmap_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+) -> RoadmapRead:
+    roadmap = get_owned_roadmap(db, user, roadmap_id)
+    if roadmap.status != "accepted":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Accept this roadmap before logging practice",
+        )
+    task_count = len(roadmap.practice_tasks)
+    if task_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This roadmap has no practice prompt yet",
+        )
+    now = datetime.now(UTC)
+    practice_date = now.date()
+    existing = db.scalar(
+        select(RoadmapPracticeCompletion).where(
+            RoadmapPracticeCompletion.user_id == user.id,
+            RoadmapPracticeCompletion.roadmap_id == roadmap.id,
+            RoadmapPracticeCompletion.practice_date == practice_date,
+        )
+    )
+    if existing is None:
+        db.add(
+            RoadmapPracticeCompletion(
+                user_id=user.id,
+                roadmap_id=roadmap.id,
+                practice_date=practice_date,
+                task_index=int(now.timestamp() // 86_400) % task_count,
+            )
+        )
+        db.commit()
     return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))

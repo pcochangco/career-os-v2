@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -42,6 +42,9 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     issue_reports: Mapped[list[IssueReport]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+    practice_completions: Mapped[list[RoadmapPracticeCompletion]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
 
@@ -254,6 +257,30 @@ class RoadmapVersion(Base):
         cascade="all, delete-orphan",
         order_by="RoadmapMilestone.position",
     )
+    practice_completions: Mapped[list[RoadmapPracticeCompletion]] = relationship(
+        back_populates="roadmap", cascade="all, delete-orphan"
+    )
+
+
+class RoadmapPracticeCompletion(Base):
+    __tablename__ = "roadmap_practice_completions"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "roadmap_id", "practice_date", name="uq_practice_completion_day"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    roadmap_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roadmap_versions.id", ondelete="CASCADE"), index=True
+    )
+    practice_date: Mapped[date] = mapped_column(Date, index=True)
+    task_index: Mapped[int] = mapped_column(Integer)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped[User] = relationship(back_populates="practice_completions")
+    roadmap: Mapped[RoadmapVersion] = relationship(back_populates="practice_completions")
 
 
 class RoadmapMilestone(Base):
