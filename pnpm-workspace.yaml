@@ -1,2 +1,4 @@
 packages:
   - frontend
+minimumReleaseAgeExclude:
+  - expo-splash-screen@57.0.9
