@@ -25,6 +25,14 @@ module.exports = () => {
 
   return {
     ...baseConfig,
+    owner: "careerosapps-team",
+    extra: {
+      ...(baseConfig.extra ?? {}),
+      eas: {
+        ...(baseConfig.extra?.eas ?? {}),
+        projectId: "18d01b82-d04e-4a25-b2cc-3576122a4941",
+      },
+    },
     ios: {
       ...baseConfig.ios,
       buildNumber: "1",
