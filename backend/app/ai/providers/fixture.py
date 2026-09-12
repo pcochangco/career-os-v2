@@ -98,7 +98,7 @@ class FixtureRoadmapProvider:
                     rationale=(
                         "A clear target and honest baseline prevent unnecessary or missing work."
                     ),
-                    steps=steps[:2],
+                    steps=steps[:3],
                 ),
                 self._milestone(
                     position=2,
@@ -107,14 +107,14 @@ class FixtureRoadmapProvider:
                     rationale=(
                         "Guided understanding becomes useful only after deliberate application."
                     ),
-                    steps=steps[2:4],
+                    steps=steps[3:7],
                 ),
                 self._milestone(
                     position=3,
                     title=proof_title,
                     outcome="Produce and explain evidence that demonstrates the target capability.",
                     rationale="Independent proof turns learning into credible, reusable evidence.",
-                    steps=steps[4:],
+                    steps=steps[7:],
                 ),
             ],
         )
@@ -594,15 +594,88 @@ class FixtureRoadmapProvider:
                 ),
             ],
         }[domain]
+        templates = [
+            *templates[:5],
+            (
+                "Review the first independent result",
+                "Compare the independent result against the intended outcome and identify the "
+                "few gaps that matter most.",
+                "A deliberate review prevents a finished-looking artifact from hiding a weak "
+                "capability.",
+                f"Review the independent result against this proof target: {proof}. Record the "
+                "three strongest parts, the highest-risk gap, and one concrete revision that "
+                "would make the evidence more credible.",
+                "A review note identifies the strongest evidence, one high-impact gap, and one "
+                "specific revision tied to the proof target.",
+                "Evidence review and revision plan",
+                f"{goal_title} self review rubric practical project",
+            ),
+            (
+                "Strengthen the highest-impact gap",
+                "Improve the part of the work that most limits the target capability.",
+                "Targeted revision turns feedback into stronger evidence instead of starting a "
+                "disconnected new exercise.",
+                "Implement the single revision from your review plan. Show the before-and-after "
+                "behavior, decision, or artifact, and explain why the revision improves the "
+                "outcome.",
+                "The revised result includes a visible before-and-after comparison and an "
+                "explanation of the improvement.",
+                "Revision comparison and explanation",
+                f"{goal_title} improvement case study examples",
+            ),
+            (
+                "Test transfer in a changed scenario",
+                "Show that the capability survives a realistic variation rather than only one "
+                "rehearsed example.",
+                "A changed scenario distinguishes repeatable skill from a one-off successful "
+                "artifact.",
+                "Use the improved work in one changed but relevant scenario. Keep the same "
+                "outcome while changing an input, constraint, audience, edge case, or "
+                "requirement. Capture what transferred and what required adjustment.",
+                "The changed scenario reaches a reviewable result and records one justified "
+                "adjustment or trade-off.",
+                "Transfer test and trade-off note",
+                f"{goal_title} realistic scenario test examples",
+            ),
+            (
+                "Prepare a final capability demonstration",
+                "Assemble the exact evidence a reviewer would need to judge the target capability.",
+                "A deliberate demonstration connects the finished work to the learner's intended "
+                "outcome and proof.",
+                f"Choose the strongest version of the work and prepare a concise demonstration "
+                f"against: {proof}. Include the outcome, approach, evidence, limitation, and "
+                "what you would improve next.",
+                "A reviewer can follow the demonstration, inspect the evidence, and understand "
+                "one limitation without needing extra context.",
+                "Final demonstration outline and evidence set",
+                f"{goal_title} portfolio demonstration rubric",
+            ),
+            templates[5],
+        ]
         keys = [
             "define-success",
             "map-foundations",
             "learn-workflow",
             "guided-output",
             "independent-output",
+            "review-independent-result",
+            "strengthen-key-gap",
+            "test-transfer",
+            "prepare-final-demonstration",
             "package-learning",
         ]
-        kinds = ["learn", "practice", "learn", "practice", "prove", "prove"]
+        kinds = [
+            "learn",
+            "practice",
+            "learn",
+            "practice",
+            "prove",
+            "practice",
+            "practice",
+            "prove",
+            "prove",
+            "prove",
+        ]
         efforts = [
             "Short focused session",
             "Several focused sessions",
@@ -610,8 +683,12 @@ class FixtureRoadmapProvider:
             "Several focused sessions",
             "Multi-session project",
             "Short focused session",
+            "Several focused sessions",
+            "Several focused sessions",
+            "Short focused session",
+            "Short focused session",
         ]
-        prerequisites = [[], [keys[0]], [keys[1]], [keys[2]], [keys[3]], [keys[4]]]
+        prerequisites = [[]] + [[keys[index - 1]] for index in range(1, len(keys))]
         return [
             RoadmapDraftStep(
                 stable_key=keys[index],

@@ -24,7 +24,7 @@ export type RoadmapStep = {
   evidence_suggestion: string;
   prerequisite_step_keys: string[];
   resource_queries: string[];
-  progress_status: "completed" | "current" | "upcoming" | "blocked";
+  progress_status: "completed" | "current" | "upcoming" | "blocked" | "locked";
   completed_at: string | null;
   notes: string;
   evidence_summary: string;
@@ -117,6 +117,9 @@ export type Roadmap = {
   total_steps: number;
   progress_percent: number;
   current_step_id: string | null;
+  subscription_tier: "free" | "premium";
+  free_access_milestone_limit: number | null;
+  locked_step_count: number;
   milestones: RoadmapMilestone[];
 };
 

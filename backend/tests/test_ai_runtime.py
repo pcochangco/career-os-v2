@@ -753,6 +753,35 @@ def test_live_generation_retries_one_transient_capacity_failure() -> None:
     assert waits == [15]
 
 
+def test_live_generation_retries_one_transient_provider_outage() -> None:
+    class UnavailableOnceProvider(FixtureRoadmapProvider):
+        calls = 0
+
+        def generate(self, generation_input: RoadmapGenerationInput):
+            self.calls += 1
+            if self.calls == 1:
+                raise RoadmapProviderError(
+                    "simulated provider outage",
+                    diagnostic_code="stage=generate;APIStatusError;status_code=503",
+                )
+            return super().generate(generation_input)
+
+    waits: list[float] = []
+    provider = UnavailableOnceProvider()
+    service = RetryingRoadmapGenerationService(
+        RoadmapGenerationService(provider),
+        max_transient_retries=1,
+        retry_delay_seconds=3,
+        sleeper=waits.append,
+    )
+
+    outcome = service.generate(generation_input())
+
+    assert outcome.quality.passed is True
+    assert provider.calls == 2
+    assert waits == [3]
+
+
 def test_live_generation_does_not_retry_non_transient_provider_failures() -> None:
     provider = FailingProvider()
     service = RetryingRoadmapGenerationService(
@@ -771,7 +800,7 @@ def test_evaluation_metrics_compare_without_exposing_roadmap_text() -> None:
     metrics = outcome_metrics(outcome)
 
     assert metrics["provider"] == "fixture"
-    assert metrics["steps"] == 6
+    assert metrics["steps"] == 10
     assert quality_delta(metrics, metrics) == 0
     assert "draft" not in metrics
 

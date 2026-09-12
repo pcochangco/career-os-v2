@@ -1,5 +1,5 @@
 import { ReactNode, RefObject } from "react";
-import { SlidersHorizontal, ThumbsDown } from "lucide-react-native";
+import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "lucide-react-native";
 import {
   ActivityIndicator,
   Image,
@@ -93,6 +93,19 @@ export function ThumbDownGlyph() {
       style={styles.iconFrame}
     >
       <ThumbsDown color={colors.muted} size={19} strokeWidth={1.8} />
+    </View>
+  );
+}
+
+export function LockGlyph() {
+  const { colors } = useTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.iconFrame}
+    >
+      <LockKeyhole color={colors.muted} size={16} strokeWidth={1.9} />
     </View>
   );
 }

@@ -215,7 +215,7 @@ class RoadmapStepRead(BaseModel):
     evidence_suggestion: str
     prerequisite_step_keys: list[str]
     resource_queries: list[str]
-    progress_status: Literal["completed", "current", "upcoming", "blocked"] = "upcoming"
+    progress_status: Literal["completed", "current", "upcoming", "blocked", "locked"] = "upcoming"
     completed_at: datetime | None = None
     notes: str = ""
     evidence_summary: str = ""
@@ -275,4 +275,7 @@ class RoadmapRead(BaseModel):
     total_steps: int = 0
     progress_percent: int = 0
     current_step_id: UUID | None = None
+    subscription_tier: Literal["free", "premium"] = "free"
+    free_access_milestone_limit: int | None = None
+    locked_step_count: int = 0
     milestones: list[RoadmapMilestoneRead]

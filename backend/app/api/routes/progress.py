@@ -18,6 +18,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.services.entitlements import can_access_step
 from app.services.progress import calculate_roadmap_progress, to_roadmap_read
 
 router = APIRouter(prefix="/roadmap-steps", tags=["progress"])
@@ -131,6 +132,11 @@ def write_step_progress(
     )
 
     if payload.completed and progress is None:
+        if not can_access_step(user, owned_roadmap, step):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Complete this roadmap's first milestone or upgrade to Premium to continue.",
+            )
         current_step_id = calculate_roadmap_progress(db, user, owned_roadmap).current_step_id
         if current_step_id != step.id:
             raise HTTPException(
@@ -163,6 +169,12 @@ def write_step_work(
     db: DbSession,
 ) -> RoadmapRead:
     step, roadmap, _ = get_owned_active_step(db, user, step_id)
+    owned_roadmap = get_owned_roadmap(db, user, roadmap.id)
+    if not can_access_step(user, owned_roadmap, step):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Upgrade to Premium to save work beyond this roadmap's first milestone.",
+        )
     work = db.scalar(
         select(RoadmapStepWork).where(
             RoadmapStepWork.user_id == user.id,

@@ -99,7 +99,7 @@ class RoadmapDraftMilestone(StrictModel):
     focus_areas: list[str] = Field(min_length=2, max_length=6)
     proof_target: str = Field(min_length=12, max_length=600)
     success_signal: str = Field(min_length=12, max_length=600)
-    steps: list[RoadmapDraftStep] = Field(min_length=1, max_length=8)
+    steps: list[RoadmapDraftStep] = Field(min_length=2, max_length=8)
 
 
 class RoadmapPracticeTask(StrictModel):
@@ -118,7 +118,7 @@ class RoadmapDraft(StrictModel):
     goal_outcome: str = Field(min_length=12, max_length=1000)
     starting_state_summary: str = Field(min_length=12, max_length=1000)
     assumptions: list[str] = Field(max_length=8)
-    milestones: list[RoadmapDraftMilestone] = Field(min_length=2, max_length=8)
+    milestones: list[RoadmapDraftMilestone] = Field(min_length=3, max_length=8)
 
 
 class QualityIssue(StrictModel):

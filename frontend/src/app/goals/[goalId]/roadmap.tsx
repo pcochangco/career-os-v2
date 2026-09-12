@@ -8,6 +8,7 @@ import {
   ErrorState,
   Field,
   LoadingState,
+  LockGlyph,
   Screen,
   SettingsGlyph,
   ThumbDownGlyph,
@@ -22,6 +23,7 @@ const stateLabels: Record<RoadmapStep["progress_status"], string> = {
   current: "Continue here",
   upcoming: "Upcoming",
   blocked: "Prerequisite needed",
+  locked: "Premium unlock",
 };
 const resourceRefreshCooldownMs = 12_000;
 const resourceUndoWindowMs = 6_000;
@@ -598,7 +600,18 @@ export default function RoadmapRoute() {
         ) : null}
       </View>
 
-      {roadmap.current_step_id === null ? (
+      {roadmap.locked_step_count > 0 ? (
+        <View style={styles.premiumCard}>
+          <Text style={styles.premiumEyebrow}>Premium continues this path</Text>
+          <Text style={styles.premiumTitle}>Your first milestone is free.</Text>
+          <Text style={styles.premiumBody}>
+            You can see the complete roadmap now. Upgrade when you are ready to unlock the next
+            {roadmap.locked_step_count === 1 ? " step" : ` ${roadmap.locked_step_count} steps`}.
+          </Text>
+        </View>
+      ) : null}
+
+      {roadmap.current_step_id === null && roadmap.locked_step_count === 0 ? (
         <View style={styles.goalComplete}>
           <Text style={styles.goalCompleteEyebrow}>Goal complete</Text>
           <Text style={styles.goalCompleteTitle}>You finished the full roadmap.</Text>
@@ -647,6 +660,7 @@ export default function RoadmapRoute() {
               const isCurrent = step.progress_status === "current";
               const isCompleted = step.progress_status === "completed";
               const isBlocked = step.progress_status === "blocked";
+              const isLocked = step.progress_status === "locked";
               const isLast =
                 milestoneIndex === roadmap.milestones.length - 1 &&
                 stepIndex === milestone.steps.length - 1;
@@ -667,16 +681,19 @@ export default function RoadmapRoute() {
                         isCurrent && styles.nodeCurrent,
                         isCompleted && styles.nodeCompleted,
                         isBlocked && styles.nodeBlocked,
+                        isLocked && styles.nodeLocked,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.nodeLabel,
-                          (isCurrent || isCompleted) && styles.nodeLabelActive,
-                        ]}
-                      >
-                        {nodeLabel}
-                      </Text>
+                      {isLocked ? <LockGlyph /> : (
+                        <Text
+                          style={[
+                            styles.nodeLabel,
+                            (isCurrent || isCompleted) && styles.nodeLabelActive,
+                          ]}
+                        >
+                          {nodeLabel}
+                        </Text>
+                      )}
                     </View>
                     {!isLast ? (
                       <View style={[styles.connector, isCompleted && styles.connectorCompleted]} />
@@ -689,6 +706,7 @@ export default function RoadmapRoute() {
                       isCurrent && styles.currentCard,
                       isCompleted && styles.completedCard,
                       isBlocked && styles.blockedCard,
+                      isLocked && styles.lockedCard,
                     ]}
                   >
                     <View style={styles.missionMeta}>
@@ -1086,6 +1104,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   goalCompleteTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", marginTop: 6 },
   goalCompleteBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6 },
+  premiumCard: {
+    backgroundColor: colors.card,
+    borderColor: colors.softBorder,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 22,
+    padding: 18,
+  },
+  premiumEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  premiumTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", lineHeight: 24, marginTop: 5 },
+  premiumBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
   actionError: { color: colors.danger, fontSize: 14, marginBottom: 22 },
   path: { gap: 30 },
   milestoneHeader: {
@@ -1130,6 +1159,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   nodeCompleted: { backgroundColor: colors.forest, borderColor: colors.forest },
   nodeBlocked: { opacity: 0.62 },
+  nodeLocked: { backgroundColor: colors.card, borderColor: colors.softBorder, opacity: 0.72 },
   nodeLabel: { color: colors.muted, fontSize: 13, fontWeight: "800" },
   nodeLabelActive: { color: colors.onForest, fontSize: 15 },
   connector: { backgroundColor: colors.line, flex: 1, minHeight: 28, width: 3 },
@@ -1147,6 +1177,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   currentCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2 },
   completedCard: { backgroundColor: colors.card },
   blockedCard: { opacity: 0.68 },
+  lockedCard: { backgroundColor: colors.forestSoft, borderColor: colors.softBorder, opacity: 0.8 },
   missionMeta: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 7 },
   missionKind: {
     backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 10,

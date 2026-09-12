@@ -18,6 +18,7 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    subscription_tier: Mapped[str] = mapped_column(String(16), default="free", index=True)
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -250,6 +251,7 @@ class RoadmapVersion(Base):
     generation_duration_ms: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    free_access_milestones: Mapped[int] = mapped_column(Integer, default=0)
 
     goal: Mapped[Goal] = relationship(back_populates="roadmaps")
     milestones: Mapped[list[RoadmapMilestone]] = relationship(

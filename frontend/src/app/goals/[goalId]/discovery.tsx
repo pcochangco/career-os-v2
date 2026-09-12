@@ -19,7 +19,7 @@ import {
   LoadingState,
   Screen,
 } from "@/components/ui";
-import { apiRequest } from "@/lib/api";
+import { ApiError, apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -139,10 +139,41 @@ export default function DiscoveryRoute() {
       setGenerationStage(0);
       setGenerating(true);
       setError(null);
-      const roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, { method: "POST", token });
+      let roadmap: Roadmap;
+      try {
+        roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
+          method: "POST",
+          token,
+        });
+      } catch (firstFailure) {
+        // Capacity and connection failures are occasionally transient. A single client retry
+        // complements the server retry, while a persisted draft remains idempotent on retry.
+        if (firstFailure instanceof ApiError && firstFailure.status < 500) throw firstFailure;
+        await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+        roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
+          method: "POST",
+          token,
+        });
+      }
       router.replace(`/goals/${goalId}/review?roadmapId=${roadmap.id}` as never);
     } catch (caught) {
+      // A slow mobile connection or proxy can lose the POST response after the server has
+      // already persisted a draft. Resolve the goal state before showing a false failure.
+      try {
+        const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
+        const roadmapId = goal.active_roadmap_id ?? goal.latest_draft_roadmap_id;
+        if (roadmapId) {
+          const destination = goal.active_roadmap_id
+            ? `/goals/${goalId}/roadmap?roadmapId=${roadmapId}`
+            : `/goals/${goalId}/review?roadmapId=${roadmapId}`;
+          router.replace(destination as never);
+          return;
+        }
+      } catch {
+        // Preserve the original error below if the recovery check cannot reach the API either.
+      }
       setError(caught instanceof Error ? caught.message : "Your roadmap could not be generated.");
+    } finally {
       setGenerating(false);
       generationRequestRef.current = false;
     }

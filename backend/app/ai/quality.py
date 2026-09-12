@@ -18,6 +18,19 @@ WEAK_COMPLETION_PATTERN = re.compile(
     r"^(understand|learn|know|be familiar|feel confident)\b",
     re.IGNORECASE,
 )
+PERSONALIZATION_STOP_WORDS = {
+    "about", "after", "already", "and", "are", "build", "from", "into", "learner",
+    "learning", "need", "needed", "only", "proof", "that", "the", "their", "this",
+    "through", "with", "work", "your",
+}
+
+
+def meaningful_terms(value: str) -> set[str]:
+    return {
+        term.casefold()
+        for term in re.findall(r"[a-zA-Z][a-zA-Z0-9+#.-]{3,}", value)
+        if term.casefold() not in PERSONALIZATION_STOP_WORDS
+    }
 
 
 def issue(
@@ -44,13 +57,14 @@ def evaluate_structure(
     flattened = [step for milestone in draft.milestones for step in milestone.steps]
     step_positions = {step.stable_key: index for index, step in enumerate(flattened)}
 
-    if len(flattened) < 5:
+    if len(flattened) < 10:
         issues.append(
             issue(
                 "too_few_steps",
-                "The roadmap has fewer than five meaningful steps.",
+                "The roadmap has fewer than ten meaningful steps.",
                 "milestones",
-                "Add only the missing prerequisite, practice, or proof steps.",
+                "Add the missing prerequisite, implementation, feedback, or proof bridges so "
+                "the learner can follow the path without inventing work between phases.",
             )
         )
     if len(flattened) > 24:
@@ -62,6 +76,30 @@ def evaluate_structure(
                 "Merge repetitive or low-value steps and keep at most 24.",
             )
         )
+
+    if len(draft.milestones) < 3:
+        issues.append(
+            issue(
+                "too_few_capability_phases",
+                "The roadmap needs at least three capability phases: foundation, application, "
+                "and proof.",
+                "milestones",
+                "Split the path into distinct capability gates that make the learner's starting "
+                "point, applied work, and credible proof visible.",
+            )
+        )
+
+    for milestone_index, milestone in enumerate(draft.milestones, start=1):
+        if len(milestone.steps) < 2:
+            issues.append(
+                issue(
+                    "thin_milestone",
+                    "Each capability phase needs at least two connected actions.",
+                    f"milestones.{milestone_index}.steps",
+                    "Add the missing bridge action so this phase has a concrete "
+                    "capability-building step and an applied or evidence-producing step.",
+                )
+            )
 
     keys = [step.stable_key for step in flattened]
     if len(keys) != len(set(keys)):
@@ -151,9 +189,7 @@ def evaluate_structure(
                 )
             )
 
-    input_terms = {
-        term.casefold() for term in generation_input.goal_title.split() if len(term) >= 4
-    }
+    input_terms = meaningful_terms(generation_input.goal_title)
     personalized_text = f"{draft.title} {draft.summary} {draft.goal_outcome}".casefold()
     if input_terms and not any(term in personalized_text for term in input_terms):
         issues.append(
@@ -162,6 +198,60 @@ def evaluate_structure(
                 "The roadmap does not visibly connect to the user's stated goal.",
                 "summary",
                 "Rewrite the title, outcome, and summary around the user's actual goal.",
+            )
+        )
+
+    context_terms = meaningful_terms(
+        " ".join(
+            [
+                generation_input.current_level,
+                generation_input.existing_experience,
+                generation_input.relevant_constraints,
+                generation_input.proof_of_completion,
+                *(
+                    answer.answer
+                    for answer in generation_input.discovery_context
+                    if not answer.skipped
+                ),
+            ]
+        )
+    )
+    roadmap_text = " ".join(
+        [
+            draft.starting_state_summary,
+            draft.strategy_summary,
+            *(
+                " ".join(
+                    [
+                        milestone.outcome,
+                        milestone.rationale,
+                        milestone.proof_target,
+                        *(
+                            " ".join(
+                                [
+                                    step.title,
+                                    step.objective,
+                                    step.action,
+                                    step.completion_condition,
+                                ]
+                            )
+                            for step in milestone.steps
+                        ),
+                    ]
+                )
+                for milestone in draft.milestones
+            ),
+        ]
+    ).casefold()
+    if context_terms and not any(term in roadmap_text for term in context_terms):
+        issues.append(
+            issue(
+                "weak_context_personalization",
+                "The roadmap does not visibly use the learner's starting experience, "
+                "constraints, or proof target.",
+                "starting_state_summary",
+                "Make the starting state and at least one high-leverage learner-specific "
+                "constraint, asset, or proof target shape the chosen actions and evidence.",
             )
         )
 

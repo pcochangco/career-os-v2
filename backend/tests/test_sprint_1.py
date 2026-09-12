@@ -68,7 +68,8 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert roadmap["quality_report"]["passed"] is True
     assert roadmap["assumptions"]
     assert len(roadmap["milestones"]) == 3
-    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 6
+    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 10
+    assert all(len(milestone["steps"]) >= 2 for milestone in roadmap["milestones"])
     assert all(
         step["completion_condition"]
         for milestone in roadmap["milestones"]
@@ -160,8 +161,6 @@ def test_goal_creation_uses_semantic_intent_validation_before_saving(
 
 
 def test_goal_creation_accepts_clear_short_and_specialized_goals(client: TestClient) -> None:
-    token = create_session(client)
-
     for title in (
         "Learn AWS",
         "Run a marathon",
@@ -171,12 +170,30 @@ def test_goal_creation_accepts_clear_short_and_specialized_goals(client: TestCli
         "Spanish B2",
         "Build a CareerOS iOS app",
     ):
+        token = create_session(client)
         response = client.post(
             "/api/v1/goals",
             headers=auth(token),
             json={"title": title},
         )
         assert response.status_code == 201
+
+
+def test_free_account_can_only_keep_two_active_goals(client: TestClient) -> None:
+    token = create_session(client)
+
+    for title in ("Learn Spanish", "Build a portfolio"):
+        response = client.post("/api/v1/goals", headers=auth(token), json={"title": title})
+        assert response.status_code == 201
+
+    limited = client.post(
+        "/api/v1/goals",
+        headers=auth(token),
+        json={"title": "Run a marathon"},
+    )
+
+    assert limited.status_code == 403
+    assert "2 active goals" in limited.json()["detail"]
 
 
 def test_roadmap_generation_uses_preview_after_per_user_limit(

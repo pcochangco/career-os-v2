@@ -150,8 +150,20 @@ class RetryingRoadmapGenerationService:
 
     @staticmethod
     def _is_transient_capacity_error(error: RoadmapProviderError) -> bool:
-        diagnostic = error.diagnostic_code
-        return "code=rate_limit_exceeded" in diagnostic or "status_code=429" in diagnostic
+        diagnostic = error.diagnostic_code.casefold()
+        transient_statuses = (
+            "status_code=429",
+            "status_code=500",
+            "status_code=502",
+            "status_code=503",
+            "status_code=504",
+        )
+        transient_errors = ("apiconnectionerror", "apitimeouterror", "timeout")
+        return (
+            "code=rate_limit_exceeded" in diagnostic
+            or any(status in diagnostic for status in transient_statuses)
+            or any(error_type in diagnostic for error_type in transient_errors)
+        )
 
 
 logger = logging.getLogger(__name__)

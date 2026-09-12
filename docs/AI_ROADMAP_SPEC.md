@@ -32,8 +32,9 @@ Material assumptions must be reviewable before generation.
 3. **Build prerequisites** — order concepts and capabilities by dependency.
 4. **Create milestones** — define meaningful checkpoints with observable
    outcomes.
-5. **Create steps** — divide each milestone into focused learn, practice, and
-   prove actions.
+5. **Create steps** — divide each milestone into at least two focused learn,
+   practice, and prove actions. A normal roadmap has three to six milestones
+   and ten to eighteen dependency-ordered steps.
 6. **Retrieve resources** — search trusted or appropriate sources for material
    matching each step.
 7. **Verify resources** — validate URL reachability and capture reliable
@@ -102,6 +103,8 @@ A valid roadmap must be:
 - **Actionable** — every step states what to do next
 - **Verifiable** — every step has an observable completion condition
 - **Evidence-producing** — important capabilities lead to practice or proof
+- **Complete** — covers the foundations, application, feedback, and proof
+  needed for the user's specific outcome rather than stopping at generic topics
 - **Concise** — avoids filler steps and repeated explanations
 - **Grounded** — presented resources are retrieved and verified
 - **Stable** — identical test inputs can use deterministic fixtures without a

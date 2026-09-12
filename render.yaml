@@ -50,7 +50,7 @@ services:
       - key: CAREEROS_AI_TRANSIENT_RETRY_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_TRANSIENT_RETRY_DELAY_SECONDS
-        value: 15
+        value: 3
       - key: CAREEROS_AI_MAX_REPAIR_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_QUALITY_THRESHOLD

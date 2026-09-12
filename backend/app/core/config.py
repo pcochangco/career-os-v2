@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     ai_repair_max_completion_tokens: int = Field(default=4800, ge=512, le=131072)
     ai_discovery_max_completion_tokens: int = Field(default=700, ge=256, le=8192)
     ai_transient_retry_attempts: int = Field(default=1, ge=0, le=2)
-    ai_transient_retry_delay_seconds: float = Field(default=15.0, ge=1.0, le=60.0)
+    ai_transient_retry_delay_seconds: float = Field(default=3.0, ge=1.0, le=60.0)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)
     ai_quality_threshold: int = Field(default=80, ge=60, le=100)
     ai_generation_limit_per_hour: int = Field(default=3, ge=1, le=100)

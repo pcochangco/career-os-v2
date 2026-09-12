@@ -51,7 +51,7 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     steps = steps_in(roadmap)
 
     assert roadmap["completed_steps"] == 0
-    assert roadmap["total_steps"] == 6
+    assert roadmap["total_steps"] == 10
     assert roadmap["progress_percent"] == 0
     assert roadmap["current_step_id"] == steps[0]["id"]
     assert steps[0]["progress_status"] == "current"
@@ -73,7 +73,7 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     updated = completed.json()
     updated_steps = steps_in(updated)
     assert updated["completed_steps"] == 1
-    assert updated["progress_percent"] == 16
+    assert updated["progress_percent"] == 10
     assert updated["current_step_id"] == updated_steps[1]["id"]
     assert updated_steps[0]["progress_status"] == "completed"
     assert updated_steps[0]["completed_at"] is not None
@@ -90,11 +90,11 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     goals = client.get("/api/v1/goals", headers=headers).json()
     assert goals[0]["id"] == goal["id"]
     assert goals[0]["completed_steps"] == 1
-    assert goals[0]["total_steps"] == 6
-    assert goals[0]["progress_percent"] == 16
+    assert goals[0]["total_steps"] == 10
+    assert goals[0]["progress_percent"] == 10
 
 
-def test_completing_and_reopening_final_step_updates_goal_status(client: TestClient) -> None:
+def test_free_access_stops_after_the_first_milestone(client: TestClient) -> None:
     token = create_session(client)
     headers = auth(token)
     goal, roadmap = create_accepted_roadmap(client, token)
@@ -108,23 +108,22 @@ def test_completing_and_reopening_final_step_updates_goal_status(client: TestCli
         assert response.status_code == 200
         roadmap = response.json()
 
-    assert roadmap["completed_steps"] == roadmap["total_steps"] == 6
-    assert roadmap["progress_percent"] == 100
-    assert all(step["progress_status"] == "completed" for step in steps_in(roadmap))
-    completed_goal = client.get(f"/api/v1/goals/{goal['id']}", headers=headers).json()
-    assert completed_goal["status"] == "completed"
-
-    final_step = steps_in(roadmap)[-1]
-    reopened = client.put(
-        f"/api/v1/roadmap-steps/{final_step['id']}/progress",
-        headers=headers,
-        json={"completed": False},
-    )
-    assert reopened.status_code == 200
-    assert reopened.json()["current_step_id"] == final_step["id"]
-    assert reopened.json()["progress_percent"] == 83
+    assert roadmap["completed_steps"] == 3
+    assert roadmap["current_step_id"] is None
+    assert roadmap["free_access_milestone_limit"] == 1
+    assert roadmap["locked_step_count"] == 7
+    assert [step["progress_status"] for step in steps_in(roadmap)[3:]] == ["locked"] * 7
     active_goal = client.get(f"/api/v1/goals/{goal['id']}", headers=headers).json()
     assert active_goal["status"] == "active"
+
+    locked_step = steps_in(roadmap)[3]
+    blocked = client.put(
+        f"/api/v1/roadmap-steps/{locked_step['id']}/progress",
+        headers=headers,
+        json={"completed": True, "completion_confirmed": True},
+    )
+    assert blocked.status_code == 403
+    assert "Premium" in blocked.json()["detail"]
 
 
 def test_progress_is_private_to_the_roadmap_owner(client: TestClient) -> None:

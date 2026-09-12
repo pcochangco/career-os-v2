@@ -14,6 +14,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.services.entitlements import unlocked_milestone_limit
 
 
 @dataclass(frozen=True)
@@ -51,9 +52,12 @@ def calculate_roadmap_progress(
     completed_keys = {step.stable_key for step in steps if step.id in completed_at}
 
     statuses: dict[UUID, str] = {}
+    free_access_limit = unlocked_milestone_limit(user, roadmap)
     for step in steps:
         if step.id in completed_at:
             statuses[step.id] = "completed"
+        elif free_access_limit is not None and step.milestone.position > free_access_limit:
+            statuses[step.id] = "locked"
         elif set(step.prerequisite_step_keys).issubset(completed_keys):
             statuses[step.id] = "upcoming"
         else:
@@ -85,6 +89,7 @@ def calculate_roadmap_progress(
 
 def to_roadmap_read(db: Session, user: User, roadmap: RoadmapVersion) -> RoadmapRead:
     snapshot = calculate_roadmap_progress(db, user, roadmap)
+    free_access_limit = unlocked_milestone_limit(user, roadmap)
     practice_completion = db.scalar(
         select(RoadmapPracticeCompletion).where(
             RoadmapPracticeCompletion.user_id == user.id,
@@ -137,6 +142,11 @@ def to_roadmap_read(db: Session, user: User, roadmap: RoadmapVersion) -> Roadmap
             "practice_completed_today": practice_completion is not None,
             "practice_completed_at": (
                 practice_completion.completed_at if practice_completion else None
+            ),
+            "subscription_tier": user.subscription_tier,
+            "free_access_milestone_limit": free_access_limit,
+            "locked_step_count": sum(
+                status == "locked" for status in snapshot.statuses.values()
             ),
         }
     )
