@@ -57,23 +57,33 @@ def evaluate_structure(
     flattened = [step for milestone in draft.milestones for step in milestone.steps]
     step_positions = {step.stable_key: index for index, step in enumerate(flattened)}
 
-    if len(flattened) < 10:
+    curriculum = generation_input.curriculum
+    minimum_step_count = curriculum.capability_count if curriculum is not None else 10
+    maximum_step_count = max(24, curriculum.capability_count * 3) if curriculum is not None else 24
+
+    if len(flattened) < minimum_step_count:
         issues.append(
             issue(
                 "too_few_steps",
-                "The roadmap has fewer than ten meaningful steps.",
+                (
+                    "The roadmap has fewer meaningful steps than its required curriculum "
+                    "capabilities."
+                    if curriculum is not None
+                    else "The roadmap has fewer than ten meaningful steps."
+                ),
                 "milestones",
                 "Add the missing prerequisite, implementation, feedback, or proof bridges so "
                 "the learner can follow the path without inventing work between phases.",
             )
         )
-    if len(flattened) > 24:
+    if len(flattened) > maximum_step_count:
         issues.append(
             issue(
                 "too_many_steps",
-                "The roadmap is too granular for a focused path.",
+                "The roadmap is too granular for its stated capability scope.",
                 "milestones",
-                "Merge repetitive or low-value steps and keep at most 24.",
+                "Merge repetitive or low-value steps while preserving every required "
+                "capability and its proof path.",
             )
         )
 
@@ -255,7 +265,6 @@ def evaluate_structure(
             )
         )
 
-    curriculum = generation_input.curriculum
     if curriculum is not None:
         # A curriculum map is a coverage guardrail, not a request to reteach every topic.
         # Learners may satisfy a capability through advanced application when they already

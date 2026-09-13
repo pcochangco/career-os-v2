@@ -50,8 +50,10 @@ Material assumptions must be reviewable before generation.
 
 For recognized high-value technical tracks, generation starts from an original,
 versioned CareerOS capability map instead of asking a model to invent the entire
-curriculum from memory. The first supported backbones are Python/backend
-engineering, applied AI/automation engineering, and data engineering. Each map
+curriculum from memory. A backbone does not impose a fixed phase or step count: its role-specific
+phase and capability count determines the minimum coverage, while learner evidence determines
+whether a capability needs one harder applied step or a build-and-proof pair. The first supported
+backbones are Python/backend engineering, applied AI/automation engineering, and data engineering. Each map
 contains ordered phases, essential capabilities, topic coverage, and practical
 proof expectations.
 

@@ -19,7 +19,7 @@ class CurriculumPhase(StrictModel):
     key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
     title: str = Field(min_length=5, max_length=120)
     outcome: str = Field(min_length=12, max_length=500)
-    capabilities: list[CurriculumCapability] = Field(min_length=1, max_length=5)
+    capabilities: list[CurriculumCapability] = Field(min_length=1, max_length=6)
 
 
 class CurriculumBackbone(StrictModel):
@@ -28,6 +28,15 @@ class CurriculumBackbone(StrictModel):
     title: str = Field(min_length=5, max_length=160)
     summary: str = Field(min_length=20, max_length=1000)
     phases: list[CurriculumPhase] = Field(min_length=3, max_length=8)
+
+    @property
+    def capability_count(self) -> int:
+        """Number of capability gates the roadmap must cover.
+
+        This deliberately belongs to the curriculum data rather than a global roadmap
+        rule: different roles need different amounts of coverage.
+        """
+        return sum(len(phase.capabilities) for phase in self.phases)
 
 
 class RoadmapGenerationInput(StrictModel):
@@ -123,7 +132,7 @@ class RoadmapDraftMilestone(StrictModel):
     focus_areas: list[str] = Field(min_length=2, max_length=6)
     proof_target: str = Field(min_length=12, max_length=600)
     success_signal: str = Field(min_length=12, max_length=600)
-    steps: list[RoadmapDraftStep] = Field(min_length=2, max_length=8)
+    steps: list[RoadmapDraftStep] = Field(min_length=2, max_length=12)
 
 
 class RoadmapPracticeTask(StrictModel):

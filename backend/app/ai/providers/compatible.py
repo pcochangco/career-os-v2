@@ -150,9 +150,12 @@ and make the roadmap's milestones visibly correspond to its capability phases. D
 internal curriculum object to the learner or copy its wording mechanically. Aim for two connected
 steps per capability when the learner needs the full path: one applied capability-building step and
 one test, review, integration, or proof step. A demonstrated capability may be compressed only when
-the remaining step uses it in a harder goal-specific context. The result should normally contain
-four capability phases and roughly twelve to eighteen steps, never shallow labels that merely name
-the curriculum topics.
+the remaining step uses it in a harder goal-specific context. Never use shallow labels that merely
+name the curriculum topics. Do not target a fixed number of phases or steps. Derive the shape from
+the supplied curriculum: every phase must remain visible, and every capability needs at least one
+meaningful applied or proof-oriented step. Use two connected steps for capabilities that need full
+development; compress only demonstrated capabilities by making their single step a harder,
+goal-specific application. Keep the result focused enough that each step remains actionable.
 
 Do not create fixed daily schedules, deadlines, streaks, overdue work, or generic filler.
 Do not invent or include URLs. Provide short, topic-specific resource search queries instead. Write
