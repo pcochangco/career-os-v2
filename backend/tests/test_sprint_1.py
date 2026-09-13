@@ -179,7 +179,7 @@ def test_goal_creation_accepts_clear_short_and_specialized_goals(client: TestCli
         assert response.status_code == 201
 
 
-def test_free_account_can_only_keep_two_active_goals(client: TestClient) -> None:
+def test_free_account_can_only_create_two_goals_in_total(client: TestClient) -> None:
     token = create_session(client)
 
     for title in ("Learn Spanish", "Build a portfolio"):
@@ -193,7 +193,7 @@ def test_free_account_can_only_keep_two_active_goals(client: TestClient) -> None
     )
 
     assert limited.status_code == 403
-    assert "2 active goals" in limited.json()["detail"]
+    assert "2 goals in total" in limited.json()["detail"]
 
 
 def test_roadmap_generation_uses_preview_after_per_user_limit(

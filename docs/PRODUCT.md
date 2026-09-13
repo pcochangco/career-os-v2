@@ -94,12 +94,12 @@ not silently rewrite completed work.
 
 ## Access model
 
-Free accounts can keep up to two unfinished goals. New free roadmaps show the
+Free accounts can create up to two goals in total. New free roadmaps show the
 complete path, while the first milestone is actionable; later milestones are
 clearly locked rather than hidden. Existing roadmaps are grandfathered so an
 already-started learner does not lose progress. Premium is an account tier that
-unlocks every milestone and removes the unfinished-goal limit. Billing and
-pricing are intentionally separate from this entitlement boundary.
+unlocks every milestone and removes the total-goal limit. Billing and pricing
+are intentionally separate from this entitlement boundary.
 
 ## MVP success
 

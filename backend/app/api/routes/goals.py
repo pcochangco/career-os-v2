@@ -40,7 +40,7 @@ from app.discovery.service import (
     MIN_DISCOVERY_QUESTIONS,
     deduplicate_context,
 )
-from app.services.entitlements import FREE_ACTIVE_GOAL_LIMIT, can_create_goal
+from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -103,8 +103,8 @@ def create_goal(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Free accounts can keep up to {FREE_ACTIVE_GOAL_LIMIT} active goals. "
-                "Finish a goal or upgrade to Premium to add another."
+                f"Free accounts can create up to {FREE_GOAL_LIMIT} goals in total. "
+                "Upgrade to Premium to create more."
             ),
         )
     assessment = goal_intent_service.assess_goal(goal_title=payload.title)

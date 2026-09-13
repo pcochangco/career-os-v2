@@ -3,27 +3,24 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Goal, RoadmapStep, RoadmapVersion, User
 
-FREE_ACTIVE_GOAL_LIMIT = 2
+FREE_GOAL_LIMIT = 2
 
 
 def is_premium(user: User) -> bool:
     return user.subscription_tier == "premium"
 
 
-def active_goal_count(db: Session, user: User) -> int:
+def goal_count(db: Session, user: User) -> int:
     return int(
         db.scalar(
-            select(func.count(Goal.id)).where(
-                Goal.user_id == user.id,
-                Goal.status != "completed",
-            )
+            select(func.count(Goal.id)).where(Goal.user_id == user.id)
         )
         or 0
     )
 
 
 def can_create_goal(db: Session, user: User) -> bool:
-    return is_premium(user) or active_goal_count(db, user) < FREE_ACTIVE_GOAL_LIMIT
+    return is_premium(user) or goal_count(db, user) < FREE_GOAL_LIMIT
 
 
 def unlocked_milestone_limit(user: User, roadmap: RoadmapVersion) -> int | None:
