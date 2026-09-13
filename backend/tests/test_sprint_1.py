@@ -70,7 +70,7 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert roadmap["quality_report"]["passed"] is True
     assert roadmap["assumptions"]
     assert len(roadmap["milestones"]) == 4
-    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 10
+    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 16
     assert all(len(milestone["steps"]) >= 2 for milestone in roadmap["milestones"])
     assert all(
         step["completion_condition"]

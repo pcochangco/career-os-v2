@@ -119,29 +119,23 @@ class FixtureRoadmapProvider:
             ],
         )
         if generation_input.curriculum is not None:
-            self._apply_curriculum_backbone(draft, generation_input.curriculum)
+            curriculum_steps = self._curriculum_steps(generation_input)
+            draft.practice_tasks = self._practice_tasks(domain="technical", steps=curriculum_steps)
+            self._apply_curriculum_backbone(
+                draft,
+                generation_input.curriculum,
+                curriculum_steps,
+            )
         return ProviderResult(value=draft)
 
     @classmethod
-    def _apply_curriculum_backbone(cls, draft: RoadmapDraft, curriculum) -> None:
-        """Make deterministic previews obey the same coverage contract as live generation."""
-        steps = [step for milestone in draft.milestones for step in milestone.steps]
-        capabilities = [
-            capability for phase in curriculum.phases for capability in phase.capabilities
-        ]
-        for step, capability in zip(steps, capabilities, strict=False):
-            step.title = f"{capability.label}: {step.title}"
-            step.objective = f"{step.objective} Coverage focus: {', '.join(capability.topics)}."
-            step.evidence_suggestion = capability.proof
-
-        # The preview stays concise (ten steps) but its visible capability gates follow
-        # the selected four-phase backbone rather than a generic technical template.
-        boundaries = (2, 4, 7, len(steps))
+    def _apply_curriculum_backbone(cls, draft: RoadmapDraft, curriculum, steps) -> None:
+        """Present deterministic maps as capability-specific, end-to-end roadmaps."""
+        steps_per_phase = len(steps) // len(curriculum.phases)
         start = 0
         milestones: list[RoadmapDraftMilestone] = []
-        for position, (phase, end) in enumerate(
-            zip(curriculum.phases, boundaries, strict=True), start=1
-        ):
+        for position, phase in enumerate(curriculum.phases, start=1):
+            end = start + steps_per_phase
             phase_steps = steps[start:end]
             start = end
             milestones.append(
@@ -157,6 +151,82 @@ class FixtureRoadmapProvider:
                 )
             )
         draft.milestones = milestones
+
+    @staticmethod
+    def _curriculum_steps(generation_input: RoadmapGenerationInput) -> list[RoadmapDraftStep]:
+        """Expand each curriculum capability into an applied step and proof step.
+
+        This keeps the offline fallback useful when live generation is unavailable and
+        gives tests a realistic baseline: a curriculum map is not merely relabelled
+        generic content.
+        """
+        curriculum = generation_input.curriculum
+        assert curriculum is not None
+        flattened_capabilities = [
+            capability for phase in curriculum.phases for capability in phase.capabilities
+        ]
+        steps: list[RoadmapDraftStep] = []
+        previous_key: str | None = None
+        for capability_index, capability in enumerate(flattened_capabilities):
+            capability_key = capability.key
+            study_key = f"{capability_key}-apply"
+            topics = ", ".join(capability.topics)
+            apply_step = RoadmapDraftStep(
+                stable_key=study_key,
+                kind="learn",
+                title=f"Apply {capability.label}",
+                objective=(
+                    f"Use {topics} in the context of {generation_input.goal_title}, building "
+                    "on demonstrated experience instead of repeating basic theory."
+                ),
+                rationale=(
+                    f"{capability.label} is a necessary bridge to the learner's stated outcome."
+                ),
+                action=(
+                    f"Choose one realistic part of your target system and implement or analyze "
+                    f"it through {capability.label.lower()}. Record the design decision, one "
+                    "failure mode, and the check that would catch it."
+                ),
+                completion_condition=(
+                    f"A reviewable artifact explains how {topics} was applied to one concrete "
+                    "part of the target system."
+                ),
+                effort_label="Several focused sessions",
+                evidence_suggestion=f"Applied {capability.label} design note or implementation",
+                prerequisite_step_keys=[previous_key] if previous_key else [],
+                resource_queries=[
+                    f"{generation_input.goal_title} {capability.label} practical tutorial"
+                ],
+            )
+            proof_key = f"{capability_key}-evidence"
+            proof_kind = "prove" if capability_index % 2 else "practice"
+            proof_step = RoadmapDraftStep(
+                stable_key=proof_key,
+                kind=proof_kind,
+                title=f"Validate {capability.label}",
+                objective=(
+                    f"Turn the {capability.label.lower()} work into evidence another engineer "
+                    "could inspect, test, or review."
+                ),
+                rationale="A capability is credible only when it survives a practical check.",
+                action=(
+                    f"Run a changed scenario, test, review, or comparison for the artifact. "
+                    f"Use this proof target as the standard: {capability.proof}"
+                ),
+                completion_condition=(
+                    f"The evidence shows the result, one limitation or trade-off, and why it "
+                    f"supports {capability.label.lower()}."
+                ),
+                effort_label="Several focused sessions",
+                evidence_suggestion=capability.proof,
+                prerequisite_step_keys=[study_key],
+                resource_queries=[
+                    f"{generation_input.goal_title} {capability.label} testing case study"
+                ],
+            )
+            steps.extend([apply_step, proof_step])
+            previous_key = proof_key
+        return steps
 
     @staticmethod
     def _practice_tasks(*, domain: str, steps: list[RoadmapDraftStep]) -> list[RoadmapPracticeTask]:

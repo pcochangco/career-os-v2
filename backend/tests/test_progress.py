@@ -49,9 +49,10 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     headers = auth(token)
     goal, roadmap = create_accepted_roadmap(client, token)
     steps = steps_in(roadmap)
+    total_steps = len(steps)
 
     assert roadmap["completed_steps"] == 0
-    assert roadmap["total_steps"] == 10
+    assert roadmap["total_steps"] == total_steps
     assert roadmap["progress_percent"] == 0
     assert roadmap["current_step_id"] == steps[0]["id"]
     assert steps[0]["progress_status"] == "current"
@@ -73,7 +74,7 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     updated = completed.json()
     updated_steps = steps_in(updated)
     assert updated["completed_steps"] == 1
-    assert updated["progress_percent"] == 10
+    assert updated["progress_percent"] == 100 // total_steps
     assert updated["current_step_id"] == updated_steps[1]["id"]
     assert updated_steps[0]["progress_status"] == "completed"
     assert updated_steps[0]["completed_at"] is not None
@@ -90,8 +91,8 @@ def test_completion_advances_current_step_and_goal_progress(client: TestClient) 
     goals = client.get("/api/v1/goals", headers=headers).json()
     assert goals[0]["id"] == goal["id"]
     assert goals[0]["completed_steps"] == 1
-    assert goals[0]["total_steps"] == 10
-    assert goals[0]["progress_percent"] == 10
+    assert goals[0]["total_steps"] == total_steps
+    assert goals[0]["progress_percent"] == 100 // total_steps
 
 
 def test_free_access_stops_after_the_first_milestone(client: TestClient) -> None:

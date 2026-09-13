@@ -54,12 +54,16 @@ def test_fixture_roadmap_covers_the_selected_curriculum(goal_title: str, curricu
     assert [milestone.title for milestone in outcome.draft.milestones] == [
         phase.title for phase in curriculum.phases
     ]
+    assert sum(len(milestone.steps) for milestone in outcome.draft.milestones) == 16
+    assert all(len(milestone.steps) == 4 for milestone in outcome.draft.milestones)
     roadmap_text = " ".join(
         step.title for milestone in outcome.draft.milestones for step in milestone.steps
     ).casefold()
     for phase in curriculum.phases:
         for capability in phase.capabilities:
             assert capability.label.casefold() in roadmap_text
+            assert f"apply {capability.label}".casefold() in roadmap_text
+            assert f"validate {capability.label}".casefold() in roadmap_text
 
 
 def test_quality_rejects_a_missing_curriculum_capability() -> None:

@@ -147,7 +147,12 @@ for a recognized technical path. Treat every listed capability as required cover
 depth: replace already-demonstrated basics with harder application, integration, or proof. Preserve
 the backbone's dependency order where it matters, combine tightly related topics when necessary,
 and make the roadmap's milestones visibly correspond to its capability phases. Do not mention the
-internal curriculum object to the learner or copy its wording mechanically.
+internal curriculum object to the learner or copy its wording mechanically. Aim for two connected
+steps per capability when the learner needs the full path: one applied capability-building step and
+one test, review, integration, or proof step. A demonstrated capability may be compressed only when
+the remaining step uses it in a harder goal-specific context. The result should normally contain
+four capability phases and roughly twelve to eighteen steps, never shallow labels that merely name
+the curriculum topics.
 
 Do not create fixed daily schedules, deadlines, streaks, overdue work, or generic filler.
 Do not invent or include URLs. Provide short, topic-specific resource search queries instead. Write
