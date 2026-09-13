@@ -96,10 +96,13 @@ not silently rewrite completed work.
 
 Free accounts can create up to two goals in total. New free roadmaps show the
 complete path, while the first milestone is actionable; later milestones are
-clearly locked rather than hidden. Existing roadmaps are grandfathered so an
-already-started learner does not lose progress. Premium is an account tier that
-unlocks every milestone and removes the total-goal limit. Billing and pricing
-are intentionally separate from this entitlement boundary.
+clearly locked rather than hidden. Premium removes the total-goal limit and
+unlocks every milestone. If a learner later returns to Free, CareerOS keeps
+every existing goal, roadmap, and completion record: it never deletes or hides
+work because of the downgrade. Roadmaps created while Premium remain fully
+available; the Free limit only prevents another new goal once the lifetime
+two-goal allowance has been used. Billing and pricing are intentionally
+separate from this entitlement boundary.
 
 ## MVP success
 

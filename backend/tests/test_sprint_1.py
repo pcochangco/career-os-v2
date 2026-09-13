@@ -1,5 +1,6 @@
 import logging
 from dataclasses import replace
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -7,6 +8,7 @@ from app.ai.dependencies import fixture_service, get_generation_service, get_goa
 from app.ai.providers.base import ProviderResult, RoadmapProviderError
 from app.ai.schema import GoalIntentAssessment
 from app.core.config import Settings
+from app.services.entitlements import unlocked_milestone_limit
 from app.main import app
 
 
@@ -194,6 +196,14 @@ def test_free_account_can_only_create_two_goals_in_total(client: TestClient) -> 
 
     assert limited.status_code == 403
     assert "2 goals in total" in limited.json()["detail"]
+
+
+def test_premium_roadmap_keeps_full_access_after_a_free_downgrade() -> None:
+    """A plan change must not retroactively lock work created on Premium."""
+    downgraded_user = SimpleNamespace(subscription_tier="free")
+    premium_created_roadmap = SimpleNamespace(free_access_milestones=0)
+
+    assert unlocked_milestone_limit(downgraded_user, premium_created_roadmap) is None
 
 
 def test_roadmap_generation_uses_preview_after_per_user_limit(

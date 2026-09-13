@@ -40,7 +40,7 @@ from app.discovery.service import (
     MIN_DISCOVERY_QUESTIONS,
     deduplicate_context,
 )
-from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal
+from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, is_premium
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -634,7 +634,10 @@ def generate_roadmap(
         input_tokens=generated.input_tokens,
         output_tokens=generated.output_tokens,
         generation_duration_ms=generated.duration_ms,
-        free_access_milestones=1,
+        # The access boundary is captured when this roadmap is created.  A roadmap
+        # created on Premium stays fully available if the account later downgrades;
+        # changing plans must never remove existing work or progress.
+        free_access_milestones=0 if is_premium(user) else 1,
     )
     db.add(roadmap)
     db.flush()

@@ -26,8 +26,9 @@ def can_create_goal(db: Session, user: User) -> bool:
 def unlocked_milestone_limit(user: User, roadmap: RoadmapVersion) -> int | None:
     """Return the free milestone boundary, or None when the whole roadmap is available.
 
-    A zero value grandfathered pre-entitlement roadmaps so existing learner progress is not
-    unexpectedly removed when the feature ships.
+    A zero value marks a fully available roadmap. It is used for roadmaps created
+    before entitlements shipped and for roadmaps created while the learner had
+    Premium, so a later downgrade never removes existing access or progress.
     """
     if is_premium(user) or roadmap.free_access_milestones <= 0:
         return None
