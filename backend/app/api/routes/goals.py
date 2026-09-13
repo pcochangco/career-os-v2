@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.ai.curriculum import select_curriculum
 from app.ai.dependencies import (
     DiscoveryService,
     GenerationService,
@@ -457,7 +458,7 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Complete discovery before generating a roadmap",
             )
-        return RoadmapGenerationInput(
+        generation_input = RoadmapGenerationInput(
             goal_title=goal.title,
             desired_outcome=f"Achieve the goal: {goal.title}",
             current_level=(
@@ -474,6 +475,7 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
             ),
             discovery_context=context,
         )
+        return with_curriculum(generation_input)
     latest_revision = db.scalar(
         select(func.max(GoalDiscoveryAnswer.revision)).where(GoalDiscoveryAnswer.goal_id == goal.id)
     )
@@ -488,15 +490,31 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
             GoalDiscoveryAnswer.revision == latest_revision,
         )
     ).all()
-    return RoadmapGenerationInput(
+    generation_input = RoadmapGenerationInput(
         goal_title=goal.title,
         **DiscoveryWrite(**{answer.question_key: answer.answer for answer in answers}).model_dump(),
     )
+    return with_curriculum(generation_input)
 
 
-def start_generation_attempt(
-    db: Session, user: User
-) -> tuple[RoadmapGenerationAttempt, bool]:
+def with_curriculum(generation_input: RoadmapGenerationInput) -> RoadmapGenerationInput:
+    """Attach an expert backbone only when the goal clearly matches a supported track."""
+    learner_context = " ".join(
+        [
+            generation_input.desired_outcome,
+            generation_input.current_level,
+            generation_input.existing_experience,
+            generation_input.relevant_constraints,
+            generation_input.proof_of_completion,
+            *(answer.answer for answer in generation_input.discovery_context),
+        ]
+    )
+    return generation_input.model_copy(
+        update={"curriculum": select_curriculum(generation_input.goal_title, learner_context)}
+    )
+
+
+def start_generation_attempt(db: Session, user: User) -> tuple[RoadmapGenerationAttempt, bool]:
     settings = get_settings()
     live_generation_requested = settings.ai_mode == "live" or (
         settings.ai_mode == "auto" and settings.ai_configured
@@ -576,9 +594,7 @@ def generate_roadmap(
         )
         .order_by(RoadmapVersion.version.desc())
         .limit(1)
-        .options(
-            selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps)
-        )
+        .options(selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps))
     )
     if existing_draft is not None:
         return existing_draft

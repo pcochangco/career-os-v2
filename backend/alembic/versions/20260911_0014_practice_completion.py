@@ -29,7 +29,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["roadmap_id"], ["roadmap_versions.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("user_id", "roadmap_id", "practice_date", name="uq_practice_completion_day"),
+        sa.UniqueConstraint(
+            "user_id", "roadmap_id", "practice_date", name="uq_practice_completion_day"
+        ),
     )
     op.create_index(
         "ix_roadmap_practice_completions_user_id",

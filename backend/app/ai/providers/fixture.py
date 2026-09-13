@@ -118,12 +118,48 @@ class FixtureRoadmapProvider:
                 ),
             ],
         )
+        if generation_input.curriculum is not None:
+            self._apply_curriculum_backbone(draft, generation_input.curriculum)
         return ProviderResult(value=draft)
 
+    @classmethod
+    def _apply_curriculum_backbone(cls, draft: RoadmapDraft, curriculum) -> None:
+        """Make deterministic previews obey the same coverage contract as live generation."""
+        steps = [step for milestone in draft.milestones for step in milestone.steps]
+        capabilities = [
+            capability for phase in curriculum.phases for capability in phase.capabilities
+        ]
+        for step, capability in zip(steps, capabilities, strict=False):
+            step.title = f"{capability.label}: {step.title}"
+            step.objective = f"{step.objective} Coverage focus: {', '.join(capability.topics)}."
+            step.evidence_suggestion = capability.proof
+
+        # The preview stays concise (ten steps) but its visible capability gates follow
+        # the selected four-phase backbone rather than a generic technical template.
+        boundaries = (2, 4, 7, len(steps))
+        start = 0
+        milestones: list[RoadmapDraftMilestone] = []
+        for position, (phase, end) in enumerate(
+            zip(curriculum.phases, boundaries, strict=True), start=1
+        ):
+            phase_steps = steps[start:end]
+            start = end
+            milestones.append(
+                cls._milestone(
+                    position=position,
+                    title=phase.title,
+                    outcome=phase.outcome,
+                    rationale=(
+                        "This capability gate follows the CareerOS curriculum backbone while "
+                        "adapting the work to the learner's stated goal and experience."
+                    ),
+                    steps=phase_steps,
+                )
+            )
+        draft.milestones = milestones
+
     @staticmethod
-    def _practice_tasks(
-        *, domain: str, steps: list[RoadmapDraftStep]
-    ) -> list[RoadmapPracticeTask]:
+    def _practice_tasks(*, domain: str, steps: list[RoadmapDraftStep]) -> list[RoadmapPracticeTask]:
         domain_prompts = {
             "technical": [
                 (
@@ -651,6 +687,17 @@ class FixtureRoadmapProvider:
                 f"{goal_title} portfolio demonstration rubric",
             ),
             templates[5],
+        ]
+        domain_prefix = {
+            "technical": "Technical",
+            "language": "Communication",
+            "business": "Business",
+            "general": "Capability",
+        }[domain]
+        templates = [
+            *templates[:5],
+            *[(f"{domain_prefix} {template[0]}", *template[1:]) for template in templates[5:9]],
+            templates[9],
         ]
         keys = [
             "define-success",

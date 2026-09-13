@@ -142,6 +142,13 @@ learner will create. Avoid vague activities such as "learn about", "research", "
 Make the language encouraging and honest: describe why the work matters to this learner without
 inflating beginner exercises into production experience.
 
+When the input includes a curriculum object, it is CareerOS's original expert capability backbone
+for a recognized technical path. Treat every listed capability as required coverage, but adapt its
+depth: replace already-demonstrated basics with harder application, integration, or proof. Preserve
+the backbone's dependency order where it matters, combine tightly related topics when necessary,
+and make the roadmap's milestones visibly correspond to its capability phases. Do not mention the
+internal curriculum object to the learner or copy its wording mechanically.
+
 Do not create fixed daily schedules, deadlines, streaks, overdue work, or generic filler.
 Do not invent or include URLs. Provide short, topic-specific resource search queries instead. Write
 queries like a practical mentor: for learn steps seek a focused "full course" or "zero to hero"

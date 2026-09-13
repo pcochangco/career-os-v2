@@ -46,6 +46,22 @@ Material assumptions must be reviewable before generation.
 10. **Validate structure** — accept only output matching the versioned schema.
 11. **Persist a draft version** — retain generation provenance for review.
 
+### Curriculum backbones
+
+For recognized high-value technical tracks, generation starts from an original,
+versioned CareerOS capability map instead of asking a model to invent the entire
+curriculum from memory. The first supported backbones are Python/backend
+engineering, applied AI/automation engineering, and data engineering. Each map
+contains ordered phases, essential capabilities, topic coverage, and practical
+proof expectations.
+
+The map is a guardrail, not a rigid course sequence. Generation uses the
+learner's existing experience to skip basic repetition, raise the level of an
+already-known skill, or combine related topics into an applied capability gate.
+Structural quality validation rejects a roadmap that visibly omits an essential
+capability from its selected backbone. Goals without a high-confidence match
+continue through the existing adaptive generation path.
+
 ### Implemented generation boundary
 
 Schema `1.0` is the current canonical provider output. Generation is a bounded

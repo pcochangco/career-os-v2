@@ -255,6 +255,51 @@ def evaluate_structure(
             )
         )
 
+    curriculum = generation_input.curriculum
+    if curriculum is not None:
+        # A curriculum map is a coverage guardrail, not a request to reteach every topic.
+        # Learners may satisfy a capability through advanced application when they already
+        # have the foundation, but the accepted path must visibly address every capability.
+        curriculum_text = " ".join(
+            " ".join(
+                [
+                    milestone.title,
+                    milestone.outcome,
+                    milestone.rationale,
+                    milestone.proof_target,
+                    *(
+                        " ".join(
+                            [
+                                step.title,
+                                step.objective,
+                                step.rationale,
+                                step.action,
+                                step.completion_condition,
+                                step.evidence_suggestion,
+                            ]
+                        )
+                        for step in milestone.steps
+                    ),
+                ]
+            )
+            for milestone in draft.milestones
+        ).casefold()
+        for phase in curriculum.phases:
+            for capability in phase.capabilities:
+                if any(term.casefold() in curriculum_text for term in capability.coverage_terms):
+                    continue
+                issues.append(
+                    issue(
+                        "missing_curriculum_capability",
+                        f"The roadmap omits the essential capability '{capability.label}' "
+                        f"from the {curriculum.title} backbone.",
+                        "milestones",
+                        "Add a learner-appropriate step or capability gate covering "
+                        f"{capability.label}: {', '.join(capability.topics)}. It should lead "
+                        f"to practical proof such as: {capability.proof}",
+                    )
+                )
+
     penalty = sum(14 if item.severity == "error" else 5 for item in issues)
     return max(0, 100 - penalty), issues
 

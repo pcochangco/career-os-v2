@@ -7,6 +7,29 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class CurriculumCapability(StrictModel):
+    key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    label: str = Field(min_length=5, max_length=120)
+    topics: list[str] = Field(min_length=2, max_length=8)
+    proof: str = Field(min_length=12, max_length=500)
+    coverage_terms: list[str] = Field(min_length=1, max_length=8)
+
+
+class CurriculumPhase(StrictModel):
+    key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    title: str = Field(min_length=5, max_length=120)
+    outcome: str = Field(min_length=12, max_length=500)
+    capabilities: list[CurriculumCapability] = Field(min_length=1, max_length=5)
+
+
+class CurriculumBackbone(StrictModel):
+    key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    version: str = Field(min_length=3, max_length=32)
+    title: str = Field(min_length=5, max_length=160)
+    summary: str = Field(min_length=20, max_length=1000)
+    phases: list[CurriculumPhase] = Field(min_length=3, max_length=8)
+
+
 class RoadmapGenerationInput(StrictModel):
     goal_title: str
     desired_outcome: str
@@ -15,6 +38,7 @@ class RoadmapGenerationInput(StrictModel):
     relevant_constraints: str
     proof_of_completion: str
     discovery_context: list["DiscoveryContextAnswer"] = Field(default_factory=list, max_length=6)
+    curriculum: CurriculumBackbone | None = None
 
 
 class DiscoveryContextAnswer(StrictModel):

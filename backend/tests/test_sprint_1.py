@@ -8,8 +8,8 @@ from app.ai.dependencies import fixture_service, get_generation_service, get_goa
 from app.ai.providers.base import ProviderResult, RoadmapProviderError
 from app.ai.schema import GoalIntentAssessment
 from app.core.config import Settings
-from app.services.entitlements import unlocked_milestone_limit
 from app.main import app
+from app.services.entitlements import unlocked_milestone_limit
 
 
 def create_session(client: TestClient) -> str:
@@ -69,7 +69,7 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert roadmap["quality_score"] >= 80
     assert roadmap["quality_report"]["passed"] is True
     assert roadmap["assumptions"]
-    assert len(roadmap["milestones"]) == 3
+    assert len(roadmap["milestones"]) == 4
     assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 10
     assert all(len(milestone["steps"]) >= 2 for milestone in roadmap["milestones"])
     assert all(
@@ -107,9 +107,7 @@ def test_user_cannot_read_another_users_goal_or_roadmap(client: TestClient) -> N
         json={"title": "Learn system design"},
     ).json()
 
-    goal_response = client.get(
-        f"/api/v1/goals/{created['id']}", headers=auth(other_token)
-    )
+    goal_response = client.get(f"/api/v1/goals/{created['id']}", headers=auth(other_token))
     assert goal_response.status_code == 404
 
 
@@ -212,6 +210,7 @@ def test_roadmap_generation_uses_preview_after_per_user_limit(
 ) -> None:
     settings = Settings(ai_mode="auto", ai_api_key="test-key")
     monkeypatch.setattr("app.api.routes.goals.get_settings", lambda: settings)
+    monkeypatch.setattr("app.api.routes.goals.can_create_goal", lambda *_: True)
     app.dependency_overrides[get_generation_service] = SuccessfulLiveService
     token = create_session(client)
     headers = auth(token)
@@ -229,11 +228,14 @@ def test_roadmap_generation_uses_preview_after_per_user_limit(
             headers=headers,
             json={"title": f"Learn secure API design {attempt_number}"},
         ).json()
-        assert client.put(
-            f"/api/v1/goals/{goal['id']}/discovery",
-            headers=headers,
-            json=discovery,
-        ).status_code == 200
+        assert (
+            client.put(
+                f"/api/v1/goals/{goal['id']}/discovery",
+                headers=headers,
+                json=discovery,
+            ).status_code
+            == 200
+        )
         generated = client.post(
             f"/api/v1/goals/{goal['id']}/roadmaps",
             headers=headers,
@@ -259,11 +261,14 @@ def test_repeated_generation_returns_the_existing_draft(client: TestClient) -> N
         "relevant_constraints": "Prefer practical exercises",
         "proof_of_completion": "A deployed service with tests",
     }
-    assert client.put(
-        f"/api/v1/goals/{goal['id']}/discovery",
-        headers=headers,
-        json=discovery,
-    ).status_code == 200
+    assert (
+        client.put(
+            f"/api/v1/goals/{goal['id']}/discovery",
+            headers=headers,
+            json=discovery,
+        ).status_code
+        == 200
+    )
 
     first = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
     repeated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
@@ -289,19 +294,25 @@ def test_generation_does_not_replace_an_active_roadmap(client: TestClient) -> No
         "relevant_constraints": "Prefer practical exercises",
         "proof_of_completion": "A threat-modeled API with tests",
     }
-    assert client.put(
-        f"/api/v1/goals/{goal['id']}/discovery",
-        headers=headers,
-        json=discovery,
-    ).status_code == 200
+    assert (
+        client.put(
+            f"/api/v1/goals/{goal['id']}/discovery",
+            headers=headers,
+            json=discovery,
+        ).status_code
+        == 200
+    )
     roadmap = client.post(
         f"/api/v1/goals/{goal['id']}/roadmaps",
         headers=headers,
     ).json()
-    assert client.post(
-        f"/api/v1/roadmaps/{roadmap['id']}/accept",
-        headers=headers,
-    ).status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/roadmaps/{roadmap['id']}/accept",
+            headers=headers,
+        ).status_code
+        == 200
+    )
 
     repeated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
 
@@ -384,11 +395,14 @@ def test_live_provider_failure_logs_only_the_safe_diagnostic(
         "relevant_constraints": "Prefer a concise project-focused roadmap",
         "proof_of_completion": "A deployed workflow with an evaluation report",
     }
-    assert client.put(
-        f"/api/v1/goals/{goal['id']}/discovery",
-        headers=headers,
-        json=discovery,
-    ).status_code == 200
+    assert (
+        client.put(
+            f"/api/v1/goals/{goal['id']}/discovery",
+            headers=headers,
+            json=discovery,
+        ).status_code
+        == 200
+    )
 
     with caplog.at_level(logging.WARNING, logger="app.main"):
         response = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)

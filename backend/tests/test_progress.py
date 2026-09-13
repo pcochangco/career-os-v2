@@ -98,6 +98,8 @@ def test_free_access_stops_after_the_first_milestone(client: TestClient) -> None
     token = create_session(client)
     headers = auth(token)
     goal, roadmap = create_accepted_roadmap(client, token)
+    first_milestone_steps = len(roadmap["milestones"][0]["steps"])
+    total_steps = sum(len(milestone["steps"]) for milestone in roadmap["milestones"])
 
     while roadmap["current_step_id"] is not None:
         response = client.put(
@@ -108,15 +110,17 @@ def test_free_access_stops_after_the_first_milestone(client: TestClient) -> None
         assert response.status_code == 200
         roadmap = response.json()
 
-    assert roadmap["completed_steps"] == 3
+    assert roadmap["completed_steps"] == first_milestone_steps
     assert roadmap["current_step_id"] is None
     assert roadmap["free_access_milestone_limit"] == 1
-    assert roadmap["locked_step_count"] == 7
-    assert [step["progress_status"] for step in steps_in(roadmap)[3:]] == ["locked"] * 7
+    assert roadmap["locked_step_count"] == total_steps - first_milestone_steps
+    assert [step["progress_status"] for step in steps_in(roadmap)[first_milestone_steps:]] == [
+        "locked"
+    ] * (total_steps - first_milestone_steps)
     active_goal = client.get(f"/api/v1/goals/{goal['id']}", headers=headers).json()
     assert active_goal["status"] == "active"
 
-    locked_step = steps_in(roadmap)[3]
+    locked_step = steps_in(roadmap)[first_milestone_steps]
     blocked = client.put(
         f"/api/v1/roadmap-steps/{locked_step['id']}/progress",
         headers=headers,
