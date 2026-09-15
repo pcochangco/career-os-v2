@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from time import perf_counter
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -10,6 +11,7 @@ from app.ai.dependencies import (
     DiscoveryService,
     GenerationService,
     GoalIntentService,
+    fixture_discovery_service,
     fixture_service,
 )
 from app.ai.schema import DiscoveryContextAnswer, RoadmapGenerationInput
@@ -41,10 +43,22 @@ from app.discovery.service import (
     MIN_DISCOVERY_QUESTIONS,
     deduplicate_context,
 )
+from app.services.ai_usage import (
+    DISCOVERY_OPERATION,
+    GOAL_INTENT_OPERATION,
+    ROADMAP_OPERATION,
+    finish_ai_usage_event,
+    start_ai_usage_event,
+)
 from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, is_premium
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
+
+
+def service_provider_metadata(service: object) -> tuple[str, str]:
+    provider = getattr(service, "provider", None)
+    return getattr(provider, "source", ""), getattr(provider, "model", "")
 
 
 def get_owned_goal(db: Session, user: User, goal_id: UUID) -> Goal:
@@ -108,7 +122,39 @@ def create_goal(
                 "Upgrade to Premium to create more."
             ),
         )
-    assessment = goal_intent_service.assess_goal(goal_title=payload.title)
+    settings = get_settings()
+    event, use_quota_fallback = start_ai_usage_event(
+        db,
+        user=user,
+        operation=GOAL_INTENT_OPERATION,
+        goal_id=None,
+        settings=settings,
+    )
+    effective_service = fixture_discovery_service() if use_quota_fallback else goal_intent_service
+    provider_source, provider_model = service_provider_metadata(effective_service)
+    started = perf_counter()
+    try:
+        assessment = effective_service.assess_goal(goal_title=payload.title)
+    except Exception as error:
+        finish_ai_usage_event(
+            db,
+            event,
+            outcome="failed",
+            provider_source=provider_source,
+            provider_model=provider_model,
+            duration_started_at=started,
+            failure=error,
+        )
+        raise
+    finish_ai_usage_event(
+        db,
+        event,
+        outcome="quota_fallback" if use_quota_fallback else "succeeded",
+        result=assessment,
+        provider_source=provider_source,
+        provider_model=provider_model,
+        duration_started_at=started,
+    )
     if not assessment.value.is_meaningful:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -271,9 +317,59 @@ def apply_goal_title_suggestion(goal: Goal, suggested_title: str) -> None:
         goal.title = normalized
 
 
+def run_discovery_operation(
+    *,
+    db: Session,
+    user: User,
+    goal: Goal,
+    discovery_service: DiscoveryService,
+    answers: list[DiscoveryContextAnswer],
+    used_question_keys: list[str],
+):
+    settings = get_settings()
+    event, use_quota_fallback = start_ai_usage_event(
+        db,
+        user=user,
+        operation=DISCOVERY_OPERATION,
+        goal_id=goal.id,
+        settings=settings,
+    )
+    effective_service = fixture_discovery_service() if use_quota_fallback else discovery_service
+    provider_source, provider_model = service_provider_metadata(effective_service)
+    started = perf_counter()
+    try:
+        result = effective_service.next_question(
+            goal_title=goal.title,
+            answers=answers,
+            used_question_keys=used_question_keys,
+        )
+    except Exception as error:
+        finish_ai_usage_event(
+            db,
+            event,
+            outcome="failed",
+            provider_source=provider_source,
+            provider_model=provider_model,
+            duration_started_at=started,
+            failure=error,
+        )
+        raise
+    finish_ai_usage_event(
+        db,
+        event,
+        outcome="quota_fallback" if use_quota_fallback else "succeeded",
+        result=result,
+        provider_source=provider_source,
+        provider_model=provider_model,
+        duration_started_at=started,
+    )
+    return result
+
+
 def start_next_discovery_question(
     *,
     db: Session,
+    user: User,
     goal: Goal,
     discovery_service: DiscoveryService,
 ) -> DiscoveryStateRead:
@@ -285,6 +381,7 @@ def start_next_discovery_question(
     if existing_revision is not None and adaptive_questions(db, goal, existing_revision):
         return advance_discovery(
             db=db,
+            user=user,
             goal=goal,
             discovery_service=discovery_service,
             revision=existing_revision,
@@ -295,8 +392,11 @@ def start_next_discovery_question(
     )
     revision = (latest_answer_revision or 0) + 1
     context: list[DiscoveryContextAnswer] = []
-    result = discovery_service.next_question(
-        goal_title=goal.title,
+    result = run_discovery_operation(
+        db=db,
+        user=user,
+        goal=goal,
+        discovery_service=discovery_service,
         answers=context,
         used_question_keys=[],
     )
@@ -332,14 +432,18 @@ def start_next_discovery_question(
 def advance_discovery(
     *,
     db: Session,
+    user: User,
     goal: Goal,
     discovery_service: DiscoveryService,
     revision: int,
 ) -> DiscoveryStateRead:
     context = adaptive_context(db, goal, revision)
     questions = adaptive_questions(db, goal, revision)
-    result = discovery_service.next_question(
-        goal_title=goal.title,
+    result = run_discovery_operation(
+        db=db,
+        user=user,
+        goal=goal,
+        discovery_service=discovery_service,
         answers=context,
         used_question_keys=[question.question_key for question in questions],
     )
@@ -389,7 +493,9 @@ def begin_adaptive_discovery(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="This goal already has a roadmap"
         )
-    return start_next_discovery_question(db=db, goal=goal, discovery_service=discovery_service)
+    return start_next_discovery_question(
+        db=db, user=user, goal=goal, discovery_service=discovery_service
+    )
 
 
 @router.post(
@@ -443,6 +549,7 @@ def answer_adaptive_discovery_question(
     db.refresh(goal)
     return advance_discovery(
         db=db,
+        user=user,
         goal=goal,
         discovery_service=discovery_service,
         revision=question.revision,
@@ -601,13 +708,32 @@ def generate_roadmap(
     generation_input = latest_discovery(db, goal)
     attempt, use_quota_fallback = start_generation_attempt(db, user)
     settings = get_settings()
+    usage_event, usage_quota_fallback = start_ai_usage_event(
+        db,
+        user=user,
+        operation=ROADMAP_OPERATION,
+        goal_id=goal.id,
+        settings=settings,
+    )
+    use_quota_fallback = use_quota_fallback or usage_quota_fallback
     effective_generation_service = (
         fixture_service(settings) if use_quota_fallback else generation_service
     )
+    provider_source, provider_model = service_provider_metadata(effective_generation_service)
+    usage_started = perf_counter()
     try:
         generated = effective_generation_service.generate(generation_input)
-    except Exception:
+    except Exception as error:
         finish_generation_attempt(db, attempt, outcome="failed")
+        finish_ai_usage_event(
+            db,
+            usage_event,
+            outcome="failed",
+            provider_source=provider_source,
+            provider_model=provider_model,
+            duration_started_at=usage_started,
+            failure=error,
+        )
         raise
     used_live_fallback = (
         settings.ai_mode in {"auto", "live"}
@@ -623,6 +749,18 @@ def generate_roadmap(
         if generated.provider != "fixture"
         else "preview"
     )
+    finish_ai_usage_event(
+        db,
+        usage_event,
+        outcome=attempt_outcome,
+        provider_source=generated.provider,
+        provider_model=generated.model,
+        duration_started_at=usage_started,
+    )
+    usage_event.input_tokens = generated.input_tokens
+    usage_event.output_tokens = generated.output_tokens
+    usage_event.response_count = len(generated.response_ids)
+    db.commit()
     draft = generated.draft
     latest_version = db.scalar(
         select(func.max(RoadmapVersion.version)).where(RoadmapVersion.goal_id == goal.id)

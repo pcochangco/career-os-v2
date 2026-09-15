@@ -36,6 +36,9 @@ class User(Base):
     generation_attempts: Mapped[list[RoadmapGenerationAttempt]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    ai_usage_events: Mapped[list[AIUsageEvent]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     resource_refresh_attempts: Mapped[list[RoadmapStepResourceRefreshAttempt]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
@@ -184,6 +187,34 @@ class RoadmapGenerationAttempt(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="generation_attempts")
+
+
+class AIUsageEvent(Base):
+    """A privacy-safe, per-operation record for calls that may consume AI capacity."""
+
+    __tablename__ = "ai_usage_events"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    goal_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("goals.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    operation: Mapped[str] = mapped_column(String(32), index=True)
+    requested_provider: Mapped[str] = mapped_column(String(24))
+    outcome: Mapped[str] = mapped_column(String(24), default="started", index=True)
+    resulting_source: Mapped[str] = mapped_column(String(40), default="")
+    provider_model: Mapped[str] = mapped_column(String(120), default="")
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    response_count: Mapped[int] = mapped_column(Integer, default=0)
+    failure_code: Mapped[str] = mapped_column(String(160), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, index=True
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="ai_usage_events")
 
 
 class RoadmapStepResourceRefreshAttempt(Base):

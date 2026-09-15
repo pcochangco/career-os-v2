@@ -161,6 +161,9 @@ class AdaptiveDiscoveryService:
 class FixtureDiscoveryProvider:
     """A deterministic local preview of adaptive discovery, never used in strict live mode."""
 
+    source = "fixture"
+    model = "deterministic-fixture"
+
     def assess_goal(self, *, goal_title: str) -> ProviderResult[GoalIntentAssessment]:
         normalized = " ".join(goal_title.split())
         words = re.findall(r"[a-z]+", normalized.lower())

@@ -111,6 +111,10 @@ def get_discovery_service() -> AdaptiveDiscoveryService:
     return AdaptiveDiscoveryService(provider)
 
 
+def fixture_discovery_service() -> AdaptiveDiscoveryService:
+    return AdaptiveDiscoveryService(FixtureDiscoveryProvider())
+
+
 def get_goal_intent_service() -> AdaptiveDiscoveryService:
     return get_discovery_service()
 
