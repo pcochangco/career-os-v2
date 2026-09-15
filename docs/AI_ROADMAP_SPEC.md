@@ -150,17 +150,18 @@ remain actionable without it and may receive a replacement later.
 Generated roadmaps begin as drafts. The user may:
 
 - Accept
-- Regenerate with feedback
 - Reject
 
 Accepting a roadmap makes it the active version for the goal. Regeneration does
-not overwrite an accepted historical version.
+not form part of the normal user experience: quality failures are repaired or
+replaced internally within bounded provider limits before a draft is presented.
 
 ## Regeneration after progress
 
 Completed steps are historical facts and must not be silently changed or
-deleted. Later adaptation may revise the unfinished future portion while
-preserving completed step identity, evidence, and completion records.
+deleted. Any future adaptation must preserve completed step identity, evidence,
+and completion records, and must have an explicit cost budget and server-side
+limit before it is introduced.
 
 ## Provider independence
 

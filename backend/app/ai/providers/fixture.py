@@ -195,7 +195,13 @@ class FixtureRoadmapProvider:
                     ),
                     effort_label="Several focused sessions",
                     evidence_suggestion=f"Applied {capability.label} design note or implementation",
-                    prerequisite_step_keys=[previous_key] if previous_key else [],
+                    prerequisite_step_keys=(
+                        [
+                            f"{prerequisite}-evidence"
+                            for prerequisite in capability.prerequisite_capability_keys
+                        ]
+                        or ([previous_key] if previous_key else [])
+                    ),
                     resource_queries=[
                         f"{generation_input.goal_title} {capability.label} practical tutorial"
                     ],

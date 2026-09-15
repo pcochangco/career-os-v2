@@ -13,6 +13,7 @@ class CurriculumCapability(StrictModel):
     topics: list[str] = Field(min_length=2, max_length=8)
     proof: str = Field(min_length=12, max_length=500)
     coverage_terms: list[str] = Field(min_length=1, max_length=8)
+    prerequisite_capability_keys: list[str] = Field(default_factory=list, max_length=6)
 
 
 class CurriculumPhase(StrictModel):
@@ -28,6 +29,30 @@ class CurriculumBackbone(StrictModel):
     title: str = Field(min_length=5, max_length=160)
     summary: str = Field(min_length=20, max_length=1000)
     phases: list[CurriculumPhase] = Field(min_length=3, max_length=8)
+
+    @model_validator(mode="after")
+    def require_a_valid_capability_graph(self) -> "CurriculumBackbone":
+        phase_keys = [phase.key for phase in self.phases]
+        if len(phase_keys) != len(set(phase_keys)):
+            raise ValueError("Curriculum phase keys must be unique")
+        ordered_capabilities = [
+            capability for phase in self.phases for capability in phase.capabilities
+        ]
+        capability_keys = [capability.key for capability in ordered_capabilities]
+        if len(capability_keys) != len(set(capability_keys)):
+            raise ValueError("Curriculum capability keys must be unique")
+        positions = {key: position for position, key in enumerate(capability_keys)}
+        for capability in ordered_capabilities:
+            if len(capability.prerequisite_capability_keys) != len(
+                set(capability.prerequisite_capability_keys)
+            ):
+                raise ValueError("Curriculum capability prerequisites must be unique")
+            for prerequisite in capability.prerequisite_capability_keys:
+                if prerequisite not in positions:
+                    raise ValueError("Curriculum prerequisites must name a known capability")
+                if positions[prerequisite] >= positions[capability.key]:
+                    raise ValueError("Curriculum prerequisites must occur earlier in the map")
+        return self
 
     @property
     def capability_count(self) -> int:

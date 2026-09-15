@@ -293,9 +293,39 @@ def evaluate_structure(
             )
             for milestone in draft.milestones
         ).casefold()
+        capability_positions: dict[str, int] = {}
         for phase in curriculum.phases:
             for capability in phase.capabilities:
                 if any(term.casefold() in curriculum_text for term in capability.coverage_terms):
+                    step_texts = [
+                        " ".join(
+                            [
+                                step.title,
+                                step.objective,
+                                step.rationale,
+                                step.action,
+                                step.completion_condition,
+                                step.evidence_suggestion,
+                            ]
+                        ).casefold()
+                        for step in flattened
+                    ]
+                    covered_steps = [
+                        position
+                        for position, step_text in enumerate(step_texts)
+                        if capability.label.casefold() in step_text
+                    ]
+                    if not covered_steps:
+                        covered_steps = [
+                            position
+                            for position, step_text in enumerate(step_texts)
+                            if any(
+                                term.casefold() in step_text
+                                for term in capability.coverage_terms
+                            )
+                        ]
+                    if covered_steps:
+                        capability_positions[capability.key] = min(covered_steps)
                     continue
                 issues.append(
                     issue(
@@ -308,6 +338,24 @@ def evaluate_structure(
                         f"to practical proof such as: {capability.proof}",
                     )
                 )
+        for phase in curriculum.phases:
+            for capability in phase.capabilities:
+                capability_position = capability_positions.get(capability.key)
+                if capability_position is None:
+                    continue
+                for prerequisite in capability.prerequisite_capability_keys:
+                    prerequisite_position = capability_positions.get(prerequisite)
+                    if prerequisite_position is None or prerequisite_position < capability_position:
+                        continue
+                    issues.append(
+                        issue(
+                            "curriculum_prerequisite_order",
+                            f"'{capability.label}' appears before its prerequisite capability.",
+                            "milestones",
+                            "Move the prerequisite capability work before the dependent work, "
+                            "then keep the later step focused on applying that foundation.",
+                        )
+                    )
 
     penalty = sum(14 if item.severity == "error" else 5 for item in issues)
     return max(0, 100 - penalty), issues

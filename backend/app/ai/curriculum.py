@@ -10,9 +10,21 @@ import re
 from app.ai.schema import CurriculumBackbone, CurriculumCapability, CurriculumPhase
 
 
-def cap(key: str, label: str, topics: list[str], proof: str, *terms: str) -> CurriculumCapability:
+def cap(
+    key: str,
+    label: str,
+    topics: list[str],
+    proof: str,
+    *terms: str,
+    prerequisites: list[str] | None = None,
+) -> CurriculumCapability:
     return CurriculumCapability(
-        key=key, label=label, topics=topics, proof=proof, coverage_terms=list(terms)
+        key=key,
+        label=label,
+        topics=topics,
+        proof=proof,
+        coverage_terms=list(terms),
+        prerequisite_capability_keys=prerequisites or [],
     )
 
 
@@ -52,6 +64,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "git",
                 "ci",
                 "code review",
+                prerequisites=["python-design"],
             ),
         ),
         phase(
@@ -66,6 +79,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "api",
                 "http",
                 "rest",
+                prerequisites=["python-design"],
             ),
             cap(
                 "application-architecture",
@@ -75,6 +89,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "architecture",
                 "dependency",
                 "configuration",
+                prerequisites=["web-api"],
             ),
         ),
         phase(
@@ -89,6 +104,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "database",
                 "sql",
                 "migration",
+                prerequisites=["web-api", "application-architecture"],
             ),
             cap(
                 "reliability",
@@ -98,6 +114,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "reliability",
                 "retry",
                 "idempotency",
+                prerequisites=["web-api", "data-modeling"],
             ),
         ),
         phase(
@@ -112,6 +129,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "deploy",
                 "docker",
                 "observability",
+                prerequisites=["data-modeling", "reliability"],
             ),
             cap(
                 "security-proof",
@@ -121,6 +139,7 @@ PYTHON_BACKEND = CurriculumBackbone(
                 "security",
                 "authentication",
                 "authorization",
+                prerequisites=["application-architecture", "data-modeling"],
             ),
         ),
     ],
@@ -156,6 +175,7 @@ APPLIED_AI = CurriculumBackbone(
                 "automation",
                 "api",
                 "integration",
+                prerequisites=["workflow-framing"],
             ),
         ),
         phase(
@@ -170,6 +190,7 @@ APPLIED_AI = CurriculumBackbone(
                 "llm",
                 "structured output",
                 "prompt",
+                prerequisites=["automation-platform"],
             ),
             cap(
                 "knowledge-retrieval",
@@ -179,6 +200,7 @@ APPLIED_AI = CurriculumBackbone(
                 "retrieval",
                 "rag",
                 "grounding",
+                prerequisites=["automation-platform"],
             ),
         ),
         phase(
@@ -193,6 +215,7 @@ APPLIED_AI = CurriculumBackbone(
                 "evaluation",
                 "metrics",
                 "test set",
+                prerequisites=["llm-workflows", "knowledge-retrieval"],
             ),
             cap(
                 "ai-safety",
@@ -202,6 +225,7 @@ APPLIED_AI = CurriculumBackbone(
                 "safety",
                 "prompt injection",
                 "human review",
+                prerequisites=["workflow-framing", "llm-workflows"],
             ),
         ),
         phase(
@@ -216,6 +240,7 @@ APPLIED_AI = CurriculumBackbone(
                 "deployment",
                 "observability",
                 "tracing",
+                prerequisites=["evaluation", "ai-safety"],
             ),
             cap(
                 "ai-case-study",
@@ -225,6 +250,7 @@ APPLIED_AI = CurriculumBackbone(
                 "portfolio",
                 "case study",
                 "demo",
+                prerequisites=["ai-operations"],
             ),
         ),
     ],
@@ -260,6 +286,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "python",
                 "git",
                 "testing",
+                prerequisites=["sql-modeling"],
             ),
         ),
         phase(
@@ -274,6 +301,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "ingestion",
                 "extract",
                 "load",
+                prerequisites=["data-tooling"],
             ),
             cap(
                 "transformation",
@@ -283,6 +311,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "transformation",
                 "warehouse",
                 "dbt",
+                prerequisites=["sql-modeling", "ingestion"],
             ),
         ),
         phase(
@@ -297,6 +326,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "orchestration",
                 "airflow",
                 "workflow",
+                prerequisites=["ingestion", "transformation"],
             ),
             cap(
                 "data-quality",
@@ -306,6 +336,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "data quality",
                 "freshness",
                 "monitoring",
+                prerequisites=["transformation", "orchestration"],
             ),
         ),
         phase(
@@ -320,6 +351,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "deployment",
                 "security",
                 "cost",
+                prerequisites=["data-quality"],
             ),
             cap(
                 "data-case-study",
@@ -329,6 +361,7 @@ DATA_ENGINEERING = CurriculumBackbone(
                 "portfolio",
                 "case study",
                 "documentation",
+                prerequisites=["data-platform"],
             ),
         ),
     ],

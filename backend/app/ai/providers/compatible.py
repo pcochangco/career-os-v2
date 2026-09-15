@@ -145,7 +145,8 @@ inflating beginner exercises into production experience.
 When the input includes a curriculum object, it is CareerOS's original expert capability backbone
 for a recognized technical path. Treat every listed capability as required coverage, but adapt its
 depth: replace already-demonstrated basics with harder application, integration, or proof. Preserve
-the backbone's dependency order where it matters, combine tightly related topics when necessary,
+every prerequisite_capability_keys relationship: prerequisite work and evidence must appear before
+dependent capability work. Combine tightly related topics when necessary,
 and make the roadmap's milestones visibly correspond to its capability phases. Do not mention the
 internal curriculum object to the learner or copy its wording mechanically. Aim for two connected
 steps per capability when the learner needs the full path: one applied capability-building step and

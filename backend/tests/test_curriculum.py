@@ -4,6 +4,7 @@ from app.ai.curriculum import APPLIED_AI, DATA_ENGINEERING, PYTHON_BACKEND, sele
 from app.ai.providers.fixture import FixtureRoadmapProvider
 from app.ai.quality import evaluate_structure
 from app.ai.schema import (
+    CurriculumBackbone,
     CurriculumCapability,
     CurriculumPhase,
     RoadmapGenerationInput,
@@ -72,6 +73,35 @@ def test_fixture_roadmap_covers_the_selected_curriculum(goal_title: str, curricu
             assert capability.label.casefold() in roadmap_text
             assert f"apply {capability.label}".casefold() in roadmap_text
             assert f"validate {capability.label}".casefold() in roadmap_text
+
+
+def test_fixture_roadmap_uses_capability_prerequisite_edges() -> None:
+    generation_input = learner_input("Become an AI automation engineer", APPLIED_AI)
+    outcome = RoadmapGenerationService(FixtureRoadmapProvider()).generate(generation_input)
+    steps = {
+        step.stable_key: step
+        for milestone in outcome.draft.milestones
+        for step in milestone.steps
+    }
+
+    for phase in APPLIED_AI.phases:
+        for capability in phase.capabilities:
+            if not capability.prerequisite_capability_keys:
+                continue
+            assert steps[f"{capability.key}-apply"].prerequisite_step_keys == [
+                f"{prerequisite}-evidence"
+                for prerequisite in capability.prerequisite_capability_keys
+            ]
+
+
+def test_curriculum_rejects_a_forward_capability_prerequisite() -> None:
+    curriculum_data = PYTHON_BACKEND.model_dump()
+    curriculum_data["phases"][0]["capabilities"][0]["prerequisite_capability_keys"] = [
+        "web-api"
+    ]
+
+    with pytest.raises(ValueError, match="occur earlier"):
+        CurriculumBackbone.model_validate(curriculum_data)
 
 
 def test_fixture_preserves_a_backbone_with_a_different_phase_and_capability_shape() -> None:
