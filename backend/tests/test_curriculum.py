@@ -32,6 +32,7 @@ def learner_input(goal_title: str, curriculum) -> RoadmapGenerationInput:
         ("Become an AI automation engineer", APPLIED_AI.key),
         ("Move into data engineering", DATA_ENGINEERING.key),
         ("Become a Python backend engineer", PYTHON_BACKEND.key),
+        ("Learn Python for data analysis", None),
         ("Reach conversational Spanish", None),
     ],
 )

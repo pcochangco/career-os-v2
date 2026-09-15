@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from app.ai.curriculum import apply_matching_curriculum
 from app.ai.providers.base import ProviderResult
 from app.ai.providers.fixture import FixtureRoadmapProvider
 from app.ai.quality import evaluate_structure
@@ -19,7 +20,37 @@ from app.ai.service import RoadmapGenerationService, RoadmapQualityError
 def eval_inputs() -> list[RoadmapGenerationInput]:
     path = Path(__file__).parents[1] / "evals" / "cases.json"
     cases = json.loads(path.read_text())
-    return [RoadmapGenerationInput.model_validate(case["input"]) for case in cases]
+    return [
+        apply_matching_curriculum(RoadmapGenerationInput.model_validate(case["input"]))
+        for case in cases
+    ]
+
+
+def test_evaluation_cases_cover_distinct_learner_and_goal_shapes() -> None:
+    path = Path(__file__).parents[1] / "evals" / "cases.json"
+    cases = json.loads(path.read_text())
+    tags = {tag for case in cases for tag in case["tags"]}
+
+    assert len(cases) >= 10
+    assert {
+        "beginner",
+        "experienced",
+        "technical",
+        "non-technical",
+        "language",
+        "business",
+        "creative",
+        "prompt-injection",
+    } <= tags
+    selected = {
+        generation_input.goal_title: generation_input.curriculum.key
+        for generation_input in eval_inputs()
+        if generation_input.curriculum is not None
+    }
+    assert selected["Become an AI automation engineer"] == "applied-ai-automation"
+    assert selected["Move from Python automation into backend engineering"] == (
+        "python-backend-engineering"
+    )
 
 
 @pytest.mark.parametrize("generation_input", eval_inputs())

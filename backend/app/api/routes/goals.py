@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.ai.curriculum import select_curriculum
+from app.ai.curriculum import apply_matching_curriculum
 from app.ai.dependencies import (
     DiscoveryService,
     GenerationService,
@@ -606,19 +606,7 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
 
 def with_curriculum(generation_input: RoadmapGenerationInput) -> RoadmapGenerationInput:
     """Attach an expert backbone only when the goal clearly matches a supported track."""
-    learner_context = " ".join(
-        [
-            generation_input.desired_outcome,
-            generation_input.current_level,
-            generation_input.existing_experience,
-            generation_input.relevant_constraints,
-            generation_input.proof_of_completion,
-            *(answer.answer for answer in generation_input.discovery_context),
-        ]
-    )
-    return generation_input.model_copy(
-        update={"curriculum": select_curriculum(generation_input.goal_title, learner_context)}
-    )
+    return apply_matching_curriculum(generation_input)
 
 
 def start_generation_attempt(db: Session, user: User) -> tuple[RoadmapGenerationAttempt, bool]:

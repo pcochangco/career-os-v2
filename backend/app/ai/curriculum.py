@@ -7,7 +7,12 @@ learner's demonstrated experience.
 
 import re
 
-from app.ai.schema import CurriculumBackbone, CurriculumCapability, CurriculumPhase
+from app.ai.schema import (
+    CurriculumBackbone,
+    CurriculumCapability,
+    CurriculumPhase,
+    RoadmapGenerationInput,
+)
 
 
 def cap(
@@ -368,6 +373,7 @@ DATA_ENGINEERING = CurriculumBackbone(
 )
 
 CURRICULA = (APPLIED_AI, DATA_ENGINEERING, PYTHON_BACKEND)
+MIN_CURRICULUM_MATCH_SCORE = 2
 
 
 def select_curriculum(goal_title: str, context: str = "") -> CurriculumBackbone | None:
@@ -401,4 +407,31 @@ def select_curriculum(goal_title: str, context: str = "") -> CurriculumBackbone 
         for key, values in terms.items()
     }
     key, score = max(scores.items(), key=lambda item: item[1])
-    return next(item for item in CURRICULA if item.key == key) if score else None
+    return (
+        next(item for item in CURRICULA if item.key == key)
+        if score >= MIN_CURRICULUM_MATCH_SCORE
+        else None
+    )
+
+
+def apply_matching_curriculum(
+    generation_input: RoadmapGenerationInput,
+) -> RoadmapGenerationInput:
+    """Attach a backbone only for a high-confidence technical match.
+
+    Keeping this beside the map selector lets offline evaluations exercise the same
+    production decision without importing API route code.
+    """
+    learner_context = " ".join(
+        [
+            generation_input.desired_outcome,
+            generation_input.current_level,
+            generation_input.existing_experience,
+            generation_input.relevant_constraints,
+            generation_input.proof_of_completion,
+            *(answer.answer for answer in generation_input.discovery_context),
+        ]
+    )
+    return generation_input.model_copy(
+        update={"curriculum": select_curriculum(generation_input.goal_title, learner_context)}
+    )

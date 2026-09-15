@@ -137,7 +137,7 @@ baseline without printing roadmap text or prompts:
 
 ```bash
 cd backend
-python evals/run_live.py --limit 2
+python evals/run_live.py --limit 1 --confirm-live
 ```
 
 To debug one representative case without running the API, writing to the database,
@@ -148,7 +148,9 @@ cd backend
 python evals/diagnose_live.py --case "experienced career progression"
 ```
 
-The diagnostic report identifies the failing stage, provider code, token usage,
+The evaluation script requires an explicit confirmation and is capped at three
+cases by default configuration. Its report identifies aggregate token usage as
+well as the failing stage, provider code, token usage,
 quality scores, and schema issue paths. It never prints the API key, prompts, user
 input, or generated roadmap content.
 

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     ai_global_discovery_limit_per_hour: int = Field(default=40, ge=1, le=1000)
     ai_goal_intent_limit_per_hour: int = Field(default=4, ge=1, le=100)
     ai_global_goal_intent_limit_per_hour: int = Field(default=40, ge=1, le=1000)
+    ai_live_evaluation_case_limit: int = Field(default=3, ge=1, le=20)
     resource_request_timeout_seconds: float = Field(default=4.0, ge=1.0, le=15.0)
     resource_max_results_per_step: int = Field(default=3, ge=1, le=6)
     resource_cache_ttl_hours: int = Field(default=168, ge=1, le=720)
