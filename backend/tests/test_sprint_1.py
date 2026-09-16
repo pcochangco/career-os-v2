@@ -4,12 +4,14 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
+from app.ai.curriculum import APPLIED_AI
 from app.ai.dependencies import fixture_service, get_generation_service, get_goal_intent_service
 from app.ai.providers.base import ProviderResult, RoadmapProviderError
 from app.ai.schema import GoalIntentAssessment
 from app.core.config import Settings
+from app.db.models import AuthIdentity, User
 from app.main import app
-from app.services.entitlements import unlocked_milestone_limit
+from app.services.entitlements import is_premium, unlocked_milestone_limit
 
 
 def create_session(client: TestClient) -> str:
@@ -69,8 +71,10 @@ def test_goal_to_accepted_roadmap_vertical_slice(client: TestClient) -> None:
     assert roadmap["quality_score"] >= 80
     assert roadmap["quality_report"]["passed"] is True
     assert roadmap["assumptions"]
-    assert len(roadmap["milestones"]) == 4
-    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == 16
+    assert len(roadmap["milestones"]) == len(APPLIED_AI.phases)
+    assert sum(len(milestone["steps"]) for milestone in roadmap["milestones"]) == (
+        APPLIED_AI.capability_count * 2
+    )
     assert all(len(milestone["steps"]) >= 2 for milestone in roadmap["milestones"])
     assert all(
         step["completion_condition"]
@@ -202,6 +206,32 @@ def test_premium_roadmap_keeps_full_access_after_a_free_downgrade() -> None:
     premium_created_roadmap = SimpleNamespace(free_access_milestones=0)
 
     assert unlocked_milestone_limit(downgraded_user, premium_created_roadmap) is None
+
+
+def test_manual_premium_allowlist_is_limited_to_the_matching_verified_email(
+    monkeypatch,
+) -> None:
+    settings = Settings(manual_premium_emails="careeros.app.io@gmail.com")
+    monkeypatch.setattr("app.services.entitlements.get_settings", lambda: settings)
+    tester = User(subscription_tier="free")
+    tester.identities.append(
+        AuthIdentity(
+            provider="google",
+            subject="tester-subject",
+            email="CareerOS.App.IO@gmail.com",
+        )
+    )
+    other_user = User(subscription_tier="free")
+    other_user.identities.append(
+        AuthIdentity(
+            provider="google",
+            subject="other-subject",
+            email="other@example.com",
+        )
+    )
+
+    assert is_premium(tester) is True
+    assert is_premium(other_user) is False
 
 
 def test_roadmap_generation_uses_preview_after_per_user_limit(

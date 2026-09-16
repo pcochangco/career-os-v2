@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     google_ios_client_id: str = ""
     google_android_client_id: str = ""
     apple_client_ids: str = ""
+    manual_premium_emails: str = ""
     allow_guest_access: bool = True
     auth_anonymous_limit_per_15_minutes: int = Field(default=120, ge=10, le=5000)
     auth_identity_limit_per_15_minutes: int = Field(default=20, ge=5, le=200)
@@ -126,6 +127,31 @@ class Settings(BaseSettings):
             raise ValueError("OAuth client identifiers contain unsupported characters")
         return normalized
 
+    @field_validator("manual_premium_emails", mode="before")
+    @classmethod
+    def normalize_manual_premium_emails(cls, value: object) -> str:
+        """Normalize the short-lived, operator-managed tester allowlist.
+
+        This stays empty in normal environments. It is deliberately an email
+        allowlist rather than a global testing switch, so Free-tier behavior
+        cannot be accidentally disabled for every account.
+        """
+        if not isinstance(value, str):
+            raise ValueError("manual premium emails must be a comma-separated string")
+        normalized_items = (
+            item.strip().casefold() for item in value.split(",") if item.strip()
+        )
+        emails = tuple(dict.fromkeys(normalized_items))
+        for email in emails:
+            if not re.fullmatch(
+                r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+                r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+                r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+",
+                email,
+            ):
+                raise ValueError("manual premium emails must contain valid email addresses")
+        return ",".join(emails)
+
     @field_validator("ai_reasoning_effort", mode="before")
     @classmethod
     def use_optional_reasoning_effort(cls, value: object) -> object:
@@ -179,6 +205,10 @@ class Settings(BaseSettings):
     @property
     def resolved_ai_repair_model(self) -> str:
         return self.ai_repair_model or self.ai_model
+
+    @property
+    def manual_premium_email_set(self) -> frozenset[str]:
+        return frozenset(email for email in self.manual_premium_emails.split(",") if email)
 
     @property
     def resolved_ai_discovery_model(self) -> str:

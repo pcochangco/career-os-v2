@@ -1,13 +1,24 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.models import Goal, RoadmapStep, RoadmapVersion, User
 
 FREE_GOAL_LIMIT = 2
 
 
 def is_premium(user: User) -> bool:
-    return user.subscription_tier == "premium"
+    if user.subscription_tier == "premium":
+        return True
+
+    manual_premium_emails = get_settings().manual_premium_email_set
+    if not manual_premium_emails:
+        return False
+    return any(
+        identity.email.casefold() in manual_premium_emails
+        for identity in user.identities
+        if identity.email
+    )
 
 
 def goal_count(db: Session, user: User) -> int:
