@@ -93,6 +93,38 @@ export default function IndexRoute() {
     [router, session, title],
   );
 
+  const handleEmailTestSignIn = useCallback(
+    async (email: string, accessCode: string) => {
+      if (signInInProgress.current) return;
+      signInInProgress.current = true;
+      setSigningIn(true);
+      setError(null);
+      try {
+        const token = await session.signInWithEmailTestAccess(email, accessCode);
+        const goalTitle = title.trim();
+        if (goalTitle) {
+          const goal = await apiRequest<Goal>("/goals", {
+            body: { title: goalTitle },
+            method: "POST",
+            token,
+          });
+          router.replace(`/goals/${goal.id}/discovery` as never);
+        } else {
+          const goals = await apiRequest<Goal[]>("/goals", { token });
+          if (goals.length === 0) router.replace("/goals/new" as never);
+          else if (goals.length === 1 && goals[0]) router.replace(routeForGoal(goals[0]) as never);
+          else router.replace("/goals" as never);
+        }
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : "Email sign-in could not be completed.");
+      } finally {
+        signInInProgress.current = false;
+        setSigningIn(false);
+      }
+    },
+    [router, session, title],
+  );
+
   if (!session.ready) return <LoadingState />;
   if (session.error) return <ErrorState message={session.error} onRetry={session.retry} />;
   if (session.token && !error) return <LoadingState label="Opening your saved path…" />;
@@ -162,6 +194,7 @@ export default function IndexRoute() {
               disabled={signingIn || session.accountLoading}
               mode="sign-in"
               onError={handleProviderError}
+              onEmailTestSignIn={handleEmailTestSignIn}
               onIdentityToken={handleIdentityToken}
               providerConfig={session.providerConfig}
             />

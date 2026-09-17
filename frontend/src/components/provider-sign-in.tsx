@@ -14,6 +14,7 @@ export type ProviderSignInProps = {
   mode?: "link" | "sign-in";
   onError: (message: string) => void;
   onIdentityToken: (provider: IdentityProvider, token: string) => void;
+  onEmailTestSignIn?: (email: string, accessCode: string) => void;
   providerConfig: ProviderConfig;
 };
 

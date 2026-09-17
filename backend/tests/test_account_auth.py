@@ -61,6 +61,55 @@ def test_provider_config_is_public(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["apple"] is False
     assert response.json()["google"] is False
+    assert response.json()["email_test"] is False
+
+
+def test_allowlisted_email_test_sign_in_creates_a_saved_account(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.auth.get_settings",
+        lambda: Settings(
+            email_test_login_emails="careeros.app.io@gmail.com",
+            email_test_access_code="temporary-access-code",
+        ),
+    )
+
+    signed_in = client.post(
+        "/api/v1/auth/email-test-sign-in",
+        json={"email": "CareerOS.App.IO@gmail.com", "access_code": "temporary-access-code"},
+    )
+
+    assert signed_in.status_code == 200
+    account = client.get(
+        "/api/v1/auth/account",
+        headers=auth(signed_in.json()["access_token"]),
+    )
+    assert account.status_code == 200
+    assert account.json()["email"] == "careeros.app.io@gmail.com"
+    assert account.json()["providers"] == ["email"]
+
+
+def test_email_test_sign_in_rejects_unapproved_email_or_wrong_code(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.auth.get_settings",
+        lambda: Settings(
+            email_test_login_emails="careeros.app.io@gmail.com",
+            email_test_access_code="temporary-access-code",
+        ),
+    )
+
+    for payload in (
+        {"email": "someone@example.com", "access_code": "temporary-access-code"},
+        {"email": "careeros.app.io@gmail.com", "access_code": "wrong-code"},
+    ):
+        response = client.post("/api/v1/auth/email-test-sign-in", json=payload)
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Email sign-in could not be verified."
 
 
 def test_provider_sign_in_creates_saved_account(client: TestClient) -> None:

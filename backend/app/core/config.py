@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     google_android_client_id: str = ""
     apple_client_ids: str = ""
     manual_premium_emails: str = ""
+    email_test_login_emails: str = ""
+    email_test_access_code: SecretStr | None = None
     allow_guest_access: bool = True
     auth_anonymous_limit_per_15_minutes: int = Field(default=120, ge=10, le=5000)
     auth_identity_limit_per_15_minutes: int = Field(default=20, ge=5, le=200)
@@ -127,9 +129,9 @@ class Settings(BaseSettings):
             raise ValueError("OAuth client identifiers contain unsupported characters")
         return normalized
 
-    @field_validator("manual_premium_emails", mode="before")
+    @field_validator("manual_premium_emails", "email_test_login_emails", mode="before")
     @classmethod
-    def normalize_manual_premium_emails(cls, value: object) -> str:
+    def normalize_email_allowlist(cls, value: object) -> str:
         """Normalize the short-lived, operator-managed tester allowlist.
 
         This stays empty in normal environments. It is deliberately an email
@@ -137,7 +139,7 @@ class Settings(BaseSettings):
         cannot be accidentally disabled for every account.
         """
         if not isinstance(value, str):
-            raise ValueError("manual premium emails must be a comma-separated string")
+            raise ValueError("email allowlists must be comma-separated strings")
         normalized_items = (
             item.strip().casefold() for item in value.split(",") if item.strip()
         )
@@ -149,7 +151,7 @@ class Settings(BaseSettings):
                 r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+",
                 email,
             ):
-                raise ValueError("manual premium emails must contain valid email addresses")
+                raise ValueError("email allowlists must contain valid email addresses")
         return ",".join(emails)
 
     @field_validator("ai_reasoning_effort", mode="before")
@@ -209,6 +211,18 @@ class Settings(BaseSettings):
     @property
     def manual_premium_email_set(self) -> frozenset[str]:
         return frozenset(email for email in self.manual_premium_emails.split(",") if email)
+
+    @property
+    def email_test_login_email_set(self) -> frozenset[str]:
+        return frozenset(email for email in self.email_test_login_emails.split(",") if email)
+
+    @property
+    def email_test_login_enabled(self) -> bool:
+        return bool(
+            self.email_test_login_email_set
+            and self.email_test_access_code
+            and self.email_test_access_code.get_secret_value()
+        )
 
     @property
     def resolved_ai_discovery_model(self) -> str:

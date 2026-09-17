@@ -1,10 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from secrets import token_urlsafe
+from secrets import compare_digest, token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.api.dependencies import (
     CurrentSession,
@@ -16,6 +16,7 @@ from app.api.schemas import (
     AccountRead,
     AnonymousSessionRead,
     AuthProviderConfigRead,
+    EmailTestSignInWrite,
     IdentityLinkWrite,
 )
 from app.core.config import get_settings
@@ -84,6 +85,7 @@ def provider_config_response() -> AuthProviderConfigRead:
     return AuthProviderConfigRead(
         apple=bool(settings.allowed_apple_client_ids),
         google=bool(settings.google_client_ids),
+        email_test=settings.email_test_login_enabled,
         google_web_client_id=settings.google_web_client_id,
         google_ios_client_id=settings.google_ios_client_id,
         google_android_client_id=settings.google_android_client_id,
@@ -96,6 +98,74 @@ def update_identity(identity: AuthIdentity, verified: VerifiedIdentity) -> None:
     if verified.display_name:
         identity.display_name = verified.display_name
     identity.last_sign_in_at = datetime.now(UTC)
+
+
+@router.post("/email-test-sign-in", response_model=AnonymousSessionRead)
+def sign_in_with_email_test_access(
+    payload: EmailTestSignInWrite,
+    request: Request,
+    db: DbSession,
+    limiter: AuthRateLimiter,
+) -> AnonymousSessionRead:
+    """Temporary, allowlisted sign-in while production email delivery is unavailable.
+
+    This is deliberately not a general email/password provider: only operator-approved
+    emails plus an environment-held access code can use it. Real email verification
+    will replace this once a sending domain is configured.
+    """
+    settings = get_settings()
+    client_host = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("User-Agent", "")[:160]
+    enforce_rate_limit(
+        limiter,
+        action="email-test-sign-in",
+        source=f"{client_host}:{user_agent}",
+        limit=settings.auth_identity_limit_per_15_minutes,
+    )
+    email = payload.email.casefold()
+    configured_code = (
+        settings.email_test_access_code.get_secret_value()
+        if settings.email_test_access_code is not None
+        else ""
+    )
+    if (
+        not settings.email_test_login_enabled
+        or email not in settings.email_test_login_email_set
+        or not compare_digest(payload.access_code, configured_code)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email sign-in could not be verified.",
+        )
+
+    identity = db.scalar(
+        select(AuthIdentity).where(func.lower(AuthIdentity.email) == email)
+    )
+    if identity is None:
+        user = User()
+        db.add(user)
+        db.flush()
+        db.add(
+            AuthIdentity(
+                user_id=user.id,
+                provider="email",
+                subject=email,
+                email=email,
+                display_name="",
+            )
+        )
+    else:
+        user = db.get(User, identity.user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="The saved account could not be opened.",
+            )
+        identity.last_sign_in_at = datetime.now(UTC)
+
+    session = issue_session(db, user)
+    db.commit()
+    return session
 
 
 @router.post(

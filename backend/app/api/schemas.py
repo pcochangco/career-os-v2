@@ -17,9 +17,20 @@ class IdentityLinkWrite(BaseModel):
     identity_token: str = Field(min_length=40, max_length=8192)
 
 
+class EmailTestSignInWrite(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    access_code: str = Field(min_length=8, max_length=128)
+
+    @field_validator("email", "access_code")
+    @classmethod
+    def trim_email_test_sign_in(cls, value: str) -> str:
+        return value.strip()
+
+
 class AuthProviderConfigRead(BaseModel):
     apple: bool = False
     google: bool = False
+    email_test: bool = False
     google_web_client_id: str = ""
     google_ios_client_id: str = ""
     google_android_client_id: str = ""
@@ -28,7 +39,7 @@ class AuthProviderConfigRead(BaseModel):
 class AccountRead(BaseModel):
     user_id: UUID
     status: Literal["guest", "saved"]
-    providers: list[Literal["apple", "google"]] = Field(default_factory=list)
+    providers: list[Literal["apple", "google", "email"]] = Field(default_factory=list)
     email: str = ""
     provider_config: AuthProviderConfigRead
 

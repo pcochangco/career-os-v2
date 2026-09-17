@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import type { ProviderSignInProps } from "@/components/provider-sign-in";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -53,6 +53,7 @@ export function ProviderSignIn({
   disabled,
   mode = "sign-in",
   onError,
+  onEmailTestSignIn,
   onIdentityToken,
   providerConfig,
 }: ProviderSignInProps) {
@@ -60,6 +61,8 @@ export function ProviderSignIn({
   const styles = createStyles(colors);
   const buttonHost = useRef<View>(null);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const clientId = providerConfig.google_web_client_id;
 
   useEffect(() => {
@@ -95,7 +98,9 @@ export function ProviderSignIn({
     };
   }, [clientId, disabled, isDark, mode, onError, onIdentityToken]);
 
-  if (!clientId) {
+  const emailTestEnabled = providerConfig.email_test && Boolean(onEmailTestSignIn);
+
+  if (!clientId && !emailTestEnabled) {
     return (
       <View style={styles.note}>
         <Text style={styles.title}>Sign-in setup is the final activation step.</Text>
@@ -109,8 +114,53 @@ export function ProviderSignIn({
 
   return (
     <View style={styles.providerArea}>
-      <View accessibilityLabel="Sign in with Google" ref={buttonHost} style={styles.googleHost} />
-      {loading ? <Text style={styles.loading}>Loading secure Google sign-in…</Text> : null}
+      {clientId ? (
+        <>
+          <View accessibilityLabel="Sign in with Google" ref={buttonHost} style={styles.googleHost} />
+          {loading ? <Text style={styles.loading}>Loading secure Google sign-in…</Text> : null}
+        </>
+      ) : null}
+      {emailTestEnabled ? (
+        <View style={styles.emailTestCard}>
+          <Text style={styles.emailTestTitle}>Email sign-in for beta testing</Text>
+          <Text style={styles.body}>
+            Use the approved email and temporary access code provided by CareerOS.
+          </Text>
+          <TextInput
+            autoCapitalize="none"
+            autoComplete="email"
+            editable={!disabled}
+            keyboardType="email-address"
+            onChangeText={setEmail}
+            placeholder="Email address"
+            placeholderTextColor={colors.muted}
+            style={styles.emailInput}
+            value={email}
+          />
+          <TextInput
+            autoCapitalize="characters"
+            editable={!disabled}
+            onChangeText={setAccessCode}
+            placeholder="Temporary access code"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            style={styles.emailInput}
+            value={accessCode}
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={disabled || !email.trim() || !accessCode}
+            onPress={() => onEmailTestSignIn?.(email.trim(), accessCode)}
+            style={({ pressed }) => [
+              styles.emailButton,
+              (disabled || !email.trim() || !accessCode) && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.emailButtonLabel}>Continue with email</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {!providerConfig.apple ? (
         <Text style={styles.body}>Sign in with Apple activates with the iOS build configuration.</Text>
       ) : null}
@@ -121,6 +171,12 @@ export function ProviderSignIn({
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     body: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+    disabled: { opacity: 0.5 },
+    emailButton: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 22, minHeight: 48, justifyContent: "center", paddingHorizontal: 18 },
+    emailButtonLabel: { color: colors.onForest, fontSize: 15, fontWeight: "800" },
+    emailInput: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, fontSize: 15, minHeight: 46, paddingHorizontal: 13 },
+    emailTestCard: { backgroundColor: colors.cardMuted, borderColor: colors.line, borderRadius: 14, borderWidth: 1, gap: 10, padding: 14 },
+    emailTestTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
     googleHost: { alignItems: "center", minHeight: 44, width: "100%" },
     loading: { color: colors.muted, fontSize: 13, textAlign: "center" },
     note: {
@@ -132,5 +188,6 @@ const createStyles = (colors: ThemeColors) =>
       padding: 14,
     },
     providerArea: { gap: 10 },
+    pressed: { opacity: 0.86 },
     title: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   });

@@ -12,10 +12,11 @@ import { Platform } from "react-native";
 
 import { ApiError, apiRequest } from "@/lib/api";
 
-export type IdentityProvider = "apple" | "google";
+export type IdentityProvider = "apple" | "google" | "email";
 
 export type ProviderConfig = {
   apple: boolean;
+  email_test: boolean;
   google: boolean;
   google_android_client_id: string;
   google_ios_client_id: string;
@@ -46,12 +47,14 @@ type SessionContextValue = {
   ready: boolean;
   retry: () => void;
   signIn: (provider: IdentityProvider, identityToken: string) => Promise<string>;
+  signInWithEmailTestAccess: (email: string, accessCode: string) => Promise<string>;
   signOut: () => Promise<void>;
   token: string | null;
 };
 
 const EMPTY_PROVIDER_CONFIG: ProviderConfig = {
   apple: false,
+  email_test: false,
   google: false,
   google_android_client_id: "",
   google_ios_client_id: "",
@@ -186,6 +189,22 @@ export function SessionProvider({
     [activateSession],
   );
 
+  const signInWithEmailTestAccess = useCallback(
+    async (email: string, accessCode: string): Promise<string> => {
+      setAccountLoading(true);
+      try {
+        const session = await apiRequest<SessionResponse>("/auth/email-test-sign-in", {
+          body: { access_code: accessCode, email },
+          method: "POST",
+        });
+        return await activateSession(session);
+      } finally {
+        setAccountLoading(false);
+      }
+    },
+    [activateSession],
+  );
+
   const linkIdentity = useCallback(
     async (provider: IdentityProvider, identityToken: string) => {
       if (!token) throw new Error("Sign in before linking another provider.");
@@ -237,6 +256,7 @@ export function SessionProvider({
       ready,
       retry: () => setAttempt((value) => value + 1),
       signIn,
+      signInWithEmailTestAccess,
       signOut,
       token,
     }),
@@ -249,6 +269,7 @@ export function SessionProvider({
       providerConfig,
       ready,
       signIn,
+      signInWithEmailTestAccess,
       signOut,
       token,
     ],
