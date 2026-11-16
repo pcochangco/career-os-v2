@@ -24,6 +24,9 @@ import { useSession } from "@/lib/session";
 import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
+const GENERATION_POLL_MS = 4000;
+const GENERATION_WAIT_LIMIT_MS = 9 * 60 * 1000;
+
 export default function DiscoveryRoute() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
@@ -48,32 +51,69 @@ export default function DiscoveryRoute() {
     "Preparing your roadmap for review…",
   ];
 
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const routeToRoadmap = useCallback((goal: Goal): boolean => {
+    if (goal.active_roadmap_id) {
+      router.replace(`/goals/${goalId}/roadmap?roadmapId=${goal.active_roadmap_id}` as never);
+      return true;
+    }
+    if (goal.latest_draft_roadmap_id) {
+      router.replace(`/goals/${goalId}/review?roadmapId=${goal.latest_draft_roadmap_id}` as never);
+      return true;
+    }
+    return false;
+  }, [goalId, router]);
+
+  // A roadmap is being built by an earlier request (another tab, a refresh, or a lost
+  // response). Watch the goal instead of starting a second, paid generation.
+  const waitForGeneration = useCallback(() => {
+    if (!token || !goalId) return;
+    setGenerating(true);
+    setError(null);
+    const startedAt = Date.now();
+    const check = async () => {
+      try {
+        const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
+        if (routeToRoadmap(goal)) return;
+        if (!goal.roadmap_generation_in_progress) {
+          setGenerating(false);
+          setError("Your roadmap couldn’t be finished. Please try again.");
+          return;
+        }
+      } catch {
+        // A brief network drop while waiting is fine; keep checking.
+      }
+      if (Date.now() - startedAt > GENERATION_WAIT_LIMIT_MS) {
+        setGenerating(false);
+        setError("This is taking longer than usual. Please try again in a moment.");
+        return;
+      }
+      pollRef.current = setTimeout(() => void check(), GENERATION_POLL_MS);
+    };
+    pollRef.current = setTimeout(() => void check(), GENERATION_POLL_MS);
+  }, [goalId, routeToRoadmap, token]);
+
+  useEffect(() => () => {
+    if (pollRef.current) clearTimeout(pollRef.current);
+  }, []);
+
   const loadDiscovery = useCallback(async () => {
     if (!token || !goalId) return;
     try {
       setError(null);
       const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
-      if (goal.active_roadmap_id) {
-        router.replace(
-          `/goals/${goalId}/roadmap?roadmapId=${goal.active_roadmap_id}` as never,
-        );
-        return;
-      }
-      if (goal.latest_draft_roadmap_id) {
-        router.replace(
-          `/goals/${goalId}/review?roadmapId=${goal.latest_draft_roadmap_id}` as never,
-        );
-        return;
-      }
+      if (routeToRoadmap(goal)) return;
       const current = await apiRequest<DiscoveryState>(`/goals/${goalId}/discovery`, { token });
       const next = current.status === "unstarted"
         ? await apiRequest<DiscoveryState>(`/goals/${goalId}/discovery/questions/next`, { method: "POST", token })
         : current;
       setState(next);
+      if (goal.roadmap_generation_in_progress) waitForGeneration();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not tailor your questions.");
     }
-  }, [goalId, router, token]);
+  }, [goalId, routeToRoadmap, token, waitForGeneration]);
 
   useEffect(() => {
     void loadDiscovery();
@@ -134,47 +174,43 @@ export default function DiscoveryRoute() {
 
   async function createRoadmap() {
     if (!token || !goalId || generationRequestRef.current) return;
+    generationRequestRef.current = true;
+    setGenerationStage(0);
+    setGenerating(true);
+    setError(null);
     try {
-      generationRequestRef.current = true;
-      setGenerationStage(0);
-      setGenerating(true);
-      setError(null);
-      let roadmap: Roadmap;
-      try {
-        roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
-          method: "POST",
-          token,
-        });
-      } catch (firstFailure) {
-        // Capacity and connection failures are occasionally transient. A single client retry
-        // complements the server retry, while a persisted draft remains idempotent on retry.
-        if (firstFailure instanceof ApiError && firstFailure.status < 500) throw firstFailure;
-        await new Promise<void>((resolve) => setTimeout(resolve, 1200));
-        roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
-          method: "POST",
-          token,
-        });
-      }
+      const roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
+        method: "POST",
+        token,
+      });
       router.replace(`/goals/${goalId}/review?roadmapId=${roadmap.id}` as never);
+      setGenerating(false);
     } catch (caught) {
-      // A slow mobile connection or proxy can lose the POST response after the server has
-      // already persisted a draft. Resolve the goal state before showing a false failure.
+      // 409: a generation for this goal is already running. A lost response or timeout:
+      // the server may still be working, or may already have saved the draft. In both
+      // cases check the goal rather than starting a second, paid generation.
+      if (caught instanceof ApiError && caught.status !== 409 && caught.status < 500) {
+        setGenerating(false);
+        setError(caught.message);
+        return;
+      }
       try {
         const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
-        const roadmapId = goal.active_roadmap_id ?? goal.latest_draft_roadmap_id;
-        if (roadmapId) {
-          const destination = goal.active_roadmap_id
-            ? `/goals/${goalId}/roadmap?roadmapId=${roadmapId}`
-            : `/goals/${goalId}/review?roadmapId=${roadmapId}`;
-          router.replace(destination as never);
+        if (routeToRoadmap(goal)) return;
+        if (goal.roadmap_generation_in_progress) {
+          waitForGeneration();
           return;
         }
       } catch {
-        // Preserve the original error below if the recovery check cannot reach the API either.
+        // Fall through to the original error if the API cannot be reached either.
       }
-      setError(caught instanceof Error ? caught.message : "Your roadmap could not be generated.");
-    } finally {
       setGenerating(false);
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : "We couldn’t reach CareerOS. Check your connection and try again.",
+      );
+    } finally {
       generationRequestRef.current = false;
     }
   }
@@ -204,7 +240,8 @@ export default function DiscoveryRoute() {
             {reduceMotion ? generationStages[0] : generationStages[generationStage]}
           </Text>
           <Text style={styles.generationNote}>
-            Keep this page open. CareerOS will take you to the draft as soon as it is ready.
+            This usually takes under a minute. If you leave, your roadmap keeps building and
+            will be waiting when you come back.
           </Text>
         </View>
       </Screen>
