@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F6F8F4"
+        "backgroundColor": "#1E6044"
       },
       "package": "com.careeros.app"
     },
@@ -28,13 +28,13 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F6F8F4",
+          "backgroundColor": "#F6F7F9",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 120,
           "resizeMode": "contain",
           "dark": {
             "image": "./assets/splash-icon.png",
-            "backgroundColor": "#0D1410"
+            "backgroundColor": "#0E1210"
           }
         }
       ]
