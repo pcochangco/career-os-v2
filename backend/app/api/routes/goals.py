@@ -14,7 +14,11 @@ from app.ai.dependencies import (
     fixture_discovery_service,
     fixture_service,
 )
-from app.ai.schema import DiscoveryContextAnswer, RoadmapGenerationInput
+from app.ai.schema import (
+    ADAPTIVE_INSTRUCTION_PREFIX,
+    DiscoveryContextAnswer,
+    RoadmapGenerationInput,
+)
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import (
     DiscoveryAnswerWrite,
@@ -569,16 +573,16 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
             goal_title=goal.title,
             desired_outcome=f"Achieve the goal: {goal.title}",
             current_level=(
-                "Use the learner's discovery answers to establish their starting point."
+                f"{ADAPTIVE_INSTRUCTION_PREFIX} to establish their starting point."
             ),
             existing_experience=(
-                "Use the learner's discovery answers to identify existing experience."
+                f"{ADAPTIVE_INSTRUCTION_PREFIX} to identify existing experience."
             ),
             relevant_constraints=(
-                "Use the learner's discovery answers to identify preferences and constraints."
+                f"{ADAPTIVE_INSTRUCTION_PREFIX} to identify preferences and constraints."
             ),
             proof_of_completion=(
-                "Use the learner's discovery answers to define convincing proof of completion."
+                f"{ADAPTIVE_INSTRUCTION_PREFIX} to define convincing proof of completion."
             ),
             discovery_context=context,
         )

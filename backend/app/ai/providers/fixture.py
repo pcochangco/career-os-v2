@@ -1,5 +1,6 @@
 from app.ai.providers.base import ProviderResult
 from app.ai.schema import (
+    ADAPTIVE_INSTRUCTION_PREFIX,
     ProviderCritique,
     QualityIssue,
     RoadmapDraft,
@@ -15,10 +16,68 @@ class FixtureRoadmapProvider:
     model = "deterministic-fixture"
     prompt_version = "roadmap-schema-1.0-fixture-1"
 
+    @staticmethod
+    def _mid_sentence(goal_title: str) -> str:
+        """Lower-case a goal's first letter for use mid-sentence, keeping acronyms intact."""
+        title = goal_title.strip().rstrip(". ")
+        if len(title) > 1 and title[0].isupper() and not title[1].isupper():
+            return title[0].lower() + title[1:]
+        return title
+
+    @staticmethod
+    def _learner_facts(generation_input: RoadmapGenerationInput) -> dict[str, str]:
+        """Return learner-facing wording for the deterministic draft.
+
+        Adaptive discovery passes model instructions (``ADAPTIVE_INSTRUCTION_PREFIX``) in the
+        structured fields and the learner's real answers in ``discovery_context``. Those
+        instructions must never be shown to the learner, so the fallback builds its copy from
+        the answers instead.
+        """
+        goal_title = FixtureRoadmapProvider._mid_sentence(generation_input.goal_title)
+        if not generation_input.current_level.startswith(ADAPTIVE_INSTRUCTION_PREFIX):
+            level = generation_input.current_level.rstrip(". ")
+            experience = generation_input.existing_experience.rstrip(". ")
+            outcome = generation_input.desired_outcome.rstrip(". ")
+            return {
+                "outcome": outcome,
+                "proof": generation_input.proof_of_completion.rstrip(". "),
+                "experience": experience,
+                "constraints": generation_input.relevant_constraints.rstrip(". "),
+                "summary_lead": (
+                    f"A focused path from your current starting point ({level}) toward {outcome}."
+                ),
+                "starting_state": f"Starting level: {level}. Relevant experience: {experience}.",
+            }
+
+        answers = [
+            answer.answer.strip().rstrip(". ")
+            for answer in generation_input.discovery_context
+            if not answer.skipped and answer.answer.strip()
+        ]
+        if answers:
+            summary_lead = f"A focused path toward {goal_title}, shaped by what you shared."
+            starting_state = f"What you shared: {'; '.join(answers[:3])}."
+            experience = "; ".join(answers[:2])
+        else:
+            summary_lead = f"A focused path toward {goal_title}."
+            starting_state = (
+                "You skipped the starting questions, so this path begins with the foundations. "
+                "Note anything you already know in each step's learning record."
+            )
+            experience = "what you already know"
+        return {
+            "outcome": generation_input.goal_title.strip().rstrip(". "),
+            "proof": f"a concrete piece of work that shows real progress toward {goal_title}",
+            "experience": experience,
+            "constraints": "the time, tools, and preferences you have right now",
+            "summary_lead": summary_lead,
+            "starting_state": starting_state,
+        }
+
     def generate(self, generation_input: RoadmapGenerationInput) -> ProviderResult[RoadmapDraft]:
-        outcome = generation_input.desired_outcome.rstrip(". ")
-        level = generation_input.current_level.rstrip(". ")
-        proof = generation_input.proof_of_completion.rstrip(". ")
+        facts = self._learner_facts(generation_input)
+        outcome = facts["outcome"]
+        proof = facts["proof"]
         goal_title = generation_input.goal_title
         domain = self._domain(goal_title)
         steps = self._steps(
@@ -26,8 +85,8 @@ class FixtureRoadmapProvider:
             goal_title=goal_title,
             outcome=outcome,
             proof=proof,
-            existing_experience=generation_input.existing_experience.rstrip(". "),
-            constraints=generation_input.relevant_constraints.rstrip(". "),
+            existing_experience=facts["experience"],
+            constraints=facts["constraints"],
         )
         foundation_title, foundation_outcome, workflow_title, workflow_outcome, proof_title = {
             "language": (
@@ -65,9 +124,9 @@ class FixtureRoadmapProvider:
         }[domain]
         draft = RoadmapDraft(
             schema_version="1.2",
-            title=f"Your path to {goal_title}",
+            title=f"Your path to {self._mid_sentence(goal_title)}",
             summary=(
-                f"A focused path from your current starting point ({level}) toward {outcome}. "
+                f"{facts['summary_lead']} "
                 "Each stage ends with observable evidence rather than time spent."
             ),
             strategy_summary=(
@@ -82,10 +141,7 @@ class FixtureRoadmapProvider:
             ],
             practice_tasks=self._practice_tasks(domain=domain, steps=steps),
             goal_outcome=outcome,
-            starting_state_summary=(
-                f"Starting level: {level}. Relevant experience: "
-                f"{generation_input.existing_experience.rstrip('. ')}."
-            ),
+            starting_state_summary=facts["starting_state"],
             assumptions=[
                 "The path can be completed without a fixed daily schedule.",
                 "Practice can use tools and materials available to the learner.",
