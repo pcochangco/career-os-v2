@@ -9,6 +9,15 @@ type ApiOptions = Omit<RequestInit, "body"> & {
   token?: string | null;
 };
 
+export const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Registered by the session provider: called when the API rejects the stored session. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -30,6 +39,12 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
+  if (response.status === 401 && options.token) {
+    // The stored session expired, was signed out elsewhere, or the account was deleted.
+    // Clear it centrally so every screen returns to sign-in instead of showing a raw error.
+    unauthorizedHandler?.();
+    throw new ApiError(SESSION_ENDED_MESSAGE, 401, response.headers.get("X-Request-ID"));
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
       detail?: string | Array<{ msg?: string }>;

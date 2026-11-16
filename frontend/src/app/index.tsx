@@ -33,7 +33,7 @@ export default function IndexRoute() {
   const router = useRouter();
   const session = useSession();
   const [title, setTitle] = useState("");
-  const [showSignIn, setShowSignIn] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(Boolean(session.notice));
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -133,6 +133,11 @@ export default function IndexRoute() {
 
   const startCard = (
     <View style={[styles.startCard, wide && styles.startCardWide]}>
+      {session.notice ? (
+        <View accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.notice}>
+          <Text style={styles.noticeText}>{session.notice}</Text>
+        </View>
+      ) : null}
       <Text style={styles.cardTitle}>What do you want to achieve?</Text>
       <Text style={styles.cardBody}>
         Try your goal here. It stays only on this screen until you sign in and confirm it.
@@ -292,6 +297,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   footerLink: { color: colors.muted, fontSize: 13, fontWeight: "700" },
   footerLinks: { flexDirection: "row", gap: 22, justifyContent: "center", paddingBottom: 10 },
   hero: { marginBottom: 8 },
+  notice: { backgroundColor: colors.cardMuted, borderColor: colors.line, borderRadius: 10, borderWidth: 1, marginBottom: 12, padding: 12 },
+  noticeText: { color: colors.ink, fontSize: 14, fontWeight: "600", lineHeight: 20 },
   loadingText: { color: colors.muted, fontSize: 13, textAlign: "center" },
   saveNotice: { backgroundColor: colors.cardMuted, borderRadius: 14, gap: 5, padding: 14 },
   saveNoticeBody: { color: colors.ink, fontSize: 15, fontWeight: "700", lineHeight: 22 },

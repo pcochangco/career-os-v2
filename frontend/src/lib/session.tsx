@@ -10,7 +10,7 @@ import {
 } from "react";
 import { Platform } from "react-native";
 
-import { ApiError, apiRequest } from "@/lib/api";
+import { ApiError, apiRequest, SESSION_ENDED_MESSAGE, setUnauthorizedHandler } from "@/lib/api";
 
 export type IdentityProvider = "apple" | "google" | "email";
 
@@ -40,9 +40,12 @@ type SessionResponse = {
 type SessionContextValue = {
   account: Account | null;
   accountLoading: boolean;
+  clearNotice: () => void;
   deleteAccount: () => Promise<void>;
   error: string | null;
   linkIdentity: (provider: IdentityProvider, identityToken: string) => Promise<void>;
+  /** A one-time message for the sign-in screen, such as "Your session has ended". */
+  notice: string | null;
   providerConfig: ProviderConfig;
   ready: boolean;
   retry: () => void;
@@ -61,6 +64,9 @@ const EMPTY_PROVIDER_CONFIG: ProviderConfig = {
   google_web_client_id: "",
 };
 const TOKEN_KEY = "careeros.session";
+// Held outside React state: leaving the signed-in shell remounts the root layout, which would
+// otherwise drop the message before the sign-in screen can show it.
+let pendingNotice: string | null = null;
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 async function readStoredToken(): Promise<string | null> {
@@ -104,12 +110,25 @@ export function SessionProvider({
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [notice, setNoticeState] = useState<string | null>(() => pendingNotice);
+  const setNotice = useCallback((next: string | null) => {
+    pendingNotice = next;
+    setNoticeState(next);
+  }, []);
 
   const clearSession = useCallback(async () => {
-    await removeStoredToken();
+    await removeStoredToken().catch(() => undefined);
     setToken(null);
     setAccount(null);
   }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setNotice(SESSION_ENDED_MESSAGE);
+      void clearSession();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession, setNotice]);
 
   const activateSession = useCallback(async (session: SessionResponse): Promise<string> => {
     const nextAccount = await readAccount(session.access_token);
@@ -117,11 +136,12 @@ export function SessionProvider({
       throw new Error("A saved account is required to use CareerOS.");
     }
     await storeToken(session.access_token);
+    setNotice(null);
     setToken(session.access_token);
     setAccount(nextAccount);
     setProviderConfig(nextAccount.provider_config);
     return session.access_token;
-  }, []);
+  }, [setNotice]);
 
   useEffect(() => {
     if (!enabled) {
@@ -227,12 +247,15 @@ export function SessionProvider({
     if (!token) return;
     setAccountLoading(true);
     try {
-      await apiRequest<void>("/auth/logout", { method: "POST", token });
+      // Revoke the session on the server when possible, but always sign out on this
+      // device: an expired session or a dropped connection must never trap the user.
+      await apiRequest<void>("/auth/logout", { method: "POST", token }).catch(() => undefined);
       await clearSession();
+      setNotice(null);
     } finally {
       setAccountLoading(false);
     }
-  }, [clearSession, token]);
+  }, [clearSession, setNotice, token]);
 
   const deleteAccount = useCallback(async () => {
     if (!token) return;
@@ -240,18 +263,21 @@ export function SessionProvider({
     try {
       await apiRequest<void>("/auth/account", { method: "DELETE", token });
       await clearSession();
+      setNotice(null);
     } finally {
       setAccountLoading(false);
     }
-  }, [clearSession, token]);
+  }, [clearSession, setNotice, token]);
 
   const value = useMemo(
     () => ({
       account,
       accountLoading,
+      clearNotice: () => setNotice(null),
       deleteAccount,
       error,
       linkIdentity,
+      notice,
       providerConfig,
       ready,
       retry: () => setAttempt((value) => value + 1),
@@ -266,6 +292,7 @@ export function SessionProvider({
       deleteAccount,
       error,
       linkIdentity,
+      notice,
       providerConfig,
       ready,
       signIn,
