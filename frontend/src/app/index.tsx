@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { useIsWide } from "@/components/app-shell";
 import { ProviderSignIn } from "@/components/provider-sign-in";
 import { Body, Brand, Button, ErrorState, Field, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
@@ -28,6 +29,7 @@ const exampleSteps = [
 export default function IndexRoute() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
+  const wide = useIsWide();
   const router = useRouter();
   const session = useSession();
   const [title, setTitle] = useState("");
@@ -129,113 +131,134 @@ export default function IndexRoute() {
   if (session.error) return <ErrorState message={session.error} onRetry={session.retry} />;
   if (session.token && !error) return <LoadingState label="Opening your saved path…" />;
 
-  return (
-    <Screen>
-      <Brand />
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>A clear path from ambition to action</Text>
-        <Heading>Turn one goal into your next move.</Heading>
-        <Body>
-          CareerOS asks what matters, builds a focused roadmap, and keeps the next useful action
-          obvious.
-        </Body>
-      </View>
-
-      <View style={styles.startCard}>
-        <Text style={styles.cardTitle}>What do you want to achieve?</Text>
-        <Text style={styles.cardBody}>
-          Try your goal here. It stays only on this screen until you sign in and confirm it.
-        </Text>
-        <Field
-          maxLength={140}
-          onChangeText={(value) => {
-            setTitle(value);
-            setError(null);
-            if (!value.trim()) setShowSignIn(false);
-          }}
-          onSubmitEditing={() => {
-            if (title.trim().length >= 3) setShowSignIn(true);
-          }}
-          placeholder="e.g. Become confident building AI agents"
-          returnKeyType="next"
-          value={title}
-        />
-        {!showSignIn ? (
-          <>
-            <Button
-              disabled={title.trim().length < 3}
-              onPress={() => setShowSignIn(true)}
-            >
-              Build my roadmap
-            </Button>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setShowSignIn(true)}
-              style={styles.accountLink}
-            >
-              <Text style={styles.accountLinkText}>Already have an account? Sign in</Text>
-            </Pressable>
-          </>
-        ) : (
-          <View style={styles.signInArea}>
-            <View style={styles.saveNotice}>
-              <Text style={styles.saveNoticeTitle}>
-                {title.trim() ? "Sign in to create this goal" : "Sign in to open your goals"}
-              </Text>
-              {title.trim() ? (
-                <Text style={styles.saveNoticeBody}>“{title.trim()}”</Text>
-              ) : null}
-              <Text style={styles.saveNoticeMeta}>
-                Nothing is copied from another browser session. Only this confirmed goal is created
-                after sign-in.
-              </Text>
-            </View>
-            <ProviderSignIn
-              disabled={signingIn || session.accountLoading}
-              mode="sign-in"
-              onError={handleProviderError}
-              onEmailTestSignIn={handleEmailTestSignIn}
-              onIdentityToken={handleIdentityToken}
-              providerConfig={session.providerConfig}
-            />
-            {signingIn ? (
-              <Text accessibilityLiveRegion="polite" style={styles.loadingText}>
-                Opening your secure account…
-              </Text>
+  const startCard = (
+    <View style={[styles.startCard, wide && styles.startCardWide]}>
+      <Text style={styles.cardTitle}>What do you want to achieve?</Text>
+      <Text style={styles.cardBody}>
+        Try your goal here. It stays only on this screen until you sign in and confirm it.
+      </Text>
+      <Field
+        maxLength={140}
+        onChangeText={(value) => {
+          setTitle(value);
+          setError(null);
+          if (!value.trim()) setShowSignIn(false);
+        }}
+        onSubmitEditing={() => {
+          if (title.trim().length >= 3) setShowSignIn(true);
+        }}
+        placeholder="e.g. Become confident building AI agents"
+        returnKeyType="next"
+        value={title}
+      />
+      {!showSignIn ? (
+        <>
+          <Button
+            disabled={title.trim().length < 3}
+            onPress={() => setShowSignIn(true)}
+          >
+            Build my roadmap
+          </Button>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShowSignIn(true)}
+            style={styles.accountLink}
+          >
+            <Text style={styles.accountLinkText}>Already have an account? Sign in</Text>
+          </Pressable>
+        </>
+      ) : (
+        <View style={styles.signInArea}>
+          <View style={styles.saveNotice}>
+            <Text style={styles.saveNoticeTitle}>
+              {title.trim() ? "Sign in to create this goal" : "Sign in to open your goals"}
+            </Text>
+            {title.trim() ? (
+              <Text style={styles.saveNoticeBody}>“{title.trim()}”</Text>
             ) : null}
+            <Text style={styles.saveNoticeMeta}>
+              Nothing is copied from another browser session. Only this confirmed goal is created
+              after sign-in.
+            </Text>
           </View>
-        )}
-        {error ? (
-          <View style={styles.errorArea}>
-            <Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text>
-            {session.token ? (
-              <Button onPress={() => setAttempt((value) => value + 1)} secondary>
-                Open my saved goals
-              </Button>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.example}>
-        <Text style={styles.exampleLabel}>Example path</Text>
-        <Text style={styles.exampleTitle}>Move into an AI product role</Text>
-        <Text style={styles.exampleBody}>A roadmap stays small enough to act on.</Text>
-        <View style={styles.steps}>
-          {exampleSteps.map(([number, stepTitle, description]) => (
-            <View key={number} style={styles.step}>
-              <View style={styles.stepNumber}>
-                <Text style={styles.stepNumberText}>{number}</Text>
-              </View>
-              <View style={styles.stepCopy}>
-                <Text style={styles.stepTitle}>{stepTitle}</Text>
-                <Text style={styles.stepBody}>{description}</Text>
-              </View>
-            </View>
-          ))}
+          <ProviderSignIn
+            disabled={signingIn || session.accountLoading}
+            mode="sign-in"
+            onError={handleProviderError}
+            onEmailTestSignIn={handleEmailTestSignIn}
+            onIdentityToken={handleIdentityToken}
+            providerConfig={session.providerConfig}
+          />
+          {signingIn ? (
+            <Text accessibilityLiveRegion="polite" style={styles.loadingText}>
+              Opening your secure account…
+            </Text>
+          ) : null}
         </View>
-      </View>
+      )}
+      {error ? (
+        <View style={styles.errorArea}>
+          <Text accessibilityLiveRegion="polite" style={styles.errorText}>{error}</Text>
+          {session.token ? (
+            <Button onPress={() => setAttempt((value) => value + 1)} secondary>
+              Open my saved goals
+            </Button>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
 
+  const hero = (
+    <View style={styles.hero}>
+      <Text style={styles.eyebrow}>A clear path from ambition to action</Text>
+      <Heading>Turn one goal into your next move.</Heading>
+      <Body>
+        CareerOS asks what matters, builds a focused roadmap, and keeps the next useful action
+        obvious.
+      </Body>
+    </View>
+  );
+
+  const example = (
+    <View style={styles.example}>
+      <Text style={styles.exampleLabel}>Example path</Text>
+      <Text style={styles.exampleTitle}>Move into an AI product role</Text>
+      <Text style={styles.exampleBody}>A roadmap stays small enough to act on.</Text>
+      <View style={styles.steps}>
+        {exampleSteps.map(([number, stepTitle, description]) => (
+          <View key={number} style={styles.step}>
+            <View style={styles.stepNumber}>
+              <Text style={styles.stepNumberText}>{number}</Text>
+            </View>
+            <View style={styles.stepCopy}>
+              <Text style={styles.stepTitle}>{stepTitle}</Text>
+              <Text style={styles.stepBody}>{description}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  return (
+    <Screen width="wide">
+      <Brand />
+      {wide ? (
+        <View style={styles.columns}>
+          <View style={styles.columnMain}>
+            {hero}
+            {example}
+          </View>
+          <View style={styles.columnSide}>{startCard}</View>
+        </View>
+      ) : (
+        <>
+          {hero}
+          {startCard}
+          {example}
+        </>
+      )}
       <View style={styles.footerLinks}>
         {[
           ["Privacy", "/privacy"],
@@ -255,14 +278,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   accountLink: { alignItems: "center", justifyContent: "center", minHeight: 48, paddingTop: 8 },
   accountLinkText: { color: colors.forest, fontSize: 14, fontWeight: "800" },
   cardBody: { color: colors.muted, fontSize: 15, lineHeight: 22, marginBottom: 18 },
-  cardTitle: { color: colors.ink, fontSize: 22, fontWeight: "800", marginBottom: 7 },
+  cardTitle: { color: colors.ink, fontSize: 20, fontWeight: "700", marginBottom: 6 },
   errorArea: { gap: 10 },
   errorText: { color: colors.danger, fontSize: 14, lineHeight: 21 },
-  example: { backgroundColor: colors.forestSoft, borderColor: colors.softBorder, borderRadius: 22, borderWidth: 1, marginBottom: 28, padding: 20 },
+  columns: { alignItems: "flex-start", flexDirection: "row", gap: 48, marginTop: 24 },
+  columnMain: { flex: 1, minWidth: 0 },
+  columnSide: { width: 420 },
+  example: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 28, padding: 20 },
   exampleBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18 },
   exampleLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", letterSpacing: 0.7, marginBottom: 6, textTransform: "uppercase" },
-  exampleTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", marginBottom: 5 },
-  eyebrow: { color: colors.forest, fontSize: 13, fontWeight: "900", letterSpacing: 0.6, marginBottom: 10, textTransform: "uppercase" },
+  exampleTitle: { color: colors.ink, fontSize: 18, fontWeight: "700", marginBottom: 4 },
+  eyebrow: { color: colors.forest, fontSize: 13, fontWeight: "700", marginBottom: 10 },
   footerLink: { color: colors.muted, fontSize: 13, fontWeight: "700" },
   footerLinks: { flexDirection: "row", gap: 22, justifyContent: "center", paddingBottom: 10 },
   hero: { marginBottom: 8 },
@@ -272,7 +298,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   saveNoticeMeta: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   saveNoticeTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
   signInArea: { gap: 14 },
-  startCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 22, borderWidth: 1, gap: 6, marginBottom: 24, padding: 20 },
+  startCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, gap: 6, marginBottom: 24, padding: 20 },
+  startCardWide: { padding: 24, shadowColor: "#101828", shadowOffset: { height: 8, width: 0 }, shadowOpacity: 0.06, shadowRadius: 24 },
   step: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
   stepBody: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   stepCopy: { flex: 1 },

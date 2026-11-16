@@ -38,7 +38,7 @@ export default function NewGoalRoute() {
   }
 
   return (
-    <Screen>
+    <Screen width="narrow">
       <Brand />
       <Text style={styles.step}>New goal</Text>
       <Heading>What do you want to achieve?</Heading>

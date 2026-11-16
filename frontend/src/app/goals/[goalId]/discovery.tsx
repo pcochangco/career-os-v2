@@ -187,7 +187,7 @@ export default function DiscoveryRoute() {
 
   if (generating) {
     return (
-      <Screen>
+      <Screen width="narrow">
         <Brand />
         <View
           accessibilityLabel="Building your roadmap"
@@ -213,7 +213,7 @@ export default function DiscoveryRoute() {
 
   if (state?.status === "ready") {
     return (
-      <Screen>
+      <Screen width="narrow">
         <Brand />
         <Text style={styles.eyebrow}>Your starting context</Text>
         <Heading>Ready to shape your path.</Heading>
@@ -238,7 +238,7 @@ export default function DiscoveryRoute() {
   );
 
   return (
-    <Screen>
+    <Screen width="narrow">
       <Brand />
       <View
         accessibilityLabel={`Discovery progress. Question ${questionPosition}.`}
@@ -333,10 +333,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   progressTrack: { backgroundColor: colors.line, borderRadius: 5, height: 8, overflow: "hidden" },
   progressFill: { backgroundColor: colors.forest, borderRadius: 5, height: "100%" },
   progressHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
-  questionTitle: { color: colors.ink, fontSize: 30, fontWeight: "800", letterSpacing: -0.6, lineHeight: 37, marginBottom: 14 },
+  questionTitle: { color: colors.ink, fontSize: 24, fontWeight: "700", letterSpacing: -0.4, lineHeight: 31, marginBottom: 14 },
   choices: { gap: 10, marginBottom: 22, width: "100%" },
   choiceChips: { flexDirection: "row", flexWrap: "wrap" },
-  choice: { alignItems: "center", alignSelf: "stretch", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 16, borderWidth: 1, flexDirection: "row", gap: 12, minHeight: 52, paddingHorizontal: 15, paddingVertical: 13, width: "100%" },
+  choice: { alignItems: "center", alignSelf: "stretch", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 12, minHeight: 52, paddingHorizontal: 15, paddingVertical: 13, width: "100%" },
   choiceChip: { alignItems: "center", alignSelf: "flex-start", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 999, borderWidth: 1, flexDirection: "row", flexShrink: 1, maxWidth: "100%", minHeight: 44, paddingHorizontal: 15, paddingVertical: 10 },
   choiceActive: { backgroundColor: colors.forest, borderColor: colors.forest },
   choicePressed: { opacity: 0.78 },
@@ -352,7 +352,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   primaryAction: { flex: 1 },
   error: { color: colors.danger, fontSize: 14, marginBottom: 14 },
   note: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 15, textAlign: "center" },
-  summaryCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, gap: 12, marginBottom: 22, padding: 18 },
+  summaryCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 22, padding: 18 },
   summaryItem: { color: colors.ink, fontSize: 15, lineHeight: 22 },
   generating: { flex: 1, justifyContent: "center", minHeight: 480 },
   generatingIndicator: { alignItems: "center", backgroundColor: colors.forestSoft, borderRadius: 40, height: 80, justifyContent: "center", marginBottom: 24, width: 80 },

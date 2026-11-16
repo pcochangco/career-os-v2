@@ -22,52 +22,64 @@ export type ThemeColors = {
   forest: string;
   forestDark: string;
   forestSoft: string;
+  hover: string;
   ink: string;
   line: string;
   muted: string;
   onForest: string;
   onForestMuted: string;
   softBorder: string;
+  subtle: string;
   white: string;
 };
 
+// Neutral, low-chroma surfaces with the brand green reserved for actions,
+// progress and the current step, so the one important thing on a screen stands out.
 const lightColors: ThemeColors = {
-  accentMuted: "#D8E9DC",
-  background: "#F6F8F4",
+  accentMuted: "#CFE6D7",
+  background: "#F6F7F9",
   card: "#FFFFFF",
-  cardMuted: "#F0F3F0",
-  danger: "#A13B32",
-  fieldPlaceholder: "#7D8A82",
+  cardMuted: "#F2F4F7",
+  danger: "#B42318",
+  fieldPlaceholder: "#8A94A6",
   forest: "#1E6044",
-  forestDark: "#184634",
-  forestSoft: "#DCEDE3",
-  ink: "#17211B",
-  line: "#D7E0D9",
-  muted: "#607067",
+  forestDark: "#154A34",
+  forestSoft: "#EAF4EE",
+  hover: "#F2F4F7",
+  ink: "#101828",
+  line: "#E4E7EC",
+  muted: "#475467",
   onForest: "#FFFFFF",
-  onForestMuted: "#D8E9DC",
-  softBorder: "#B7D5C0",
+  onForestMuted: "#D6EBDD",
+  softBorder: "#CFE3D6",
+  subtle: "#667085",
   white: "#FFFFFF",
 };
 
 const darkColors: ThemeColors = {
   accentMuted: "#A8D9BE",
-  background: "#0D1410",
-  card: "#17211B",
-  cardMuted: "#121B16",
-  danger: "#FF9B91",
-  fieldPlaceholder: "#84958B",
-  forest: "#69D39E",
-  forestDark: "#B7E8CE",
-  forestSoft: "#173829",
-  ink: "#F1F7F3",
-  line: "#2C3A32",
-  muted: "#AAB9B0",
-  onForest: "#07110C",
-  onForestMuted: "#214D39",
-  softBorder: "#315D46",
+  background: "#0E1210",
+  card: "#161B18",
+  cardMuted: "#1B211D",
+  danger: "#FDA29B",
+  fieldPlaceholder: "#7E8B83",
+  forest: "#5FCB95",
+  forestDark: "#A7E3C3",
+  forestSoft: "#16291F",
+  hover: "#1F2622",
+  ink: "#EEF2EF",
+  line: "#29312C",
+  muted: "#A3B0A8",
+  onForest: "#06110B",
+  onForestMuted: "#1E4A35",
+  softBorder: "#2C4D3B",
+  subtle: "#8C998F",
   white: "#F4FAF6",
 };
+
+/** Shared layout scale used by every screen. */
+export const radius = { sm: 8, md: 10, lg: 12, pill: 999 } as const;
+export const breakpoints = { desktop: 960 } as const;
 
 const THEME_KEY = "careeros.theme";
 

@@ -1,4 +1,4 @@
-import { ReactNode, RefObject } from "react";
+import { ReactNode, RefObject, useState } from "react";
 import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "lucide-react-native";
 import {
   ActivityIndicator,
@@ -11,38 +11,37 @@ import {
   TextInputProps,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Edge, SafeAreaView } from "react-native-safe-area-context";
 
-import { useTheme } from "@/lib/theme";
+import { useIsWide, useShell } from "@/components/app-shell";
+import { radius, useTheme } from "@/lib/theme";
 
-export const colors = {
-  background: "#F6F8F4",
-  card: "#FFFFFF",
-  forest: "#1E6044",
-  forestDark: "#184634",
-  forestSoft: "#DCEDE3",
-  ink: "#17211B",
-  line: "#DDE4DE",
-  muted: "#607067",
-  white: "#FFFFFF",
-};
+/** Content column widths: forms and focused flows, regular pages, and grid pages. */
+const contentWidths = { narrow: 640, default: 760, wide: 1080 } as const;
+export type ScreenWidth = keyof typeof contentWidths;
 
 export function Screen({
   children,
   scrollViewRef,
+  width = "default",
 }: {
   children: ReactNode;
   scrollViewRef?: RefObject<ScrollView | null>;
+  width?: ScreenWidth;
 }) {
   const { colors } = useTheme();
+  const { inShell } = useShell();
+  const wide = useIsWide();
+  // Inside the shell the sidebar or bottom tabs own the remaining edges.
+  const edges: Edge[] = inShell ? (wide ? [] : ["top"]) : ["top", "bottom", "left", "right"];
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}> 
+    <SafeAreaView edges={edges} style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, wide ? styles.scrollContentWide : null]}
         keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
       >
-        <View style={styles.content}>{children}</View>
+        <View style={[styles.content, { maxWidth: contentWidths[width] }]}>{children}</View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -50,23 +49,40 @@ export function Screen({
 
 export function Brand({ compact = false }: { compact?: boolean }) {
   const { colors } = useTheme();
+  const { inShell, wide } = useShell();
+  // On desktop the sidebar already shows the brand.
+  if (inShell && wide) return null;
   return (
-    <View style={[styles.brand, compact && styles.brandCompact]}>
+    <View style={[styles.brand, inShell && styles.brandInShell, compact && styles.brandCompact]}>
       <Image
         accessibilityIgnoresInvertColors
         source={require("../../assets/logo-mark.png")}
         style={styles.brandMark}
       />
-      <Text style={[styles.brandText, { color: colors.forest }]}>CareerOS</Text>
+      <Text style={[styles.brandText, { color: colors.ink }]}>CareerOS</Text>
     </View>
   );
 }
 
 export function AppHeader({ children }: { children?: ReactNode }) {
+  const { inShell, wide } = useShell();
+  if (inShell && wide && !children) return null;
   return (
-    <View style={styles.appHeader}>
+    <View style={[styles.appHeader, inShell && wide && styles.appHeaderEnd]}>
       <Brand compact />
       {children ? <View style={styles.headerActions}>{children}</View> : null}
+    </View>
+  );
+}
+
+function Glyph({ children }: { children: ReactNode }) {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.iconFrame}
+    >
+      {children}
     </View>
   );
 }
@@ -74,45 +90,41 @@ export function AppHeader({ children }: { children?: ReactNode }) {
 export function SettingsGlyph() {
   const { colors } = useTheme();
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={styles.iconFrame}
-    >
-      <SlidersHorizontal color={colors.forest} size={18} strokeWidth={1.9} />
-    </View>
+    <Glyph>
+      <SlidersHorizontal color={colors.muted} size={18} strokeWidth={1.9} />
+    </Glyph>
   );
 }
 
 export function ThumbDownGlyph() {
   const { colors } = useTheme();
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={styles.iconFrame}
-    >
-      <ThumbsDown color={colors.muted} size={19} strokeWidth={1.8} />
-    </View>
+    <Glyph>
+      <ThumbsDown color={colors.muted} size={18} strokeWidth={1.8} />
+    </Glyph>
   );
 }
 
 export function LockGlyph() {
   const { colors } = useTheme();
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={styles.iconFrame}
-    >
+    <Glyph>
       <LockKeyhole color={colors.muted} size={16} strokeWidth={1.9} />
-    </View>
+    </Glyph>
   );
 }
 
 export function Heading({ children }: { children: ReactNode }) {
   const { colors } = useTheme();
-  return <Text style={[styles.heading, { color: colors.ink }]}>{children}</Text>;
+  const wide = useIsWide();
+  return (
+    <Text
+      accessibilityRole="header"
+      style={[styles.heading, wide && styles.headingWide, { color: colors.ink }]}
+    >
+      {children}
+    </Text>
+  );
 }
 
 export function Body({ children }: { children: ReactNode }) {
@@ -130,22 +142,26 @@ type ButtonProps = {
 
 export function Button({ children, disabled, loading, onPress, secondary }: ButtonProps) {
   const { colors } = useTheme();
+  const inactive = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled || loading}
+      accessibilityState={{ busy: loading, disabled: inactive }}
+      disabled={inactive}
       onPress={onPress}
-      style={({ pressed }) => [
+      style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
         styles.button,
-        secondary ? { backgroundColor: colors.forestSoft } : { backgroundColor: colors.forest },
-        (disabled || loading) && styles.buttonDisabled,
+        secondary
+          ? { backgroundColor: hovered ? colors.hover : colors.card, borderColor: colors.line, borderWidth: 1 }
+          : { backgroundColor: hovered ? colors.forestDark : colors.forest },
+        inactive && styles.buttonDisabled,
         pressed && styles.buttonPressed,
       ]}
     >
       {loading ? (
         <ActivityIndicator color={secondary ? colors.forest : colors.onForest} />
       ) : (
-        <Text style={[styles.buttonLabel, { color: secondary ? colors.forestDark : colors.onForest }]}>{children}</Text>
+        <Text style={[styles.buttonLabel, { color: secondary ? colors.ink : colors.onForest }]}>{children}</Text>
       )}
     </Pressable>
   );
@@ -153,11 +169,26 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
 
 export function Field(props: TextInputProps) {
   const { colors } = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <TextInput
       placeholderTextColor={colors.fieldPlaceholder}
       {...props}
-      style={[styles.field, { backgroundColor: colors.card, borderColor: colors.line, color: colors.ink }, props.multiline && styles.fieldMultiline, props.style]}
+      onBlur={(event) => {
+        setFocused(false);
+        props.onBlur?.(event);
+      }}
+      onFocus={(event) => {
+        setFocused(true);
+        props.onFocus?.(event);
+      }}
+      style={[
+        styles.field,
+        { backgroundColor: colors.card, borderColor: focused ? colors.forest : colors.line, color: colors.ink },
+        focused && styles.fieldFocused,
+        props.multiline && styles.fieldMultiline,
+        props.style,
+      ]}
     />
   );
 }
@@ -173,8 +204,7 @@ export function LoadingState({ label = "Opening your path…" }: { label?: strin
           source={require("../../assets/logo-mark.png")}
           style={styles.loadingMark}
         />
-        <Text style={[styles.loadingBrand, { color: colors.forest }]}>CareerOS</Text>
-        <ActivityIndicator color={colors.forest} size="large" />
+        <ActivityIndicator color={colors.forest} />
         <Text style={[styles.loadingLabel, { color: colors.muted }]}>{label}</Text>
       </View>
     </Screen>
@@ -183,7 +213,7 @@ export function LoadingState({ label = "Opening your path…" }: { label?: strin
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <Screen>
+    <Screen width="narrow">
       <View style={styles.centered}>
         <Heading>We couldn’t open CareerOS.</Heading>
         <Body>{message}</Body>
@@ -194,55 +224,46 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
 }
 
 const styles = StyleSheet.create({
-  safeArea: { backgroundColor: colors.background, flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 28 },
-  content: { alignSelf: "center", flex: 1, maxWidth: 680, width: "100%" },
-  appHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 24, minHeight: 44 },
-  brand: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 22 },
+  safeArea: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 20 },
+  scrollContentWide: { paddingHorizontal: 40, paddingVertical: 36 },
+  content: { alignSelf: "center", flex: 1, width: "100%" },
+  appHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 20, minHeight: 40 },
+  appHeaderEnd: { justifyContent: "flex-end" },
+  brand: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 28 },
+  brandInShell: { marginBottom: 16 },
   brandCompact: { marginBottom: 0 },
-  brandMark: { height: 30, width: 30 },
-  brandText: { fontSize: 15, fontWeight: "900", letterSpacing: 0.6 },
+  brandMark: { height: 28, width: 28 },
+  brandText: { fontSize: 16, fontWeight: "800", letterSpacing: 0.2 },
   headerActions: { alignItems: "center", flexDirection: "row", gap: 8 },
-  heading: {
-    color: colors.ink,
-    fontSize: 34,
-    fontWeight: "800",
-    letterSpacing: -0.8,
-    lineHeight: 40,
-    marginBottom: 14,
-  },
-  body: { color: colors.muted, fontSize: 17, lineHeight: 26, marginBottom: 22 },
+  heading: { fontSize: 26, fontWeight: "700", letterSpacing: -0.5, lineHeight: 32, marginBottom: 8 },
+  headingWide: { fontSize: 30, letterSpacing: -0.6, lineHeight: 36 },
+  body: { fontSize: 16, lineHeight: 24, marginBottom: 20 },
   button: {
     alignItems: "center",
-    borderRadius: 16,
+    borderRadius: radius.md,
     justifyContent: "center",
-    minHeight: 52,
-    paddingHorizontal: 22,
-    paddingVertical: 14,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
   },
-  buttonPrimary: { backgroundColor: colors.forest },
-  buttonSecondary: { backgroundColor: colors.forestSoft },
-  buttonDisabled: { opacity: 0.48 },
-  buttonPressed: { opacity: 0.82 },
-  buttonLabel: { color: colors.white, fontSize: 16, fontWeight: "800" },
-  buttonLabelSecondary: { color: colors.forestDark },
+  buttonDisabled: { opacity: 0.45 },
+  buttonPressed: { opacity: 0.85 },
+  buttonLabel: { fontSize: 15, fontWeight: "700" },
   field: {
-    backgroundColor: colors.card,
-    borderColor: colors.line,
-    borderRadius: 16,
+    borderRadius: radius.md,
     borderWidth: 1,
-    color: colors.ink,
-    fontSize: 18,
-    lineHeight: 26,
-    marginBottom: 20,
-    minHeight: 56,
-    paddingHorizontal: 17,
-    paddingVertical: 14,
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 16,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  fieldMultiline: { minHeight: 140, textAlignVertical: "top" },
-  centered: { alignItems: "center", flex: 1, gap: 14, justifyContent: "center", minHeight: 420 },
-  loadingBrand: { fontSize: 18, fontWeight: "900", letterSpacing: 0.4, marginBottom: 4 },
-  loadingLabel: { color: colors.muted, fontSize: 16, textAlign: "center" },
-  loadingMark: { alignSelf: "center", height: 92, width: 92 },
+  fieldFocused: { borderWidth: 1.5 },
+  fieldMultiline: { minHeight: 132, textAlignVertical: "top" },
+  centered: { alignItems: "center", flex: 1, gap: 12, justifyContent: "center", minHeight: 420 },
+  loadingLabel: { fontSize: 15, textAlign: "center" },
+  loadingMark: { alignSelf: "center", height: 56, marginBottom: 4, width: 56 },
   iconFrame: { alignItems: "center", height: 20, justifyContent: "center", width: 20 },
 });

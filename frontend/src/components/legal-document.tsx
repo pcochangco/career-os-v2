@@ -55,5 +55,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   linkText: { color: colors.forest, fontSize: 14, fontWeight: "800" },
   section: { borderBottomColor: colors.line, borderBottomWidth: 1, gap: 8, paddingBottom: 22, paddingTop: 2 },
   sectionTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 22 },
-  title: { color: colors.ink, fontSize: 34, fontWeight: "800", letterSpacing: -0.8, lineHeight: 40, marginBottom: 8 },
+  title: { color: colors.ink, fontSize: 28, fontWeight: "700", letterSpacing: -0.5, lineHeight: 34, marginBottom: 8 },
 });
