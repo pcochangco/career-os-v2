@@ -223,8 +223,8 @@ network access.
 
 ## Deployment
 
-`render.yaml` defines the MVP deployment as one Docker web service and one
-managed PostgreSQL database in Render's Singapore region. The web service:
+`render.yaml` defines the MVP deployment as one Docker web service in Render's
+Singapore region, backed by a Supabase Postgres database. The web service:
 
 - Builds the universal Expo web export and FastAPI into one image.
 - Applies Alembic migrations before starting each release.
@@ -243,5 +243,29 @@ without it, the health endpoint reports a misconfiguration and roadmap generatio
 unavailable. Never place the key in this repository, source-controlled Blueprint
 values, or application requests.
 
-The free Render database is suitable only for an MVP preview and expires after
-30 days. Upgrade the database before storing data that must persist long-term.
+### Database (Supabase)
+
+Production uses Supabase Postgres. Set `CAREEROS_DATABASE_URL` directly in the
+Render dashboard (it is `sync: false` in the Blueprint) and never commit it.
+
+- Use Supabase's **Session pooler** connection string
+  (`postgres.<project-ref>@<region>.pooler.supabase.com:5432`). Render cannot reach
+  Supabase's direct connection, which is IPv6-only.
+- Do not use the transaction pooler (port 6543) for this long-running container.
+- A `postgresql://` URL is rewritten to the `postgresql+psycopg://` driver automatically.
+- The container runs `alembic upgrade head` before uvicorn, so if the database
+  connection fails, the whole site (frontend included) is unavailable.
+
+The earlier free Render PostgreSQL database expired and was deleted without a
+backup. Configure and verify Supabase backups (or a scheduled `pg_dump`) before
+storing data that must persist.
+
+### Temporary beta email sign-in
+
+While Google OAuth is unavailable, `POST /api/v1/auth/email-test-sign-in` lets
+exact-allowlisted emails sign in with a temporary access code. It is **not** email
+verification. It is enabled only when both `CAREEROS_EMAIL_TEST_LOGIN_EMAILS` and
+`CAREEROS_EMAIL_TEST_ACCESS_CODE` are set, and the web client shows it only when
+the backend config reports it as enabled. `CAREEROS_MANUAL_PREMIUM_EMAILS` is a
+separate scoped tester allowlist for Premium access. Set these only in the Render
+dashboard, and rotate or remove the code when beta testing ends.

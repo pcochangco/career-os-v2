@@ -193,11 +193,15 @@ same FastAPI process. Unknown browser routes fall back to the application shell,
 while unknown API routes retain proper `404` responses. Native applications
 continue to call the same API through a configured absolute URL.
 
-The initial Render Blueprint provisions a Singapore web service and PostgreSQL
-database, runs migrations before application startup, checks
-`/api/v1/health`, and deploys only after GitHub checks pass. The free plans are
-appropriate for an expendable preview, not durable production data. Upgrading
-PostgreSQL is required before the 30-day free-database expiration.
+The Render Blueprint provisions a Singapore web service that runs migrations
+before application startup, checks `/api/v1/health`, and deploys only after
+GitHub checks pass. The database is Supabase Postgres, reached through the
+Session pooler (IPv4) because Render cannot reach Supabase's IPv6-only direct
+connection. The transaction pooler is not used for the container. Because
+`alembic upgrade head` runs in the container command, a database connection
+failure takes the whole site offline. The original free Render database
+expired and was deleted without a backup; Supabase backups (or a scheduled
+`pg_dump`) must be configured before data needs to persist.
 
 Public AI safeguards use a durable attempt ledger with both per-user and global
 hourly ceilings. Attempts are counted before the provider call, including failed
