@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft } from "lucide-react-native";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -10,7 +11,6 @@ import {
   LoadingState,
   LockGlyph,
   Screen,
-  SettingsGlyph,
   ThumbDownGlyph,
 } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
@@ -381,20 +381,17 @@ export default function RoadmapRoute() {
 
   return (
     <Screen scrollViewRef={scrollViewRef}>
-      <AppHeader>
-        <Pressable accessibilityRole="button" onPress={() => router.push("/goals" as never)} style={styles.headerTextAction}>
-          <Text style={styles.goalsLink}>All goals</Text>
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Open settings"
-          accessibilityRole="button"
-          onPress={() => router.push("/settings" as never)}
-          style={styles.settingsButton}
-        >
-          <SettingsGlyph />
-        </Pressable>
-      </AppHeader>
-      <Text style={styles.title}>{roadmap.title}</Text>
+      <AppHeader />
+      <Pressable
+        accessibilityRole="link"
+        hitSlop={8}
+        onPress={() => router.push("/goals" as never)}
+        style={styles.backLink}
+      >
+        <ChevronLeft color={colors.muted} size={16} strokeWidth={2.2} />
+        <Text style={styles.goalsLink}>All goals</Text>
+      </Pressable>
+      <Text accessibilityRole="header" style={styles.title}>{roadmap.title}</Text>
       {completionNotice ? (
         <View accessibilityLiveRegion="polite" style={styles.completionNotice}>
           <View style={styles.completionNoticeCopy}>
@@ -972,21 +969,20 @@ export default function RoadmapRoute() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  headerTextAction: { justifyContent: "center", minHeight: 38, paddingHorizontal: 6 },
-  goalsLink: { color: colors.forest, fontSize: 14, fontWeight: "800" },
-  settingsButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 19, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
+  backLink: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 2, marginBottom: 10, minHeight: 32 },
+  goalsLink: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   title: {
     color: colors.ink,
-    fontSize: 29,
-    fontWeight: "800",
+    fontSize: 26,
+    fontWeight: "700",
     letterSpacing: -0.5,
-    lineHeight: 35,
+    lineHeight: 32,
   },
   completionNotice: {
     alignItems: "flex-start",
     backgroundColor: colors.forestSoft,
     borderColor: colors.softBorder,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     flexDirection: "row",
     gap: 12,
@@ -1011,7 +1007,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   progressFill: { backgroundColor: colors.forest, borderRadius: 4, height: 7 },
   nextCard: {
     backgroundColor: colors.forest,
-    borderRadius: 20,
+    borderRadius: 12,
     marginBottom: 16,
     padding: 18,
   },
@@ -1023,9 +1019,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   nextOpen: { color: colors.onForest, fontSize: 13, fontWeight: "900", marginTop: 15 },
   nextCardPressed: { opacity: 0.84 },
   mapCard: {
-    backgroundColor: colors.forestSoft,
-    borderColor: colors.softBorder,
-    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderColor: colors.line,
+    borderRadius: 12,
     borderWidth: 1,
     marginBottom: 30,
     padding: 18,
@@ -1069,7 +1065,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10, minWidth: 0, width: "100%" },
   focusPill: { alignSelf: "flex-start", backgroundColor: colors.forestSoft, borderRadius: 14, flexShrink: 1, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6 },
   focusPillText: { color: colors.forestDark, flexShrink: 1, fontSize: 12, fontWeight: "800", lineHeight: 18 },
-  practiceCard: { backgroundColor: colors.forestSoft, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 22, padding: 18 },
+  practiceCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 22, padding: 18 },
   practiceHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
   practiceEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   practiceCompleteMark: { color: colors.forest, fontSize: 12, fontWeight: "900" },
@@ -1092,7 +1088,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   detailItemText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
   goalComplete: {
     backgroundColor: colors.forestSoft,
-    borderRadius: 18,
+    borderRadius: 12,
     marginBottom: 28,
     padding: 20,
   },
@@ -1107,7 +1103,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   premiumCard: {
     backgroundColor: colors.card,
     borderColor: colors.softBorder,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     marginBottom: 22,
     padding: 18,
@@ -1120,7 +1116,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   milestoneHeader: {
     backgroundColor: colors.card,
     borderColor: colors.line,
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
     marginBottom: 15,
     marginLeft: 68,
@@ -1167,7 +1163,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   stepCard: {
     backgroundColor: colors.cardMuted,
     borderColor: colors.line,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     flex: 1,
     marginBottom: 18,
@@ -1177,7 +1173,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   currentCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2 },
   completedCard: { backgroundColor: colors.card },
   blockedCard: { opacity: 0.68 },
-  lockedCard: { backgroundColor: colors.forestSoft, borderColor: colors.softBorder, opacity: 0.8 },
+  lockedCard: { backgroundColor: colors.cardMuted, borderColor: colors.line, opacity: 0.85 },
   missionMeta: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 7 },
   missionKind: {
     backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 10,
@@ -1263,7 +1259,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: "center",
     backgroundColor: "transparent",
     borderColor: colors.line,
-    borderRadius: 18,
+    borderRadius: 12,
     borderWidth: 1,
     height: 36,
     justifyContent: "center",

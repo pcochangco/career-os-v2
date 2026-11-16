@@ -2,7 +2,10 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AppHeader, Body, Button, ErrorState, Heading, LoadingState, Screen, SettingsGlyph } from "@/components/ui";
+import { ChevronRight } from "lucide-react-native";
+
+import { useIsWide } from "@/components/app-shell";
+import { Body, Brand, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
@@ -18,6 +21,7 @@ export default function GoalsRoute() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const router = useRouter();
+  const wide = useIsWide();
   const { token } = useSession();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,27 +44,20 @@ export default function GoalsRoute() {
   }
 
   return (
-    <Screen>
-      <AppHeader>
-        <Pressable
-          accessibilityLabel="Open settings"
-          accessibilityRole="button"
-          onPress={() => router.push("/settings" as never)}
-          style={({ pressed }) => [styles.settingsButton, pressed && styles.cardPressed]}
-        >
-          <SettingsGlyph />
-        </Pressable>
-      </AppHeader>
-      <View style={styles.header}>
+    <Screen width="wide">
+      <Brand />
+      <View style={[styles.header, wide && styles.headerWide]}>
         <View style={styles.headerCopy}>
           <Heading>Your goals</Heading>
           <Body>Choose a path and continue exactly where you left it.</Body>
         </View>
-        <View style={styles.newGoalButton}>
-          <Button onPress={() => router.push("/goals/new" as never)}>New goal</Button>
-        </View>
+        {goals.length > 0 ? (
+          <View style={styles.newGoalButton}>
+            <Button onPress={() => router.push("/goals/new" as never)}>New goal</Button>
+          </View>
+        ) : null}
       </View>
-      <View style={styles.list}>
+      <View style={[styles.list, wide && styles.grid]}>
         {goals.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Start with one meaningful goal.</Text>
@@ -75,11 +72,16 @@ export default function GoalsRoute() {
             accessibilityRole="button"
             key={goal.id}
             onPress={() => router.push(routeForGoal(goal) as never)}
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+              styles.card,
+              wide && styles.cardWide,
+              hovered && { borderColor: colors.softBorder },
+              pressed && styles.cardPressed,
+            ]}
           >
             <View style={styles.cardTop}>
               <Text style={styles.goalTitle}>{goal.title}</Text>
-              <Text style={styles.chevron}>›</Text>
+              <ChevronRight color={colors.subtle} size={20} strokeWidth={2} />
             </View>
             <Text style={styles.status}>
               {goal.status === "completed"
@@ -99,7 +101,7 @@ export default function GoalsRoute() {
               </View>
             ) : null}
             <Text style={styles.continueLabel}>
-              {goal.status === "completed" ? "Review your journey" : "Continue →"}
+              {goal.status === "completed" ? "Review your journey" : goal.active_roadmap_id ? "Continue" : "Finish setup"}
             </Text>
           </Pressable>
         ))}
@@ -109,35 +111,36 @@ export default function GoalsRoute() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  settingsButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 19, borderWidth: 1, height: 38, justifyContent: "center", width: 38 },
-  header: { gap: 10, marginBottom: 18 },
+  header: { gap: 4, marginBottom: 20 },
+  headerWide: { alignItems: "flex-start", flexDirection: "row", gap: 24, justifyContent: "space-between" },
   headerCopy: { flex: 1 },
-  newGoalButton: { alignSelf: "flex-start", minWidth: 130 },
-  list: { gap: 14 },
+  newGoalButton: { alignSelf: "flex-start", minWidth: 120 },
+  list: { gap: 12 },
+  grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyState: {
     alignItems: "flex-start",
     backgroundColor: colors.card,
     borderColor: colors.line,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     gap: 10,
     padding: 22,
   },
-  emptyTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", lineHeight: 27 },
+  emptyTitle: { color: colors.ink, fontSize: 18, fontWeight: "700", lineHeight: 26 },
   emptyBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 6 },
   card: {
     backgroundColor: colors.card,
     borderColor: colors.line,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 20,
+    padding: 18,
   },
+  cardWide: { flexBasis: "48%", flexGrow: 1, maxWidth: "49.4%" },
   cardPressed: { opacity: 0.76 },
   cardTop: { alignItems: "center", flexDirection: "row", gap: 12 },
-  goalTitle: { color: colors.ink, flex: 1, fontSize: 19, fontWeight: "800", lineHeight: 26 },
-  chevron: { color: colors.forest, fontSize: 30, lineHeight: 30 },
+  goalTitle: { color: colors.ink, flex: 1, fontSize: 17, fontWeight: "700", lineHeight: 24 },
   status: { color: colors.muted, fontSize: 14, marginTop: 10 },
-  continueLabel: { color: colors.forest, fontSize: 14, fontWeight: "800", marginTop: 14 },
+  continueLabel: { color: colors.forest, fontSize: 14, fontWeight: "700", marginTop: 14 },
   progressTrack: {
     backgroundColor: colors.line,
     borderRadius: 4,

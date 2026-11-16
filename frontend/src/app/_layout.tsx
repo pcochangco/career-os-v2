@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppErrorBoundary } from "@/components/app-error-boundary";
+import { AppShell } from "@/components/app-shell";
 import { LoadingState } from "@/components/ui";
 import { SessionProvider, useSession } from "@/lib/session";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -26,7 +27,7 @@ function AuthGate({ children }: { children: ReactNode }) {
   if (!mounted) return <LoadingState />;
   if (publicRoute) return children;
   if (!session.ready || !session.token) return <LoadingState label="Sign in to continue…" />;
-  return children;
+  return <AppShell>{children}</AppShell>;
 }
 
 function AppNavigator() {

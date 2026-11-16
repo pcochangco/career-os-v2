@@ -56,16 +56,8 @@ export default function SettingsRoute() {
   }
 
   return (
-    <Screen>
-      <AppHeader>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.replace("/goals" as never)}
-          style={styles.back}
-        >
-          <Text style={styles.backText}>Done</Text>
-        </Pressable>
-      </AppHeader>
+    <Screen width="narrow">
+      <AppHeader />
       <Heading>Settings</Heading>
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.accountCard}>
@@ -175,11 +167,9 @@ export default function SettingsRoute() {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   accountActions: { gap: 12, marginTop: 4 },
-  accountCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, gap: 12, marginBottom: 30, padding: 18 },
+  accountCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 30, padding: 18 },
   accountDescription: { color: colors.muted, fontSize: 15, lineHeight: 22 },
-  accountStatus: { color: colors.ink, fontSize: 19, fontWeight: "800" },
-  back: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
-  backText: { color: colors.forest, fontSize: 15, fontWeight: "800" },
+  accountStatus: { color: colors.ink, fontSize: 17, fontWeight: "700" },
   deleteConfirm: { backgroundColor: colors.cardMuted, borderRadius: 14, gap: 12, padding: 14 },
   deleteLabel: { color: colors.danger, fontSize: 14, fontWeight: "800", textAlign: "center" },
   deleteWarning: { color: colors.danger, fontSize: 14, lineHeight: 21, textAlign: "center" },
@@ -187,10 +177,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   legalLink: { alignItems: "center", borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 52, paddingHorizontal: 2 },
   legalLinkArrow: { color: colors.muted, fontSize: 24 },
   legalLinkText: { color: colors.forest, fontSize: 15, fontWeight: "800" },
-  legalLinks: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, marginBottom: 18, paddingHorizontal: 16 },
+  legalLinks: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 18, paddingHorizontal: 16 },
   legalTitle: { marginTop: 30 },
   options: { gap: 12 },
-  option: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 18, borderWidth: 1, flexDirection: "row", minHeight: 76, paddingHorizontal: 17, paddingVertical: 14 },
+  option: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, flexDirection: "row", minHeight: 76, paddingHorizontal: 17, paddingVertical: 14 },
   optionSelected: { backgroundColor: colors.forestSoft, borderColor: colors.forest, borderWidth: 2 },
   pressed: { opacity: 0.8 },
   radio: { alignItems: "center", borderColor: colors.muted, borderRadius: 12, borderWidth: 2, height: 24, justifyContent: "center", marginRight: 14, width: 24 },
@@ -199,7 +189,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   copy: { flex: 1 },
   optionLabel: { color: colors.ink, fontSize: 16, fontWeight: "800" },
   optionDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 3 },
-  sectionTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", marginBottom: 10 },
+  sectionTitle: { color: colors.ink, fontSize: 17, fontWeight: "700", marginBottom: 10, marginTop: 16 },
   textAction: { alignItems: "center", justifyContent: "center", minHeight: 44, paddingHorizontal: 12 },
   textActionLabel: { color: colors.forest, fontSize: 14, fontWeight: "800" },
 });

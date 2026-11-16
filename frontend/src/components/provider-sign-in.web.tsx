@@ -172,7 +172,7 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     body: { color: colors.muted, fontSize: 14, lineHeight: 21 },
     disabled: { opacity: 0.5 },
-    emailButton: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 22, minHeight: 48, justifyContent: "center", paddingHorizontal: 18 },
+    emailButton: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 12, minHeight: 48, justifyContent: "center", paddingHorizontal: 18 },
     emailButtonLabel: { color: colors.onForest, fontSize: 15, fontWeight: "800" },
     emailInput: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, color: colors.ink, fontSize: 15, minHeight: 46, paddingHorizontal: 13 },
     emailTestCard: { backgroundColor: colors.cardMuted, borderColor: colors.line, borderRadius: 14, borderWidth: 1, gap: 10, padding: 14 },
