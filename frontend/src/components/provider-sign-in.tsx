@@ -6,6 +6,7 @@ import {
   GoogleOneTapSignIn,
 } from "react-native-nitro-google-signin";
 
+import { PrivateBetaNote } from "@/components/private-beta-note";
 import { IdentityProvider, ProviderConfig } from "@/lib/session";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
@@ -85,15 +86,8 @@ export function ProviderSignIn({
   }
 
   if (!googleConfigured && !appleAvailable) {
-    return (
-      <View style={styles.note}>
-        <Text style={styles.title}>Sign-in setup is the final activation step.</Text>
-        <Text style={styles.body}>
-          Add the Apple and Google OAuth client IDs to activate secure sign-in. CareerOS does not
-          save goals before sign-in.
-        </Text>
-      </View>
-    );
+    // Nothing to link from Settings, and no public sign-up yet: say so plainly.
+    return mode === "link" ? null : <PrivateBetaNote />;
   }
 
   return (
@@ -150,15 +144,6 @@ const createStyles = (colors: ThemeColors) =>
     body: { color: colors.muted, fontSize: 14, lineHeight: 21 },
     disabled: { opacity: 0.5 },
     loading: { color: colors.muted, fontSize: 13, textAlign: "center" },
-    note: {
-      backgroundColor: colors.cardMuted,
-      borderColor: colors.line,
-      borderRadius: 14,
-      borderWidth: 1,
-      gap: 5,
-      padding: 14,
-    },
     providerArea: { gap: 10 },
     providerButton: { height: 48, width: "100%" },
-    title: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   });
