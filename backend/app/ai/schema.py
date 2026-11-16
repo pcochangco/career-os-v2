@@ -64,6 +64,12 @@ class CurriculumBackbone(StrictModel):
         return sum(len(phase.capabilities) for phase in self.phases)
 
 
+# Adaptive discovery fills the structured generation fields with instructions for the model
+# (the learner's real answers travel in ``discovery_context``). Providers that render text
+# directly, such as the deterministic fallback, detect this prefix and never show it.
+ADAPTIVE_INSTRUCTION_PREFIX = "Use the learner's discovery answers"
+
+
 class RoadmapGenerationInput(StrictModel):
     goal_title: str
     desired_outcome: str
