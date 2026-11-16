@@ -151,6 +151,7 @@ class GoalRead(BaseModel):
     created_at: datetime
     active_roadmap_id: UUID | None = None
     latest_draft_roadmap_id: UUID | None = None
+    roadmap_generation_in_progress: bool = False
     completed_steps: int = 0
     total_steps: int = 0
     progress_percent: int = 0

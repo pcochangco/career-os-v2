@@ -5,6 +5,7 @@ export type Goal = {
   created_at: string;
   active_roadmap_id: string | null;
   latest_draft_roadmap_id: string | null;
+  roadmap_generation_in_progress: boolean;
   completed_steps: number;
   total_steps: number;
   progress_percent: number;

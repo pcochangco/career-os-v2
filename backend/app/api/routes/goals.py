@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.ai.curriculum import apply_matching_curriculum
@@ -90,6 +91,9 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
         created_at=goal.created_at,
         active_roadmap_id=active_roadmap.id if active_roadmap else None,
         latest_draft_roadmap_id=draft_id,
+        roadmap_generation_in_progress=(
+            active_roadmap is None and draft_id is None and generation_in_progress(db, goal)
+        ),
         completed_steps=progress.completed_steps if progress else 0,
         total_steps=progress.total_steps if progress else 0,
         progress_percent=progress.progress_percent if progress else 0,
@@ -609,7 +613,48 @@ def with_curriculum(generation_input: RoadmapGenerationInput) -> RoadmapGenerati
     return apply_matching_curriculum(generation_input)
 
 
-def start_generation_attempt(db: Session, user: User) -> tuple[RoadmapGenerationAttempt, bool]:
+# Longest a single generation can legitimately run (generate, critique, repair and transient
+# retries, each bounded by the provider timeout). An attempt still "started" after this is
+# treated as abandoned (for example, the worker restarted) so the goal is never stuck.
+GENERATION_IN_FLIGHT_TTL = timedelta(minutes=8)
+GENERATION_IN_PROGRESS_DETAIL = (
+    "Your roadmap is already being built. It will appear here as soon as it is ready."
+)
+
+
+def generation_in_progress(db: Session, goal: Goal) -> bool:
+    cutoff = datetime.now(UTC) - GENERATION_IN_FLIGHT_TTL
+    return (
+        db.scalar(
+            select(RoadmapGenerationAttempt.id).where(
+                RoadmapGenerationAttempt.goal_id == goal.id,
+                RoadmapGenerationAttempt.outcome == "started",
+                RoadmapGenerationAttempt.created_at >= cutoff,
+            )
+        )
+        is not None
+    )
+
+
+def release_abandoned_generation(db: Session, goal: Goal) -> None:
+    cutoff = datetime.now(UTC) - GENERATION_IN_FLIGHT_TTL
+    abandoned = db.scalars(
+        select(RoadmapGenerationAttempt).where(
+            RoadmapGenerationAttempt.goal_id == goal.id,
+            RoadmapGenerationAttempt.outcome == "started",
+            RoadmapGenerationAttempt.created_at < cutoff,
+        )
+    ).all()
+    for attempt in abandoned:
+        attempt.outcome = "abandoned"
+        attempt.completed_at = datetime.now(UTC)
+    if abandoned:
+        db.commit()
+
+
+def start_generation_attempt(
+    db: Session, user: User, goal: Goal
+) -> tuple[RoadmapGenerationAttempt, bool]:
     settings = get_settings()
     live_generation_requested = settings.ai_mode == "live" or (
         settings.ai_mode == "auto" and settings.ai_configured
@@ -635,6 +680,7 @@ def start_generation_attempt(db: Session, user: User) -> tuple[RoadmapGeneration
 
     attempt = RoadmapGenerationAttempt(
         user_id=user.id,
+        goal_id=goal.id,
         requested_provider=(
             "fixture"
             if settings.ai_mode == "fixture" or use_quota_fallback
@@ -642,7 +688,14 @@ def start_generation_attempt(db: Session, user: User) -> tuple[RoadmapGeneration
         ),
     )
     db.add(attempt)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Another request for this goal won the in-flight slot between our check and insert.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=GENERATION_IN_PROGRESS_DETAIL
+        ) from None
     db.refresh(attempt)
     return attempt, use_quota_fallback
 
@@ -694,7 +747,12 @@ def generate_roadmap(
     if existing_draft is not None:
         return existing_draft
     generation_input = latest_discovery(db, goal)
-    attempt, use_quota_fallback = start_generation_attempt(db, user)
+    release_abandoned_generation(db, goal)
+    if generation_in_progress(db, goal):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=GENERATION_IN_PROGRESS_DETAIL
+        )
+    attempt, use_quota_fallback = start_generation_attempt(db, user, goal)
     settings = get_settings()
     usage_event, usage_quota_fallback = start_ai_usage_event(
         db,

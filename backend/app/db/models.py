@@ -3,7 +3,18 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -174,9 +185,23 @@ class GoalDiscoveryQuestion(Base):
 
 class RoadmapGenerationAttempt(Base):
     __tablename__ = "roadmap_generation_attempts"
+    # At most one in-flight generation per goal, so a refresh, a client retry or a second tab
+    # cannot start a second (paid) AI run for the same goal.
+    __table_args__ = (
+        Index(
+            "uq_generation_attempt_in_flight_goal",
+            "goal_id",
+            unique=True,
+            postgresql_where=text("outcome = 'started' AND goal_id IS NOT NULL"),
+            sqlite_where=text("outcome = 'started' AND goal_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    goal_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("goals.id", ondelete="CASCADE"), nullable=True
+    )
     requested_provider: Mapped[str] = mapped_column(String(24))
     outcome: Mapped[str] = mapped_column(String(24), default="started", index=True)
     resulting_source: Mapped[str] = mapped_column(String(40), default="")
