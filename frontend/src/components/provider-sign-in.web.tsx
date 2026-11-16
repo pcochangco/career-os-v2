@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { PrivateBetaNote } from "@/components/private-beta-note";
 import type { ProviderSignInProps } from "@/components/provider-sign-in";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
@@ -101,15 +102,8 @@ export function ProviderSignIn({
   const emailTestEnabled = providerConfig.email_test && Boolean(onEmailTestSignIn);
 
   if (!clientId && !emailTestEnabled) {
-    return (
-      <View style={styles.note}>
-        <Text style={styles.title}>Sign-in setup is the final activation step.</Text>
-        <Text style={styles.body}>
-          Add the Apple and Google OAuth client IDs to activate secure sign-in. CareerOS does not
-          save goals before sign-in.
-        </Text>
-      </View>
-    );
+    // Nothing to link from Settings, and no public sign-up yet: say so plainly.
+    return mode === "link" ? null : <PrivateBetaNote />;
   }
 
   return (
@@ -122,9 +116,9 @@ export function ProviderSignIn({
       ) : null}
       {emailTestEnabled ? (
         <View style={styles.emailTestCard}>
-          <Text style={styles.emailTestTitle}>Email sign-in for beta testing</Text>
+          <Text style={styles.emailTestTitle}>Beta tester sign-in</Text>
           <Text style={styles.body}>
-            Use the approved email and temporary access code provided by CareerOS.
+            Use the email and temporary access code the CareerOS team sent you.
           </Text>
           <TextInput
             autoCapitalize="none"
@@ -161,9 +155,7 @@ export function ProviderSignIn({
           </Pressable>
         </View>
       ) : null}
-      {!providerConfig.apple ? (
-        <Text style={styles.body}>Sign in with Apple activates with the iOS build configuration.</Text>
-      ) : null}
+      {emailTestEnabled && !clientId && mode === "sign-in" ? <PrivateBetaNote compact /> : null}
     </View>
   );
 }
@@ -179,15 +171,6 @@ const createStyles = (colors: ThemeColors) =>
     emailTestTitle: { color: colors.ink, fontSize: 15, fontWeight: "800" },
     googleHost: { alignItems: "center", minHeight: 44, width: "100%" },
     loading: { color: colors.muted, fontSize: 13, textAlign: "center" },
-    note: {
-      backgroundColor: colors.cardMuted,
-      borderColor: colors.line,
-      borderRadius: 14,
-      borderWidth: 1,
-      gap: 5,
-      padding: 14,
-    },
     providerArea: { gap: 10 },
     pressed: { opacity: 0.86 },
-    title: { color: colors.ink, fontSize: 14, fontWeight: "800" },
   });
