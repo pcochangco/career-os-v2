@@ -197,9 +197,13 @@ The Render Blueprint provisions a Singapore web service that runs migrations
 before application startup, checks `/api/v1/health`, and deploys only after
 GitHub checks pass. The database is Supabase Postgres, reached through the
 Session pooler (IPv4) because Render cannot reach Supabase's IPv6-only direct
-connection. The transaction pooler is not used for the container. Because
-`alembic upgrade head` runs in the container command, a database connection
-failure takes the whole site offline. The original free Render database
+connection. The transaction pooler is not used for the container. Migrations run
+in the container command through `python -m app.cli.migrate` (an `alembic
+upgrade head` wrapper), so a database connection failure takes the whole site
+offline. If the database is already at a revision the image doesn't know (a
+newer deploy migrated, then Render restarted an older image), the wrapper logs
+a warning and starts anyway instead of crash-looping; this relies on
+migrations staying additive (expand first, remove columns in a later release). The original free Render database
 expired and was deleted without a backup; Supabase backups (or a scheduled
 `pg_dump`) must be configured before data needs to persist.
 

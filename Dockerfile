@@ -38,4 +38,6 @@ USER careeros
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Migrations run at start. app.cli.migrate skips (with a warning) when the database is already
+# ahead of this build, so a restarted older image can still boot after a newer deploy migrated.
+CMD ["sh", "-c", "python -m app.cli.migrate && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
