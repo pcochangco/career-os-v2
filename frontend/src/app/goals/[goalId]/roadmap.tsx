@@ -1,7 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -10,54 +9,39 @@ import {
   Play,
   X,
 } from "@/components/icons";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, Text, View } from "react-native";
 
 import {
   AppHeader,
   Button,
   ErrorState,
   Field,
-  LoadingState,
   LockGlyph,
   Screen,
   ThumbDownGlyph,
 } from "@/components/ui";
 import { AskAboutPremium } from "@/components/plan-limit";
+import {
+  AUTOSAVE_DELAY_MS,
+  isValidEvidenceLink,
+  learningRecordFor,
+  resourceRefreshCooldownMs,
+  resourceUndoWindowMs,
+  stateLabels,
+} from "@/components/roadmap/helpers";
+import { MilestoneMap } from "@/components/roadmap/milestone-map";
+import { PracticeCard } from "@/components/roadmap/practice-card";
+import { createRoadmapStyles } from "@/components/roadmap/styles";
+import { RoadmapSkeleton } from "@/components/skeleton";
 import { apiRequest } from "@/lib/api";
 import { clearDraft, readDraft, writeDraft } from "@/lib/drafts";
 import { useSession } from "@/lib/session";
 import { LearningResource, Roadmap, RoadmapStep, StepResources } from "@/lib/types";
-import { ThemeColors, useTheme } from "@/lib/theme";
-
-const stateLabels: Record<RoadmapStep["progress_status"], string> = {
-  completed: "Completed",
-  current: "Continue here",
-  upcoming: "Upcoming",
-  blocked: "Prerequisite needed",
-  locked: "Premium unlock",
-};
-const resourceRefreshCooldownMs = 12_000;
-const resourceUndoWindowMs = 6_000;
-
-function learningRecordFor(step: RoadmapStep | null): string {
-  if (!step) return "";
-  // Older records kept a separate summary; fold it into the notes the user edits.
-  return [step.notes, step.evidence_summary]
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-const AUTOSAVE_DELAY_MS = 1200;
-
-function isValidEvidenceLink(value: string): boolean {
-  const link = value.trim();
-  return !link || /^https?:\/\/[^\s/]+\.[^\s]+/i.test(link);
-}
+import { useTheme } from "@/lib/theme";
 
 export default function RoadmapRoute() {
   const { colors } = useTheme();
-  const styles = createStyles(colors);
+  const styles = useMemo(() => createRoadmapStyles(colors), [colors]);
   const { roadmapId } = useLocalSearchParams<{ goalId: string; roadmapId: string }>();
   const router = useRouter();
   const { token } = useSession();
@@ -89,7 +73,6 @@ export default function RoadmapRoute() {
   } | null>(null);
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
-  const [detailedMapExpanded, setDetailedMapExpanded] = useState(false);
   const [practiceTaskOffset, setPracticeTaskOffset] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const resourceUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,18 +137,6 @@ export default function RoadmapRoute() {
     return (dayKey + practiceTaskOffset) % practiceTasks.length;
   }, [practiceTaskOffset, practiceTasks.length]);
   const todayPractice = practiceTasks[todayPracticeIndex];
-
-  const milestoneProgress = useMemo(
-    () =>
-      (roadmap?.milestones ?? []).map((milestone) => {
-        const completed = milestone.steps.filter(
-          (step) => step.progress_status === "completed",
-        ).length;
-        const isCurrent = milestone.steps.some((step) => step.progress_status === "current");
-        return { ...milestone, completed, isCurrent };
-      }),
-    [roadmap],
-  );
 
   useEffect(() => {
     const currentMilestone = roadmap?.milestones.find((milestone) =>
@@ -444,7 +415,7 @@ export default function RoadmapRoute() {
   if (error) {
     return <ErrorState message={error} onRetry={() => setAttempt((value) => value + 1)} />;
   }
-  if (!roadmap) return <LoadingState />;
+  if (!roadmap) return <RoadmapSkeleton />;
 
   return (
     <Screen scrollViewRef={scrollViewRef}>
@@ -510,178 +481,19 @@ export default function RoadmapRoute() {
         </Pressable>
       ) : null}
 
-      <View style={styles.mapCard}>
-        <Text style={styles.mapEyebrow}>Your roadmap map</Text>
-        <Text style={styles.mapTitle}>Build toward: {roadmap.goal_outcome}</Text>
-        <Text style={styles.mapBody}>
-          Each milestone unlocks the next piece of proof for your goal.
-        </Text>
-        <View style={styles.mapMilestones}>
-          {milestoneProgress.map((milestone, index) => (
-            <View key={milestone.id} style={styles.mapMilestoneRow}>
-              <View style={styles.mapRail}>
-                <View
-                  style={[
-                    styles.mapNode,
-                    milestone.completed === milestone.steps.length && styles.mapNodeCompleted,
-                    milestone.isCurrent && styles.mapNodeCurrent,
-                  ]}
-                >
-                  {milestone.completed === milestone.steps.length ? (
-                    <Check color={colors.onForest} size={16} strokeWidth={3} />
-                  ) : (
-                    <Text
-                      style={[styles.mapNodeText, milestone.isCurrent && styles.mapNodeTextActive]}
-                    >
-                      {milestone.position}
-                    </Text>
-                  )}
-                </View>
-                {index < milestoneProgress.length - 1 ? <View style={styles.mapConnector} /> : null}
-              </View>
-              <View style={styles.mapMilestoneContent}>
-                <Text style={styles.mapMilestoneTitle}>{milestone.title}</Text>
-                <Text numberOfLines={2} style={styles.mapMilestoneOutcome}>
-                  {milestone.outcome}
-                </Text>
-                <Text style={styles.mapMilestoneProgress}>
-                  {milestone.completed}/{milestone.steps.length} steps complete
-                  {milestone.isCurrent ? " · You are here" : ""}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-        {roadmap.milestones.length > 0 ? (
-          <Pressable
-            accessibilityHint="Shows or hides the details for every milestone"
-            accessibilityRole="button"
-            accessibilityState={{ expanded: detailedMapExpanded }}
-            onPress={() => setDetailedMapExpanded((current) => !current)}
-            style={({ pressed }) => [styles.detailToggle, pressed && styles.detailTogglePressed]}
-          >
-            <View style={styles.inlineRow}>
-              <Text style={styles.detailToggleText}>
-                {detailedMapExpanded ? "Hide detailed map" : "View detailed map"}
-              </Text>
-              {detailedMapExpanded ? (
-                <ChevronUp color={colors.forest} size={16} strokeWidth={2.6} />
-              ) : (
-                <ChevronDown color={colors.forest} size={16} strokeWidth={2.6} />
-              )}
-            </View>
-          </Pressable>
-        ) : null}
-        {detailedMapExpanded ? (
-          <View style={styles.detailMap}>
-            {roadmap.strategy_summary || roadmap.summary ? (
-              <View style={styles.strategyCard}>
-                <Text style={styles.detailEyebrow}>How this roadmap works</Text>
-                <Text style={styles.strategyText}>{roadmap.strategy_summary || roadmap.summary}</Text>
-              </View>
-            ) : null}
-            {roadmap.suggested_rhythm.length > 0 ? (
-              <View style={styles.rhythmCard}>
-                <Text style={styles.detailEyebrow}>Suggested rhythm</Text>
-                {roadmap.suggested_rhythm.map((item, index) => (
-                  <View key={`${item}-${index}`} style={styles.rhythmRow}>
-                    <Text style={styles.rhythmBullet}>•</Text>
-                    <Text style={styles.rhythmText}>{item}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {roadmap.milestones.map((milestone) => {
-              const focusAreas = milestone.focus_areas.length > 0
-                ? milestone.focus_areas
-                : milestone.steps.slice(0, 3).map((step) => step.title);
-              const finalStep = milestone.steps[milestone.steps.length - 1];
-              const proofTarget = milestone.proof_target || finalStep?.evidence_suggestion;
-              const successSignal = milestone.success_signal || finalStep?.completion_condition;
-              return (
-                <View key={milestone.id} style={styles.detailPhaseCard}>
-                  <Text style={styles.detailPhaseLabel}>Milestone {milestone.position}</Text>
-                  <Text style={styles.detailPhaseTitle}>{milestone.title}</Text>
-                  {focusAreas.length > 0 ? (
-                    <View style={styles.focusList}>
-                      {focusAreas.map((focus, index) => (
-                        <View key={`${focus}-${index}`} style={styles.focusPill}>
-                          <Text style={styles.focusPillText}>{focus}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                  {proofTarget ? (
-                  <View style={styles.detailItem}>
-                    <Text style={styles.detailItemLabel}>Build / prove</Text>
-                    <Text style={styles.detailItemText}>{proofTarget}</Text>
-                  </View>
-                  ) : null}
-                  {successSignal ? (
-                  <View style={styles.detailItem}>
-                    <Text style={styles.detailItemLabel}>Checkpoint</Text>
-                    <Text style={styles.detailItemText}>{successSignal}</Text>
-                  </View>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-        ) : null}
-      </View>
+      <MilestoneMap roadmap={roadmap} styles={styles} />
 
       {roadmap.status === "accepted" && todayPractice ? (
-        <View style={styles.practiceCard}>
-          <View style={styles.practiceHeader}>
-            <Text style={styles.practiceEyebrow}>Daily practice</Text>
-            {roadmap.practice_completed_today ? (
-              <View style={styles.inlineRow}>
-                <Check color={colors.forest} size={14} strokeWidth={3} />
-                <Text style={styles.practiceCompleteMark}>Done</Text>
-              </View>
-            ) : null}
-          </View>
-          <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
-          <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
-          <View style={styles.practiceProof}>
-            <Text style={styles.practiceProofLabel}>Done when</Text>
-            <Text style={styles.practiceProofText}>{todayPractice.completion_signal}</Text>
-          </View>
-          {roadmap.practice_completed_today ? (
-            <View style={styles.practiceCelebration}>
-              <Text style={styles.practiceCelebrationTitle}>Practice logged.</Text>
-              <Text style={styles.practiceCelebrationText}>That is a real piece of work toward this goal.</Text>
-            </View>
-          ) : (
-            <Pressable
-              accessibilityHint="Records this optional practice as completed for today"
-              accessibilityRole="button"
-              accessibilityState={{ busy: savingAction === "practice" }}
-              onPress={completeTodayPractice}
-              style={({ pressed }) => [styles.practiceCompleteButton, pressed && styles.practiceCompleteButtonPressed]}
-            >
-              <Text style={styles.practiceCompleteButtonText}>
-                {savingAction === "practice" ? "Logging…" : "I did this today"}
-              </Text>
-            </Pressable>
-          )}
-          {practiceError ? (
-            <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{practiceError}</Text>
-          ) : null}
-          {!roadmap.practice_completed_today && practiceTasks.length > 1 ? (
-            <Pressable
-              accessibilityHint="Shows another optional practice from this roadmap"
-              accessibilityRole="button"
-              onPress={() => setPracticeTaskOffset((value) => value + 1)}
-              style={({ pressed }) => [styles.practiceNext, pressed && styles.practiceNextPressed]}
-            >
-              <View style={styles.inlineRow}>
-                <Text style={styles.practiceNextText}>Show another practice</Text>
-                <ArrowRight color={colors.forest} size={15} strokeWidth={2.6} />
-              </View>
-            </Pressable>
-          ) : null}
-        </View>
+        <PracticeCard
+          error={practiceError}
+          hasAlternatives={practiceTasks.length > 1}
+          onComplete={completeTodayPractice}
+          onShowAnother={() => setPracticeTaskOffset((value) => value + 1)}
+          practicedToday={roadmap.practice_completed_today}
+          saving={savingAction === "practice"}
+          styles={styles}
+          task={todayPractice}
+        />
       ) : null}
 
       {roadmap.locked_step_count > 0 ? (
@@ -1097,388 +909,3 @@ export default function RoadmapRoute() {
     </Screen>
   );
 }
-
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  backLink: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 2, marginBottom: 10, minHeight: 44 },
-  goalsLink: { color: colors.muted, fontSize: 14, fontWeight: "600" },
-  title: {
-    color: colors.ink,
-    fontSize: 26,
-    fontWeight: "700",
-    letterSpacing: -0.5,
-    lineHeight: 32,
-  },
-  completionNotice: {
-    alignItems: "flex-start",
-    backgroundColor: colors.forestSoft,
-    borderColor: colors.softBorder,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 16,
-    padding: 14,
-  },
-  completionNoticeCopy: { flex: 1 },
-  completionNoticeLabel: { color: colors.forestDark, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  completionNoticeText: { color: colors.forestDark, fontSize: 14, fontWeight: "700", lineHeight: 20, marginTop: 4 },
-  completionNoticeDismiss: { color: colors.forestDark, fontSize: 24, fontWeight: "400", lineHeight: 23 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between", marginTop: 18 },
-  progressText: { color: colors.muted, fontSize: 14 },
-  progressPercent: { color: colors.forest, fontSize: 14, fontWeight: "800" },
-  progressTrack: {
-    backgroundColor: colors.line,
-    borderRadius: 4,
-    height: 7,
-    marginBottom: 32,
-    marginTop: 9,
-    overflow: "hidden",
-  },
-  progressFill: { backgroundColor: colors.forest, borderRadius: 4, height: 7 },
-  nextCard: {
-    backgroundColor: colors.forest,
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 18,
-  },
-  nextEyebrow: { color: colors.onForestMuted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  nextTitle: { color: colors.onForest, fontSize: 19, fontWeight: "800", lineHeight: 25, marginTop: 5 },
-  nextAction: { color: colors.onForestMuted, fontSize: 14, lineHeight: 20, marginTop: 7 },
-  nextMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  nextMetaText: { color: colors.onForestMuted, fontSize: 12, fontWeight: "800" },
-  inlineRow: { alignItems: "center", flexDirection: "row", gap: 4 },
-  iconButton: { alignItems: "center", height: 44, justifyContent: "center", marginRight: -10, marginTop: -10, width: 44 },
-  nextOpen: { color: colors.onForest, fontSize: 13, fontWeight: "900", marginTop: 15 },
-  nextCardPressed: { opacity: 0.84 },
-  mapCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 30,
-    padding: 18,
-  },
-  mapEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
-  mapTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 23, marginTop: 5 },
-  mapBody: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
-  mapMilestones: { marginTop: 17 },
-  mapMilestoneRow: { flexDirection: "row", minHeight: 76 },
-  mapRail: { alignItems: "center", width: 33 },
-  mapNode: {
-    alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 15,
-    borderWidth: 2, height: 30, justifyContent: "center", width: 30,
-  },
-  mapNodeCurrent: { backgroundColor: colors.forest, borderColor: colors.forest },
-  mapNodeCompleted: { backgroundColor: colors.forest, borderColor: colors.forest },
-  mapNodeText: { color: colors.muted, fontSize: 12, fontWeight: "900" },
-  mapNodeTextActive: { color: colors.onForest },
-  mapConnector: { backgroundColor: colors.softBorder, flex: 1, marginVertical: 3, width: 2 },
-  mapMilestoneContent: { flex: 1, paddingBottom: 14, paddingLeft: 10 },
-  mapMilestoneTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", lineHeight: 20 },
-  mapMilestoneOutcome: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
-  mapMilestoneProgress: { color: colors.forestDark, fontSize: 12, fontWeight: "800", marginTop: 5 },
-  detailToggle: {
-    alignItems: "center", borderColor: colors.softBorder, borderRadius: 12, borderWidth: 1,
-    justifyContent: "center", marginTop: 4, minHeight: 44, paddingHorizontal: 12,
-  },
-  detailTogglePressed: { opacity: 0.7 },
-  detailToggleText: { color: colors.forest, fontSize: 13, fontWeight: "900" },
-  detailMap: { gap: 12, marginTop: 14 },
-  strategyCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
-  rhythmCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
-  detailEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  strategyText: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
-  rhythmRow: { flexDirection: "row", gap: 7, marginTop: 7 },
-  rhythmBullet: { color: colors.forest, fontSize: 15, fontWeight: "900", lineHeight: 19 },
-  rhythmText: { color: colors.ink, flex: 1, fontSize: 13, lineHeight: 19 },
-  detailPhaseCard: { backgroundColor: colors.card, borderColor: colors.softBorder, borderRadius: 14, borderWidth: 1, minWidth: 0, overflow: "hidden", padding: 14 },
-  detailPhaseLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  detailPhaseTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", lineHeight: 21, marginTop: 3 },
-  focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10, minWidth: 0, width: "100%" },
-  focusPill: { alignSelf: "flex-start", backgroundColor: colors.forestSoft, borderRadius: 14, flexShrink: 1, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6 },
-  focusPillText: { color: colors.forestDark, flexShrink: 1, fontSize: 12, fontWeight: "800", lineHeight: 18 },
-  practiceCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 22, padding: 18 },
-  practiceHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  practiceEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  practiceCompleteMark: { color: colors.forest, fontSize: 12, fontWeight: "900" },
-  practiceTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", lineHeight: 23, marginTop: 5 },
-  practiceBody: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
-  practiceProof: { borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
-  practiceProofLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  practiceProofText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
-  practiceCompleteButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 10, borderWidth: 1, justifyContent: "center", marginTop: 14, minHeight: 44, paddingHorizontal: 14 },
-  practiceCompleteButtonPressed: { opacity: 0.78 },
-  practiceCompleteButtonText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
-  practiceCelebration: { backgroundColor: colors.card, borderRadius: 12, marginTop: 14, padding: 12 },
-  practiceCelebrationTitle: { color: colors.forest, fontSize: 13, fontWeight: "900" },
-  practiceCelebrationText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 2 },
-  practiceNext: { alignSelf: "flex-start", justifyContent: "center", marginTop: 5, minHeight: 44 },
-  practiceNextPressed: { opacity: 0.65 },
-  practiceNextText: { color: colors.forest, fontSize: 13, fontWeight: "900" },
-  detailItem: { borderTopColor: colors.softBorder, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
-  detailItemLabel: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  detailItemText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
-  goalComplete: {
-    backgroundColor: colors.forestSoft,
-    borderRadius: 12,
-    marginBottom: 28,
-    padding: 20,
-  },
-  goalCompleteEyebrow: {
-    color: colors.forest,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  goalCompleteTitle: { color: colors.ink, fontSize: 21, fontWeight: "800", marginTop: 6 },
-  goalCompleteBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 6 },
-  premiumCard: {
-    backgroundColor: colors.card,
-    borderColor: colors.softBorder,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 22,
-    padding: 18,
-  },
-  premiumEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
-  premiumTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", lineHeight: 24, marginTop: 5 },
-  premiumBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
-  path: { gap: 30 },
-  milestoneHeader: {
-    backgroundColor: colors.card,
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 15,
-    marginLeft: 68,
-    padding: 15,
-  },
-  milestoneHeaderPressed: { opacity: 0.74 },
-  milestoneHeaderTopline: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  milestoneLabel: {
-    color: colors.forest,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  milestoneToggle: { color: colors.forest, fontSize: 12, fontWeight: "800" },
-  milestoneTitle: { color: colors.ink, fontSize: 20, fontWeight: "800", marginTop: 4 },
-  milestoneOutcome: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
-  milestoneSummary: { color: colors.forestDark, fontSize: 12, fontWeight: "800", marginTop: 9 },
-  pathRow: { alignItems: "stretch", flexDirection: "row", minHeight: 100 },
-  rail: { alignItems: "center", width: 54 },
-  node: {
-    alignItems: "center",
-    backgroundColor: colors.cardMuted,
-    borderColor: colors.line,
-    borderRadius: 24,
-    borderWidth: 2,
-    height: 48,
-    justifyContent: "center",
-    width: 48,
-  },
-  nodeCurrent: {
-    backgroundColor: colors.forest,
-    borderColor: colors.forestDark,
-    shadowColor: colors.forest,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  nodeCompleted: { backgroundColor: colors.forest, borderColor: colors.forest },
-  nodeBlocked: { opacity: 0.62 },
-  nodeLocked: { backgroundColor: colors.card, borderColor: colors.softBorder, opacity: 0.72 },
-  nodeLabel: { color: colors.muted, fontSize: 13, fontWeight: "800" },
-  nodeLabelActive: { color: colors.onForest, fontSize: 15 },
-  connector: { backgroundColor: colors.line, flex: 1, minHeight: 28, width: 3 },
-  connectorCompleted: { backgroundColor: colors.forest },
-  stepCard: {
-    backgroundColor: colors.cardMuted,
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    flex: 1,
-    marginBottom: 18,
-    marginLeft: 14,
-    padding: 18,
-  },
-  currentCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2 },
-  completedCard: { backgroundColor: colors.card },
-  blockedCard: { opacity: 0.68 },
-  lockedCard: { backgroundColor: colors.cardMuted, borderColor: colors.line, opacity: 0.85 },
-  missionMeta: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 7 },
-  missionKind: {
-    backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 12,
-    fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 4, textTransform: "uppercase",
-  },
-  stateLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  currentState: { color: colors.forest },
-  stepTitle: { color: colors.ink, fontSize: 18, fontWeight: "800", lineHeight: 24 },
-  objective: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
-  actionBox: { backgroundColor: colors.forestSoft, borderRadius: 14, marginTop: 16, padding: 14 },
-  actionLabel: {
-    color: colors.forestDark,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  actionText: { color: colors.forestDark, fontSize: 14, lineHeight: 21, marginTop: 5 },
-  resources: { gap: 10, marginTop: 18 },
-  resourceHeading: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  resourceLabel: {
-    color: colors.ink,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  verifiedLabel: { color: colors.forest, fontSize: 12, fontWeight: "700" },
-  resourceCardShell: {
-    backgroundColor: colors.background,
-    borderColor: colors.line,
-    borderRadius: 14,
-    borderWidth: 1,
-    padding: 14,
-  },
-  resourceCardContent: {},
-  primaryVideoCard: { backgroundColor: colors.card, borderColor: colors.forest, borderWidth: 2, padding: 12 },
-  courseThumbnail: { backgroundColor: colors.line, borderRadius: 10, height: 154, marginBottom: 12, width: "100%" },
-  resourceLinkPressed: { opacity: 0.72 },
-  resourceMeta: { alignItems: "center", flexDirection: "row", gap: 8 },
-  resourceType: {
-    backgroundColor: colors.forestSoft,
-    borderRadius: 99,
-    color: colors.forestDark,
-    fontSize: 12,
-    fontWeight: "800",
-    overflow: "hidden",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    textTransform: "uppercase",
-  },
-  resourceSource: { color: colors.muted, fontSize: 12, fontWeight: "700" },
-  resourceTitle: {
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: "800",
-    lineHeight: 21,
-    marginTop: 9,
-  },
-  resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
-  resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
-  resourceFooter: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
-  resourceFooterLink: { flex: 1, justifyContent: "center", minHeight: 44 },
-  resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800" },
-  findAnother: {
-    alignItems: "center",
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    justifyContent: "center",
-    minHeight: 44,
-    paddingHorizontal: 12,
-  },
-  findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
-  notUseful: {
-    alignItems: "center",
-    backgroundColor: "transparent",
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  notUsefulText: { alignItems: "center", color: colors.muted, fontSize: 14, fontWeight: "700", justifyContent: "center" },
-  undoNotice: {
-    alignItems: "center",
-    alignSelf: "stretch",
-    backgroundColor: colors.ink,
-    borderRadius: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    minHeight: 48,
-    paddingHorizontal: 15,
-  },
-  undoNoticeText: { color: colors.background, fontSize: 13, fontWeight: "700" },
-  undoButton: { justifyContent: "center", minHeight: 44, paddingHorizontal: 8 },
-  undoButtonText: { color: colors.forest, fontSize: 14, fontWeight: "900" },
-  resourceNotice: {
-    backgroundColor: colors.background,
-    borderColor: colors.line,
-    borderRadius: 12,
-    borderWidth: 1,
-    gap: 7,
-    padding: 13,
-  },
-  resourceNoticeText: { color: colors.muted, fontSize: 13, lineHeight: 19 },
-  resourceRetry: { color: colors.forest, fontSize: 13, fontWeight: "800" },
-  completeLabel: {
-    color: colors.ink,
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 16,
-    textTransform: "uppercase",
-  },
-  completeText: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 4 },
-  evidence: { color: colors.muted, fontSize: 13, fontStyle: "italic", marginTop: 12 },
-  effort: { color: colors.forest, fontSize: 12, fontWeight: "700", marginTop: 14 },
-  savedWork: {
-    backgroundColor: colors.forestSoft,
-    borderRadius: 12,
-    gap: 6,
-    marginTop: 13,
-    padding: 13,
-  },
-  savedWorkLabel: {
-    color: colors.forestDark,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  savedWorkText: { color: colors.forestDark, fontSize: 13, lineHeight: 19 },
-  savedWorkLinkTarget: { justifyContent: "center", minHeight: 44 },
-  savedWorkLink: { color: colors.forest, fontSize: 13, fontWeight: "800", marginTop: 2 },
-  fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700", marginBottom: 6 },
-  fieldHint: { color: colors.danger, fontSize: 13, marginBottom: 8, marginTop: -8 },
-  inlineError: { color: colors.danger, fontSize: 14, lineHeight: 20, marginTop: 10 },
-  workSection: {
-    borderTopColor: colors.line,
-    borderTopWidth: 1,
-    marginTop: 20,
-    paddingTop: 18,
-  },
-  workTitle: { color: colors.ink, fontSize: 16, fontWeight: "800" },
-  workIntro: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 13, marginTop: 4 },
-  workField: { fontSize: 15, lineHeight: 22, marginBottom: 10, minHeight: 94 },
-  linkField: { fontSize: 15, marginBottom: 10, minHeight: 50 },
-  savedLabel: { color: colors.forest, fontSize: 13, fontWeight: "800" },
-  confirmationRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 20,
-    minHeight: 44,
-  },
-  checkbox: {
-    alignItems: "center",
-    backgroundColor: colors.card,
-    borderColor: colors.muted,
-    borderRadius: 7,
-    borderWidth: 2,
-    height: 25,
-    justifyContent: "center",
-    width: 25,
-  },
-  checkboxChecked: { backgroundColor: colors.forest, borderColor: colors.forest },
-  checkboxMark: { color: colors.onForest, fontSize: 16, fontWeight: "900" },
-  confirmationText: { color: colors.ink, flex: 1, fontSize: 14, fontWeight: "700", lineHeight: 20 },
-  completeButton: { marginTop: 18 },
-});

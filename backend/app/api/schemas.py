@@ -166,6 +166,8 @@ class GoalRead(BaseModel):
     completed_steps: int = 0
     total_steps: int = 0
     progress_percent: int = 0
+    current_step_title: str = ""
+    last_activity_at: datetime | None = None
 
 
 class StepProgressWrite(BaseModel):

@@ -39,8 +39,10 @@ from app.db.models import (
     GoalDiscoveryQuestion,
     RoadmapGenerationAttempt,
     RoadmapMilestone,
+    RoadmapPracticeCompletion,
     RoadmapStep,
     RoadmapStepDependency,
+    RoadmapStepWork,
     RoadmapVersion,
     User,
 )
@@ -58,7 +60,7 @@ from app.services.ai_usage import (
 )
 from app.services.analytics import record_event
 from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, goal_count, is_premium
-from app.services.progress import calculate_roadmap_progress
+from app.services.progress import RoadmapProgressSnapshot, calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -90,6 +92,15 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
         .limit(1)
     )
     progress = calculate_roadmap_progress(db, goal.user, active_roadmap) if active_roadmap else None
+    current_step_title = ""
+    last_activity_at = None
+    if active_roadmap is not None and progress is not None:
+        steps = {
+            step.id: step for milestone in active_roadmap.milestones for step in milestone.steps
+        }
+        current = steps.get(progress.current_step_id) if progress.current_step_id else None
+        current_step_title = current.title if current else ""
+        last_activity_at = latest_activity(db, goal, active_roadmap, list(steps), progress)
     return GoalRead(
         id=goal.id,
         title=goal.title,
@@ -103,7 +114,45 @@ def to_goal_read(db: Session, goal: Goal) -> GoalRead:
         completed_steps=progress.completed_steps if progress else 0,
         total_steps=progress.total_steps if progress else 0,
         progress_percent=progress.progress_percent if progress else 0,
+        current_step_title=current_step_title,
+        last_activity_at=last_activity_at,
     )
+
+
+def latest_activity(
+    db: Session,
+    goal: Goal,
+    roadmap: RoadmapVersion,
+    step_ids: list[UUID],
+    progress: RoadmapProgressSnapshot,
+) -> datetime | None:
+    """When this person last did something on the roadmap: started it, saved work on a step,
+    completed a step, or logged practice. Powers "Last worked on" on the goals screen."""
+    candidates = [roadmap.accepted_at, *progress.completed_at.values()]
+    if step_ids:
+        candidates.append(
+            db.scalar(
+                select(func.max(RoadmapStepWork.updated_at)).where(
+                    RoadmapStepWork.user_id == goal.user_id,
+                    RoadmapStepWork.step_id.in_(step_ids),
+                )
+            )
+        )
+    candidates.append(
+        db.scalar(
+            select(func.max(RoadmapPracticeCompletion.completed_at)).where(
+                RoadmapPracticeCompletion.user_id == goal.user_id,
+                RoadmapPracticeCompletion.roadmap_id == roadmap.id,
+            )
+        )
+    )
+    known = [as_utc(value) for value in candidates if value is not None]
+    return max(known) if known else None
+
+
+def as_utc(value: datetime) -> datetime:
+    # SQLite returns naive datetimes; Postgres returns aware ones. Compare them as UTC.
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
 @router.get("", response_model=list[GoalRead])
