@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 
+import { ChevronRight } from "@/components/icons";
 import { ProviderSignIn } from "@/components/provider-sign-in";
 import { AppHeader, Body, Button, Heading, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
@@ -194,7 +195,7 @@ export default function SettingsRoute() {
             style={({ pressed }) => [styles.legalLink, pressed && styles.pressed]}
           >
             <Text style={styles.legalLinkText}>{label}</Text>
-            <Text style={styles.legalLinkArrow}>›</Text>
+            <ChevronRight color={colors.muted} size={20} strokeWidth={2} />
           </Pressable>
         ))}
       </View>
@@ -213,7 +214,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   deleteWarning: { color: colors.danger, fontSize: 14, lineHeight: 21, textAlign: "center" },
   errorText: { color: colors.danger, fontSize: 14, lineHeight: 21 },
   legalLink: { alignItems: "center", borderBottomColor: colors.line, borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", minHeight: 52, paddingHorizontal: 2 },
-  legalLinkArrow: { color: colors.muted, fontSize: 24 },
   legalLinkText: { color: colors.forest, fontSize: 15, fontWeight: "800" },
   legalLinks: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 18, paddingHorizontal: 16 },
   legalTitle: { marginTop: 30 },

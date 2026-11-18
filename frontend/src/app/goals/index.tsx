@@ -53,7 +53,7 @@ export default function GoalsRoute() {
       <View style={[styles.header, wide && styles.headerWide]}>
         <View style={styles.headerCopy}>
           <Heading>Your goals</Heading>
-          <Body>Choose a path and continue exactly where you left it.</Body>
+          <Body>Pick a goal and continue exactly where you left off.</Body>
         </View>
         {goals.length > 0 && !atGoalLimit ? (
           <View style={styles.newGoalButton}>
@@ -77,7 +77,7 @@ export default function GoalsRoute() {
           <View style={styles.emptyState}>
             <Text style={styles.emptyTitle}>Start with one meaningful goal.</Text>
             <Text style={styles.emptyBody}>
-              CareerOS will shape a clear path, then keep your next step ready.
+              CareerOS will build your roadmap, then keep your next step ready.
             </Text>
             <Button onPress={() => router.push("/goals/new" as never)}>Create your first goal</Button>
           </View>
@@ -116,7 +116,7 @@ export default function GoalsRoute() {
               </View>
             ) : null}
             <Text style={styles.continueLabel}>
-              {goal.status === "completed" ? "Review your journey" : goal.active_roadmap_id ? "Continue" : "Finish setup"}
+              {goal.status === "completed" ? "Review roadmap" : goal.active_roadmap_id ? "Continue" : "Finish setup"}
             </Text>
           </Pressable>
         ))}

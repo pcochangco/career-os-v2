@@ -212,7 +212,7 @@ export function Field(props: TextInputProps) {
   );
 }
 
-export function LoadingState({ label = "Opening your path…" }: { label?: string }) {
+export function LoadingState({ label = "Opening CareerOS…" }: { label?: string }) {
   const { colors } = useTheme();
   // The free hosting plan sleeps when idle; the first request can take up to a minute.
   const [slow, setSlow] = useState(false);
