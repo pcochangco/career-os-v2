@@ -11,6 +11,7 @@ import {
 import { Platform } from "react-native";
 
 import { ApiError, apiRequest, SESSION_ENDED_MESSAGE, setUnauthorizedHandler } from "@/lib/api";
+import { clearPrefetchedGoals, prefetchGoals } from "@/lib/prefetch";
 
 export type IdentityProvider = "apple" | "google" | "email";
 
@@ -158,26 +159,34 @@ export function SessionProvider({
         setError(null);
         setReady(false);
         setAccountLoading(true);
-        const config = await apiRequest<ProviderConfig>("/auth/config");
-        if (active) setProviderConfig(config);
-
+        // A returning user's account already carries the sign-in config, and their goal list can
+        // load alongside it: one round trip before the first screen instead of three in a row.
         const stored = await readStoredToken();
+        let signedIn = false;
         if (stored) {
+          prefetchGoals(stored);
           try {
             const storedAccount = await readAccount(stored);
             if (storedAccount.status === "saved") {
+              signedIn = true;
               if (active) {
                 setToken(stored);
                 setAccount(storedAccount);
                 setProviderConfig(storedAccount.provider_config);
               }
             } else {
+              clearPrefetchedGoals();
               await removeStoredToken();
             }
           } catch (caught) {
+            clearPrefetchedGoals();
             if (!(caught instanceof ApiError) || caught.status !== 401) throw caught;
             await removeStoredToken();
           }
+        }
+        if (!signedIn) {
+          const config = await apiRequest<ProviderConfig>("/auth/config");
+          if (active) setProviderConfig(config);
         }
       } catch (caught) {
         if (active) {

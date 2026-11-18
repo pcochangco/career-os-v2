@@ -3,9 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useIsWide } from "@/components/app-shell";
+import { Check, Play } from "@/components/icons";
 import { ProviderSignIn } from "@/components/provider-sign-in";
 import { Body, Brand, Button, ErrorState, Field, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
+import { loadGoals } from "@/lib/prefetch";
 import { IdentityProvider, useSession } from "@/lib/session";
 import { ThemeColors, useTheme } from "@/lib/theme";
 import { Goal } from "@/lib/types";
@@ -20,10 +22,11 @@ function routeForGoal(goal: Goal): string {
   return `/goals/${goal.id}/discovery`;
 }
 
-const exampleSteps = [
-  ["1", "Define the outcome", "Turn an ambition into a measurable destination."],
-  ["2", "Build the right sequence", "Focus on the few milestones that unlock progress."],
-  ["3", "Take the next move", "Start with one concrete, finishable action."],
+// Mirrors the real roadmap screen: done, current ("You are here"), and what comes next.
+const exampleSteps: Array<{ title: string; detail: string; state: "done" | "current" | "next" }> = [
+  { title: "Map the product skills you already have", detail: "A one-page inventory with two clear gaps.", state: "done" },
+  { title: "Ship a small AI feature end to end", detail: "One working prototype you can demo in five minutes.", state: "current" },
+  { title: "Write the case study", detail: "Problem, decisions, and results, ready for interviews.", state: "next" },
 ];
 
 export default function IndexRoute() {
@@ -41,11 +44,12 @@ export default function IndexRoute() {
 
   useEffect(() => {
     if (!session.ready || !session.token || signInInProgress.current) return;
+    const token: string = session.token;
     let active = true;
     async function openNext() {
       try {
         setError(null);
-        const goals = await apiRequest<Goal[]>("/goals", { token: session.token });
+        const goals = await loadGoals(token);
         if (!active) return;
         if (goals.length === 0) router.replace("/goals/new" as never);
         else if (goals.length === 1 && goals[0]) router.replace(routeForGoal(goals[0]) as never);
@@ -80,7 +84,7 @@ export default function IndexRoute() {
           });
           router.replace(`/goals/${goal.id}/discovery` as never);
         } else {
-          const goals = await apiRequest<Goal[]>("/goals", { token });
+          const goals = await loadGoals(token);
           if (goals.length === 0) router.replace("/goals/new" as never);
           else if (goals.length === 1 && goals[0]) router.replace(routeForGoal(goals[0]) as never);
           else router.replace("/goals" as never);
@@ -112,7 +116,7 @@ export default function IndexRoute() {
           });
           router.replace(`/goals/${goal.id}/discovery` as never);
         } else {
-          const goals = await apiRequest<Goal[]>("/goals", { token });
+          const goals = await loadGoals(token);
           if (goals.length === 0) router.replace("/goals/new" as never);
           else if (goals.length === 1 && goals[0]) router.replace(routeForGoal(goals[0]) as never);
           else router.replace("/goals" as never);
@@ -229,20 +233,39 @@ export default function IndexRoute() {
     <View style={styles.example}>
       <Text style={styles.exampleLabel}>Example roadmap</Text>
       <Text style={styles.exampleTitle}>Move into an AI product role</Text>
-      <Text style={styles.exampleBody}>A roadmap stays small enough to act on.</Text>
+      <View style={styles.exampleProgressRow}>
+        <Text style={styles.exampleProgressText}>1 of 3 steps</Text>
+        <Text style={styles.exampleProgressPercent}>33%</Text>
+      </View>
+      <View style={styles.exampleTrack}>
+        <View style={styles.exampleFill} />
+      </View>
       <View style={styles.steps}>
-        {exampleSteps.map(([number, stepTitle, description]) => (
-          <View key={number} style={styles.step}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>{number}</Text>
+        {exampleSteps.map((step, index) => (
+          <View key={step.title} style={[styles.step, step.state === "current" && styles.stepCurrent]}>
+            <View
+              style={[
+                styles.stepNode,
+                step.state !== "next" && styles.stepNodeActive,
+              ]}
+            >
+              {step.state === "done" ? (
+                <Check color={colors.onForest} size={15} strokeWidth={3} />
+              ) : step.state === "current" ? (
+                <Play color={colors.onForest} fill={colors.onForest} size={12} strokeWidth={2.4} />
+              ) : (
+                <Text style={styles.stepNumberText}>{index + 1}</Text>
+              )}
             </View>
             <View style={styles.stepCopy}>
-              <Text style={styles.stepTitle}>{stepTitle}</Text>
-              <Text style={styles.stepBody}>{description}</Text>
+              {step.state === "current" ? <Text style={styles.stepHere}>You are here</Text> : null}
+              <Text style={[styles.stepTitle, step.state === "done" && styles.stepTitleDone]}>{step.title}</Text>
+              <Text style={styles.stepBody}>{step.detail}</Text>
             </View>
           </View>
         ))}
       </View>
+      <Text style={styles.exampleBody}>One step at a time, each ending in something you can show.</Text>
     </View>
   );
 
@@ -290,7 +313,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   columnMain: { flex: 1, minWidth: 0 },
   columnSide: { width: 420 },
   example: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 28, padding: 20 },
-  exampleBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginBottom: 18 },
+  exampleBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 18 },
   exampleLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", letterSpacing: 0.7, marginBottom: 6, textTransform: "uppercase" },
   exampleTitle: { color: colors.ink, fontSize: 18, fontWeight: "700", marginBottom: 4 },
   eyebrow: { color: colors.forest, fontSize: 13, fontWeight: "700", marginBottom: 10 },
@@ -310,8 +333,17 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   step: { alignItems: "flex-start", flexDirection: "row", gap: 12 },
   stepBody: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   stepCopy: { flex: 1 },
-  stepNumber: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 14, height: 28, justifyContent: "center", width: 28 },
-  stepNumberText: { color: colors.onForest, fontSize: 13, fontWeight: "900" },
+  stepCurrent: { backgroundColor: colors.forestSoft, borderRadius: 10, marginHorizontal: -10, padding: 10 },
+  stepHere: { color: colors.forestDark, fontSize: 12, fontWeight: "800", marginBottom: 2, textTransform: "uppercase" },
+  stepNode: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 14, borderWidth: 2, height: 28, justifyContent: "center", width: 28 },
+  stepNodeActive: { backgroundColor: colors.forest, borderColor: colors.forest },
+  stepNumberText: { color: colors.muted, fontSize: 13, fontWeight: "800" },
+  stepTitleDone: { color: colors.muted },
+  exampleProgressRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  exampleProgressText: { color: colors.muted, fontSize: 13, fontWeight: "600" },
+  exampleProgressPercent: { color: colors.forest, fontSize: 13, fontWeight: "800" },
+  exampleTrack: { backgroundColor: colors.line, borderRadius: 4, height: 6, marginBottom: 18, marginTop: 6, overflow: "hidden" },
+  exampleFill: { backgroundColor: colors.forest, borderRadius: 4, height: 6, width: "33%" },
   stepTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", marginBottom: 2 },
   steps: { gap: 16 },
 });

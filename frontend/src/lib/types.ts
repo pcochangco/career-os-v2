@@ -9,6 +9,10 @@ export type Goal = {
   completed_steps: number;
   total_steps: number;
   progress_percent: number;
+  /** Title of the step to do next; empty until a roadmap is started. */
+  current_step_title: string;
+  /** Last time this person worked on the roadmap (started, saved work, completed, practised). */
+  last_activity_at: string | null;
 };
 
 export type RoadmapStep = {

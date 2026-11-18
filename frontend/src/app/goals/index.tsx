@@ -6,8 +6,9 @@ import { ChevronRight } from "@/components/icons";
 
 import { useIsWide } from "@/components/app-shell";
 import { GoalLimitCard } from "@/components/plan-limit";
-import { Body, Brand, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
-import { apiRequest } from "@/lib/api";
+import { GoalsSkeleton } from "@/components/skeleton";
+import { Body, Brand, Button, ErrorState, Heading, Screen } from "@/components/ui";
+import { loadGoals } from "@/lib/prefetch";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -16,6 +17,28 @@ function routeForGoal(goal: Goal): string {
   if (goal.active_roadmap_id) return `/goals/${goal.id}/roadmap?roadmapId=${goal.active_roadmap_id}`;
   if (goal.latest_draft_roadmap_id) return `/goals/${goal.id}/review?roadmapId=${goal.latest_draft_roadmap_id}`;
   return `/goals/${goal.id}/discovery`;
+}
+
+/** "today", "yesterday", "3 days ago", or a short date for anything older than a week. */
+function lastWorkedLabel(iso: string, now = new Date()): string {
+  const then = new Date(iso);
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOfDay(now) - startOfDay(then)) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  return `on ${then.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
+}
+
+/** The unfinished goal worked on most recently, if any work has happened yet. */
+function lastWorkedGoal(goals: Goal[]): Goal | null {
+  return goals
+    .filter((goal) => goal.status !== "completed" && goal.active_roadmap_id && goal.last_activity_at)
+    .reduce<Goal | null>(
+      (latest, goal) =>
+        !latest || (goal.last_activity_at ?? "") > (latest.last_activity_at ?? "") ? goal : latest,
+      null,
+    );
 }
 
 export default function GoalsRoute() {
@@ -31,7 +54,7 @@ export default function GoalsRoute() {
   useEffect(() => {
     if (!token) return;
     let active = true;
-    apiRequest<Goal[]>("/goals", { token })
+    loadGoals(token)
       .then((value) => active && setGoals(value))
       .catch((caught) => active && setError(caught instanceof Error ? caught.message : "Goals could not load."));
     return () => {
@@ -41,10 +64,12 @@ export default function GoalsRoute() {
 
   if (!token || !goals) {
     if (error) return <ErrorState message={error} onRetry={() => setAttempt((value) => value + 1)} />;
-    return <LoadingState label="Loading your goals…" />;
+    return <GoalsSkeleton />;
   }
 
   const goalLimit = account?.goal_limit ?? null;
+  // With one goal, opening CareerOS already lands on its roadmap; the card helps choose among several.
+  const resume = goals.length > 1 ? lastWorkedGoal(goals) : null;
   const atGoalLimit = goalLimit !== null && goals.length >= goalLimit;
 
   return (
@@ -61,6 +86,26 @@ export default function GoalsRoute() {
           </View>
         ) : null}
       </View>
+      {resume ? (
+        <Pressable
+          accessibilityHint={`Opens your roadmap for ${resume.title}`}
+          accessibilityRole="button"
+          onPress={() => router.push(routeForGoal(resume) as never)}
+          style={({ pressed }) => [styles.resume, pressed && styles.cardPressed]}
+        >
+          <View style={styles.resumeCopy}>
+            <Text style={styles.resumeEyebrow}>Pick up where you left off</Text>
+            <Text style={styles.resumeTitle}>{resume.title}</Text>
+            {resume.current_step_title ? (
+              <Text numberOfLines={2} style={styles.resumeNext}>Next: {resume.current_step_title}</Text>
+            ) : null}
+            <Text style={styles.resumeMeta}>
+              Last worked on {lastWorkedLabel(resume.last_activity_at ?? "")} · {resume.progress_percent}% complete
+            </Text>
+          </View>
+          <ChevronRight color={colors.onForest} size={22} strokeWidth={2.2} />
+        </Pressable>
+      ) : null}
       {goalLimit !== null && goals.length > 0 ? (
         atGoalLimit ? (
           <View style={styles.limitCard}>
@@ -131,6 +176,20 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   headerCopy: { flex: 1 },
   newGoalButton: { alignSelf: "flex-start", minWidth: 120 },
   limitCard: { marginBottom: 16 },
+  resume: {
+    alignItems: "center",
+    backgroundColor: colors.forest,
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 18,
+    padding: 18,
+  },
+  resumeCopy: { flex: 1, gap: 4 },
+  resumeEyebrow: { color: colors.onForestMuted, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
+  resumeTitle: { color: colors.onForest, fontSize: 18, fontWeight: "800", lineHeight: 24 },
+  resumeNext: { color: colors.onForest, fontSize: 15, lineHeight: 21 },
+  resumeMeta: { color: colors.onForestMuted, fontSize: 13, fontWeight: "600", marginTop: 2 },
   planUsage: { color: colors.subtle, fontSize: 14, marginBottom: 14, marginTop: -8 },
   list: { gap: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap" },

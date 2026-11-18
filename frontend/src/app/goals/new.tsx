@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { GoalLimitCard } from "@/components/plan-limit";
 import { Body, Brand, Button, Field, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
+import { loadGoals } from "@/lib/prefetch";
 import { useSession } from "@/lib/session";
 import { Goal } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -25,7 +26,7 @@ export default function NewGoalRoute() {
   useEffect(() => {
     if (!token || goalLimit === null) return;
     let active = true;
-    apiRequest<Goal[]>("/goals", { token })
+    loadGoals(token)
       .then((goals) => active && setGoalCount(goals.length))
       .catch(() => active && setGoalCount(0)); // Fall back to the form; the server still enforces.
     return () => {
