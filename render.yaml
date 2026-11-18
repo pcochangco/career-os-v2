@@ -15,10 +15,12 @@ services:
         value: 0.1.0
       - key: CAREEROS_ENVIRONMENT
         value: production
+      # Supabase Postgres via the Session pooler (IPv4). Render cannot reach
+      # Supabase's IPv6-only direct connection; do not use the transaction
+      # pooler for this long-running container. Set the value in the Render
+      # dashboard only.
       - key: CAREEROS_DATABASE_URL
-        fromDatabase:
-          name: career-os-db
-          property: connectionString
+        sync: false
       - key: CAREEROS_AI_MODE
         value: live
       - key: CAREEROS_AI_PROVIDER
@@ -77,6 +79,14 @@ services:
         sync: false
       - key: CAREEROS_APPLE_CLIENT_IDS
         sync: false
+      - key: CAREEROS_MANUAL_PREMIUM_EMAILS
+        sync: false
+      # Temporary beta email sign-in (not real email verification). Enabled
+      # only when both values are set; remove them when beta testing ends.
+      - key: CAREEROS_EMAIL_TEST_LOGIN_EMAILS
+        sync: false
+      - key: CAREEROS_EMAIL_TEST_ACCESS_CODE
+        sync: false
       - key: CAREEROS_ALLOW_GUEST_ACCESS
         value: false
       - key: CAREEROS_AUTH_ANONYMOUS_LIMIT_PER_15_MINUTES
@@ -85,12 +95,3 @@ services:
         value: 20
       - key: CAREEROS_AUTH_DELETION_LIMIT_PER_15_MINUTES
         value: 5
-
-databases:
-  - name: career-os-db
-    plan: free
-    region: singapore
-    postgresMajorVersion: "17"
-    databaseName: careeros
-    user: careeros
-    ipAllowList: []
