@@ -9,6 +9,8 @@ type ApiOptions = Omit<RequestInit, "body"> & {
   token?: string | null;
 };
 
+export const NETWORK_ERROR_MESSAGE =
+  "We couldn’t reach CareerOS. Check your connection and try again.";
 export const SESSION_ENDED_MESSAGE = "Your session has ended. Please sign in again.";
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -34,11 +36,17 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
   if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    });
+  } catch {
+    // fetch only rejects when the request never got a response (offline, DNS, dropped).
+    throw new ApiError(NETWORK_ERROR_MESSAGE, 0);
+  }
   if (response.status === 401 && options.token) {
     // The stored session expired, was signed out elsewhere, or the account was deleted.
     // Clear it centrally so every screen returns to sign-in instead of showing a raw error.

@@ -4,6 +4,7 @@ from secrets import compare_digest, token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 
 from app.api.dependencies import (
@@ -22,6 +23,7 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
 from app.db.models import AuthIdentity, User, UserSession
+from app.services.data_export import build_account_export
 from app.services.entitlements import FREE_GOAL_LIMIT, is_premium
 from app.services.identity import (
     IdentityProvider,
@@ -361,6 +363,25 @@ def logout(current_session: CurrentSession, db: DbSession) -> Response:
     current_session.revoked_at = datetime.now(UTC)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/account/export")
+def export_account(user: CurrentUser, limiter: AuthRateLimiter) -> JSONResponse:
+    """Download everything this person has created, as JSON. No AI calls."""
+    enforce_rate_limit(
+        limiter,
+        action="export",
+        source=str(user.id),
+        limit=get_settings().auth_deletion_limit_per_15_minutes,
+    )
+    filename = f"careeros-export-{datetime.now(UTC):%Y-%m-%d}.json"
+    return JSONResponse(
+        build_account_export(user),
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)

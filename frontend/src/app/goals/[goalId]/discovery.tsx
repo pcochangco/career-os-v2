@@ -212,7 +212,12 @@ export default function DiscoveryRoute() {
       // 409: a generation for this goal is already running. A lost response or timeout:
       // the server may still be working, or may already have saved the draft. In both
       // cases check the goal rather than starting a second, paid generation.
-      if (caught instanceof ApiError && caught.status !== 409 && caught.status < 500) {
+      if (
+        caught instanceof ApiError &&
+        caught.status !== 0 &&
+        caught.status !== 409 &&
+        caught.status < 500
+      ) {
         setGenerating(false);
         setError(caught.message);
         return;
