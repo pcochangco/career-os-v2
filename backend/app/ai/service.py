@@ -191,4 +191,16 @@ class FallbackRoadmapGenerationService:
                 type(error).__name__,
                 diagnostic_code,
             )
-            return self.fallback.generate(generation_input)
+            try:
+                return self.fallback.generate(generation_input)
+            except Exception as fallback_error:
+                # The deterministic fallback is the last line of defence. If it ever fails,
+                # return the friendly "temporarily unavailable" response instead of a 500.
+                logger.error(
+                    "Deterministic roadmap fallback failed failure_type=%s",
+                    type(fallback_error).__name__,
+                )
+                raise RoadmapProviderError(
+                    "Deterministic fallback failed",
+                    diagnostic_code=f"stage=fallback;{type(fallback_error).__name__}",
+                ) from fallback_error

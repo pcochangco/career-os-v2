@@ -17,6 +17,14 @@ class FixtureRoadmapProvider:
     prompt_version = "roadmap-schema-1.0-fixture-1"
 
     @staticmethod
+    def _clip(text: str, limit: int) -> str:
+        """Shorten text to ``limit`` characters at a word boundary, marking the cut."""
+        if len(text) <= limit:
+            return text
+        cut = text[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:")
+        return f"{cut}…"
+
+    @staticmethod
     def _mid_sentence(goal_title: str) -> str:
         """Lower-case a goal's first letter for use mid-sentence, keeping acronyms intact."""
         title = goal_title.strip().rstrip(". ")
@@ -49,8 +57,10 @@ class FixtureRoadmapProvider:
                 "starting_state": f"Starting level: {level}. Relevant experience: {experience}.",
             }
 
+        # Answers can be up to 1,200 characters each; clip them so the composed copy always
+        # fits the draft's field limits (starting state 1,000, step action 1,600).
         answers = [
-            answer.answer.strip().rstrip(". ")
+            FixtureRoadmapProvider._clip(answer.answer.strip().rstrip(". "), 160)
             for answer in generation_input.discovery_context
             if not answer.skipped and answer.answer.strip()
         ]
@@ -65,8 +75,10 @@ class FixtureRoadmapProvider:
                 "Note anything you already know in each step's learning record."
             )
             experience = "what you already know"
+        title = generation_input.goal_title.strip().rstrip(". ")
         return {
-            "outcome": generation_input.goal_title.strip().rstrip(". "),
+            # goal_outcome needs at least 12 characters; short goals ("Become CEO") get a frame.
+            "outcome": title if len(title) >= 12 else f"Reach this goal: {title}",
             "proof": f"a concrete piece of work that shows real progress toward {goal_title}",
             "experience": experience,
             "constraints": "the time, tools, and preferences you have right now",
@@ -363,7 +375,11 @@ class FixtureRoadmapProvider:
         ]
         prompts = [*domain_prompts, *step_prompts]
         return [
-            RoadmapPracticeTask(title=title, instruction=instruction, completion_signal=signal)
+            RoadmapPracticeTask(
+                title=FixtureRoadmapProvider._clip(title, 160),
+                instruction=FixtureRoadmapProvider._clip(instruction, 500),
+                completion_signal=FixtureRoadmapProvider._clip(signal, 300),
+            )
             for title, instruction, signal in prompts[:5]
         ]
 

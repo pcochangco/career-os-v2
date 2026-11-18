@@ -81,3 +81,54 @@ def test_adaptive_fallback_explains_skipped_discovery():
     ).value
 
     assert "skipped the starting questions" in draft.starting_state_summary
+
+
+LONG_ANSWER = ("I have tried many approaches over the years and " * 30).strip()[:1200]
+
+
+@pytest.mark.parametrize(
+    "goal_title",
+    ["Get fit", "Become CEO", "Learn Go", "Run 5k", "A" * 3, "Build " + "a reliable system " * 7],
+)
+@pytest.mark.parametrize(
+    "answers",
+    [
+        SKIPPED,
+        ANSWERED,
+        [
+            DiscoveryContextAnswer(
+                question_key=f"question-{index}",
+                question="Tell us more about your situation right now?",
+                answer=LONG_ANSWER,
+            )
+            for index in range(6)
+        ],
+    ],
+    ids=["skipped", "answered", "six-long-answers"],
+)
+def test_adaptive_fallback_always_produces_a_valid_draft(goal_title, answers):
+    """The fallback is the last line of defence: it must never fail validation."""
+    draft = FixtureRoadmapProvider().generate(adaptive_input(goal_title[:140], answers)).value
+
+    assert len(draft.goal_outcome) >= 12
+    assert len(draft.starting_state_summary) <= 1000
+
+
+def test_a_failing_fallback_becomes_a_friendly_provider_error():
+    from app.ai.providers.base import RoadmapProviderError
+    from app.ai.service import FallbackRoadmapGenerationService
+
+    class Failing:
+        def generate(self, generation_input):
+            raise RoadmapProviderError("live failed", diagnostic_code="stage=generate")
+
+    class BrokenFallback:
+        def generate(self, generation_input):
+            raise ValueError("draft failed validation")
+
+    service = FallbackRoadmapGenerationService(primary=Failing(), fallback=BrokenFallback())
+
+    with pytest.raises(RoadmapProviderError) as raised:
+        service.generate(adaptive_input("Become CEO", SKIPPED))
+
+    assert raised.value.diagnostic_code == "stage=fallback;ValueError"
