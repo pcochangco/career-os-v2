@@ -1,6 +1,6 @@
 # CareerOS handover brief
 
-_Originally written 2026-11-16 as the onboarding brief for a new working session. Section 9 is updated as gaps are closed._
+_Originally written 2026-11-16 as the onboarding brief for a new working session. Sections 1, 9 and 12 updated 2026-11-19 after the user-journey production pass (PRs #6–#17)._
 
 You are taking over CareerOS, an ongoing production project — not a fresh build. Read this whole brief, then inspect the repository before doing anything. Do not start coding until I give you a task; first confirm the repo state and run the baseline checks (section 11), then report back briefly.
 
@@ -10,22 +10,23 @@ GitHub is the truth for current code. This brief is the truth for intent and dec
 
 ---
 
-## 1. Repository & deployment (current state, 2026-11-16)
+## 1. Repository & deployment (current state, 2026-11-19)
 
 | Item | Value |
 |---|---|
 | GitHub repo | `pcochangco/career-os-v2`, branch `main` |
-| Latest commit | `d968238` — `feat(auth): add scoped email test sign-in` |
+| Latest commit | see `git log`; journey pass ended at `54904aa` (PR #17) |
 | Production URL | https://career-os-41i5.onrender.com |
 | Web host | Render free Docker web service `career-os` (serves API + exported frontend from one container) |
 | Database | **Supabase Postgres** (via the Session pooler, IPv4). Set in Render env var `CAREEROS_DATABASE_URL`. |
 | Health endpoint | `/api/v1/health` (must return 200) |
+| Deploys | Render GitHub app installed 2026-11-19; auto-deploy runs after CI passes on `main`. Before that, every deploy was triggered by hand. |
 
 **What changed recently (not yet reflected in the repo docs):**
 - Render's free PostgreSQL expired and was **deleted with no backup** — all previous data (beta test data only) is gone.
 - Production now points at a new Supabase project. Alembic migrations ran fresh on container startup and the app works again. The owner's beta account was recreated.
 - Render cannot reach Supabase's direct connection (IPv6-only). The **Session pooler** URI (`postgres.<ref>@...pooler.supabase.com:5432`) must be used while hosted on Render. Do not switch it to the transaction pooler for the container.
-- The Docker CMD runs `alembic upgrade head` before uvicorn, so any DB connection failure takes the whole site (frontend included) down.
+- The Docker CMD runs `python -m app.cli.migrate` (an `alembic upgrade head` wrapper) before uvicorn, so a DB connection failure still takes the whole site down. Since PR #15 it starts anyway (with a warning) when the DB is at a revision the image doesn't know, after an ~18 min outage on 2026-11-18 where a restarted older image crash-looped. Keep migrations additive (expand now, drop columns in a later release).
 - Planned: possibly move hosting to **Vercel** (frontend static + FastAPI as Python functions) with Supabase. Not started. Known work if we do it: (a) `backend/app/core/rate_limit.py` is an in-memory limiter assuming one process — must move to Postgres for serverless; (b) migrations must move out of container startup into a separate step (e.g. GitHub Action); (c) serverless should use Supabase's transaction pooler with psycopg prepared statements disabled; (d) roadmap generation (generate → critic → repair, 60s per AI call) may exceed function time limits — tune timeouts, rely on deterministic fallback; (e) Vercel Hobby is non-commercial use only. Cloudflare's free plan was ruled out for the backend (no free container runtime for this stack).
 
 ## 2. Tech stack
@@ -77,18 +78,21 @@ A topic-agnostic, mobile-first roadmap app: user goal → adaptive discovery →
 ## 9. Known gaps / open issues
 - ~~`.env.example` and `backend/.env.example` are missing `CAREEROS_EMAIL_TEST_LOGIN_EMAILS` and `CAREEROS_EMAIL_TEST_ACCESS_CODE`.~~ Fixed (2026-11-17), along with `CAREEROS_MANUAL_PREMIUM_EMAILS`.
 - ~~Docs/README still describe Render PostgreSQL.~~ Fixed (2026-11-17): README, `docs/TECHNICAL.md` and `render.yaml` now describe Supabase + the Session pooler; the Blueprint no longer declares a Render database.
-- No database backups exist. Recommend enabling/understanding Supabase backups or a scheduled `pg_dump` so the data-loss incident can't repeat.
+- No database backups exist. Not urgent while Supabase holds only test data; set up before real users (Supabase Pro daily backups, or a nightly `pg_dump` GitHub Action).
 - The repo does not track a `uv.lock`; `uv sync` creates `backend/uv.lock` — don't commit it unless the owner decides to pin dependencies.
-- Google sign-in unavailable; real email verification not implemented.
+- Google sign-in unavailable; real email verification not implemented. The native app has no beta email sign-in form (web only).
+- Groq free tier hits token-length limits and 429s, so production often serves the deterministic fallback roadmap.
+- Leaving the public landing page remounts the signed-in shell, so Goals fetches its list once more after sign-in (extra request, no visible delay). Fix with the auth layout.
+- Existing roadmaps keep stored titles like "Your path to …"; new fallback roadmaps say "Your roadmap to …".
 
 ## 10. Next steps (priority order)
-1. Repo hygiene: fix `.env.example` gaps and update docs for Supabase; commit this brief as `docs/HANDOVER.md`.
+1. ~~Repo hygiene~~ Done (PR #8).
 2. Test the live core path with email beta sign-in (owner does the sign-in; agent helps review results).
 3. Submit/track the Google Cloud appeal (owner; don't work around it).
 4. Tag `v0.1-beta` once live testing passes.
 5. Decide hosting (stay on Render web + Supabase, or move to Vercel) and plan the migration.
 6. Domain + Resend → replace temporary access-code login with real email verification.
-7. Only after auth is stable: UI/mobile polish and roadmap-quality work.
+7. ~~UI/mobile polish~~ Done in the journey pass (section 12). Roadmap-quality work still waits on stable auth.
 
 ## 11. Working conventions
 - Inspect relevant files and behavior before editing. Targeted changes; don't rewrite working architecture.
@@ -107,8 +111,23 @@ pnpm install --frozen-lockfile
 pnpm --dir frontend typecheck
 pnpm frontend:export
 ```
-Baseline at `d968238`: 125 backend tests pass, Ruff clean, typecheck and web export pass.
+Baseline at `54904aa`: 178 backend tests pass, Ruff clean, typecheck and web export pass (web bundle ~1.3 MB).
 
 Deploy only after all checks pass. After a Render deploy, the owner verifies: deploy is live, `/api/v1/health` returns 200, no fresh errors in Render logs.
 
 Communication: concise and practical — what changed, why, what was tested, what the owner should test next.
+
+## 12. User-journey decisions (2026-11-18 production pass)
+Owner-approved; don't change without asking.
+- **Premium:** no fake upgrade button. Every plan limit says Premium can't be bought yet and offers "Ask about Premium" (mailto `EXPO_PUBLIC_SUPPORT_EMAIL`, a Docker build arg; hidden when unset).
+- **Fallback roadmap copy** is built from the learner's discovery answers and must never echo model instructions. Short goal titles get "Reach this goal: …" framing to pass validation.
+- **One roadmap generation in flight per goal**, enforced by a partial unique index; a second request gets 409 and the client polls. Abandoned attempts expire after 8 minutes.
+- **Session expiry:** any 401 with a token signs out centrally and shows "Your session ended" on the sign-in screen.
+- **Typed-but-unsaved text** (discovery answers, step notes, evidence link) is kept as a device draft; step work autosaves after 1.2s.
+- **Evidence link** per step, validated as http(s).
+- **Settings:** shows who is signed in and the plan; "Download my data" exports everything as JSON (no AI metadata); delete account is red and confirmed.
+- **Analytics:** first-party `product_events` table, whitelisted enum/boolean properties only, never free text; deleted with the account. Funnel: `python -m app.cli.funnel --days 30` in the Render shell.
+- **Vocabulary:** roadmap (not path/journey), milestone (not phase/stage), step (not mission), daily practice (not mini win/prompt). Taglines may say "path".
+- **Accessibility floor:** lucide icons, not text glyphs; labels ≥12px; tap targets ≥44px; visible `:focus-visible` ring on web.
+- **Loading:** skeletons in the screen's layout; cold-start hint after 5s. A returning user's account and goal list load in parallel and `/auth/config` is skipped when signed in.
+- **Day-2 return:** with 2+ goals, Goals leads with "Pick up where you left off" (`GoalRead.current_step_title`, `last_activity_at`). With one goal, opening the app lands on its roadmap.
