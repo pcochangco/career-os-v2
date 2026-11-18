@@ -143,7 +143,7 @@ export default function ReportIssueRoute() {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   categories: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 24 },
-  category: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, minHeight: 40, paddingHorizontal: 15, paddingVertical: 9 },
+  category: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, minHeight: 44, paddingHorizontal: 15, paddingVertical: 9 },
   categorySelected: { backgroundColor: colors.forestSoft, borderColor: colors.forest },
   categoryText: { color: colors.muted, fontSize: 14, fontWeight: "700" },
   categoryTextSelected: { color: colors.forestDark },

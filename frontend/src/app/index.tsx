@@ -129,7 +129,7 @@ export default function IndexRoute() {
 
   if (!session.ready) return <LoadingState />;
   if (session.error) return <ErrorState message={session.error} onRetry={session.retry} />;
-  if (session.token && !error) return <LoadingState label="Opening your saved path…" />;
+  if (session.token && !error) return <LoadingState label="Opening your roadmap…" />;
 
   const startCard = (
     <View style={[styles.startCard, wide && styles.startCardWide]}>
@@ -227,7 +227,7 @@ export default function IndexRoute() {
 
   const example = (
     <View style={styles.example}>
-      <Text style={styles.exampleLabel}>Example path</Text>
+      <Text style={styles.exampleLabel}>Example roadmap</Text>
       <Text style={styles.exampleTitle}>Move into an AI product role</Text>
       <Text style={styles.exampleBody}>A roadmap stays small enough to act on.</Text>
       <View style={styles.steps}>

@@ -169,7 +169,7 @@ const createStyles = (colors: ThemeColors) =>
       borderRadius: radius.md,
       flexDirection: "row",
       gap: 10,
-      minHeight: 40,
+      minHeight: 44,
       paddingHorizontal: 10,
     },
     sidebarLabel: { color: colors.muted, fontSize: 15, fontWeight: "500" },

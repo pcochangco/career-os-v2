@@ -74,7 +74,7 @@ export default function ReviewRoute() {
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>
           {roadmap.generation_source === "fixture"
-            ? "Built from CareerOS’s proven path"
+            ? "Built from a CareerOS starter roadmap"
             : "Personalized for you and quality-checked"}
         </Text>
         <Text style={styles.noticeBody}>

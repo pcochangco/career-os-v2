@@ -1,6 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft } from "@/components/icons";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
+  ExternalLink,
+  Play,
+  X,
+} from "@/components/icons";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import {
@@ -442,7 +451,6 @@ export default function RoadmapRoute() {
       <AppHeader />
       <Pressable
         accessibilityRole="link"
-        hitSlop={8}
         onPress={() => router.push("/goals" as never)}
         style={styles.backLink}
       >
@@ -459,10 +467,10 @@ export default function RoadmapRoute() {
           <Pressable
             accessibilityLabel="Dismiss completion message"
             accessibilityRole="button"
-            hitSlop={8}
             onPress={() => setCompletionNotice(null)}
+            style={styles.iconButton}
           >
-            <Text style={styles.completionNoticeDismiss}>×</Text>
+            <X color={colors.forestDark} size={22} strokeWidth={2.2} />
           </Pressable>
         </View>
       ) : null}
@@ -495,7 +503,10 @@ export default function RoadmapRoute() {
             <Text style={styles.nextMetaText}>Step {stepNumberById.get(currentStep.id)} of {roadmap.total_steps}</Text>
             <Text style={styles.nextMetaText}>{currentStep.effort_label}</Text>
           </View>
-          <Text style={styles.nextOpen}>Open current step ↓</Text>
+          <View style={styles.inlineRow}>
+            <Text style={styles.nextOpen}>Open current step</Text>
+            <ChevronDown color={colors.onForest} size={16} strokeWidth={2.6} />
+          </View>
         </Pressable>
       ) : null}
 
@@ -516,15 +527,15 @@ export default function RoadmapRoute() {
                     milestone.isCurrent && styles.mapNodeCurrent,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.mapNodeText,
-                      (milestone.isCurrent || milestone.completed === milestone.steps.length) &&
-                        styles.mapNodeTextActive,
-                    ]}
-                  >
-                    {milestone.completed === milestone.steps.length ? "✓" : milestone.position}
-                  </Text>
+                  {milestone.completed === milestone.steps.length ? (
+                    <Check color={colors.onForest} size={16} strokeWidth={3} />
+                  ) : (
+                    <Text
+                      style={[styles.mapNodeText, milestone.isCurrent && styles.mapNodeTextActive]}
+                    >
+                      {milestone.position}
+                    </Text>
+                  )}
                 </View>
                 {index < milestoneProgress.length - 1 ? <View style={styles.mapConnector} /> : null}
               </View>
@@ -534,7 +545,7 @@ export default function RoadmapRoute() {
                   {milestone.outcome}
                 </Text>
                 <Text style={styles.mapMilestoneProgress}>
-                  {milestone.completed}/{milestone.steps.length} missions complete
+                  {milestone.completed}/{milestone.steps.length} steps complete
                   {milestone.isCurrent ? " · You are here" : ""}
                 </Text>
               </View>
@@ -543,22 +554,29 @@ export default function RoadmapRoute() {
         </View>
         {roadmap.milestones.length > 0 ? (
           <Pressable
-            accessibilityHint="Shows or hides the detailed plan for every roadmap phase"
+            accessibilityHint="Shows or hides the details for every milestone"
             accessibilityRole="button"
             accessibilityState={{ expanded: detailedMapExpanded }}
             onPress={() => setDetailedMapExpanded((current) => !current)}
             style={({ pressed }) => [styles.detailToggle, pressed && styles.detailTogglePressed]}
           >
-            <Text style={styles.detailToggleText}>
-              {detailedMapExpanded ? "Hide detailed map ↑" : "View detailed map ↓"}
-            </Text>
+            <View style={styles.inlineRow}>
+              <Text style={styles.detailToggleText}>
+                {detailedMapExpanded ? "Hide detailed map" : "View detailed map"}
+              </Text>
+              {detailedMapExpanded ? (
+                <ChevronUp color={colors.forest} size={16} strokeWidth={2.6} />
+              ) : (
+                <ChevronDown color={colors.forest} size={16} strokeWidth={2.6} />
+              )}
+            </View>
           </Pressable>
         ) : null}
         {detailedMapExpanded ? (
           <View style={styles.detailMap}>
             {roadmap.strategy_summary || roadmap.summary ? (
               <View style={styles.strategyCard}>
-                <Text style={styles.detailEyebrow}>How this path works</Text>
+                <Text style={styles.detailEyebrow}>How this roadmap works</Text>
                 <Text style={styles.strategyText}>{roadmap.strategy_summary || roadmap.summary}</Text>
               </View>
             ) : null}
@@ -582,7 +600,7 @@ export default function RoadmapRoute() {
               const successSignal = milestone.success_signal || finalStep?.completion_condition;
               return (
                 <View key={milestone.id} style={styles.detailPhaseCard}>
-                  <Text style={styles.detailPhaseLabel}>Phase {milestone.position}</Text>
+                  <Text style={styles.detailPhaseLabel}>Milestone {milestone.position}</Text>
                   <Text style={styles.detailPhaseTitle}>{milestone.title}</Text>
                   {focusAreas.length > 0 ? (
                     <View style={styles.focusList}>
@@ -615,8 +633,13 @@ export default function RoadmapRoute() {
       {roadmap.status === "accepted" && todayPractice ? (
         <View style={styles.practiceCard}>
           <View style={styles.practiceHeader}>
-            <Text style={styles.practiceEyebrow}>Daily mini win</Text>
-            {roadmap.practice_completed_today ? <Text style={styles.practiceCompleteMark}>✓ Done</Text> : null}
+            <Text style={styles.practiceEyebrow}>Daily practice</Text>
+            {roadmap.practice_completed_today ? (
+              <View style={styles.inlineRow}>
+                <Check color={colors.forest} size={14} strokeWidth={3} />
+                <Text style={styles.practiceCompleteMark}>Done</Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
           <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
@@ -647,12 +670,15 @@ export default function RoadmapRoute() {
           ) : null}
           {!roadmap.practice_completed_today && practiceTasks.length > 1 ? (
             <Pressable
-              accessibilityHint="Shows another optional practice prompt from this roadmap"
+              accessibilityHint="Shows another optional practice from this roadmap"
               accessibilityRole="button"
               onPress={() => setPracticeTaskOffset((value) => value + 1)}
               style={({ pressed }) => [styles.practiceNext, pressed && styles.practiceNextPressed]}
             >
-              <Text style={styles.practiceNextText}>Try a different prompt →</Text>
+              <View style={styles.inlineRow}>
+                <Text style={styles.practiceNextText}>Show another practice</Text>
+                <ArrowRight color={colors.forest} size={15} strokeWidth={2.6} />
+              </View>
             </Pressable>
           ) : null}
         </View>
@@ -701,9 +727,16 @@ export default function RoadmapRoute() {
             >
               <View style={styles.milestoneHeaderTopline}>
                 <Text style={styles.milestoneLabel}>Milestone {milestone.position}</Text>
-                <Text style={styles.milestoneToggle}>
-                  {expandedMilestoneIds.has(milestone.id) ? "Hide steps ↑" : "Show steps ↓"}
-                </Text>
+                <View style={styles.inlineRow}>
+                  <Text style={styles.milestoneToggle}>
+                    {expandedMilestoneIds.has(milestone.id) ? "Hide steps" : "Show steps"}
+                  </Text>
+                  {expandedMilestoneIds.has(milestone.id) ? (
+                    <ChevronUp color={colors.forest} size={15} strokeWidth={2.6} />
+                  ) : (
+                    <ChevronDown color={colors.forest} size={15} strokeWidth={2.6} />
+                  )}
+                </View>
               </View>
               <Text style={styles.milestoneTitle}>{milestone.title}</Text>
               <Text style={styles.milestoneOutcome}>{milestone.outcome}</Text>
@@ -723,13 +756,7 @@ export default function RoadmapRoute() {
               const isLast =
                 milestoneIndex === roadmap.milestones.length - 1 &&
                 stepIndex === milestone.steps.length - 1;
-              const nodeLabel = isCompleted
-                ? "✓"
-                : isCurrent
-                  ? "▶"
-                  : isBlocked
-                    ? "·"
-                    : String(stepNumberById.get(step.id));
+              const nodeLabel = isBlocked ? "·" : String(stepNumberById.get(step.id));
 
               return (
                 <View key={step.id} style={styles.pathRow}>
@@ -743,7 +770,11 @@ export default function RoadmapRoute() {
                         isLocked && styles.nodeLocked,
                       ]}
                     >
-                      {isLocked ? <LockGlyph /> : (
+                      {isLocked ? <LockGlyph /> : isCompleted ? (
+                        <Check color={colors.onForest} size={18} strokeWidth={3} />
+                      ) : isCurrent ? (
+                        <Play color={colors.onForest} fill={colors.onForest} size={14} strokeWidth={2.4} />
+                      ) : (
                         <Text
                           style={[
                             styles.nodeLabel,
@@ -786,8 +817,8 @@ export default function RoadmapRoute() {
                         {step.evidence_url ? (
                           <Pressable
                             accessibilityRole="link"
-                            hitSlop={8}
                             onPress={() => void Linking.openURL(step.evidence_url)}
+                            style={styles.savedWorkLinkTarget}
                           >
                             <Text numberOfLines={1} style={styles.savedWorkLink}>
                               {step.evidence_url}
@@ -879,9 +910,12 @@ export default function RoadmapRoute() {
                                           pressed && styles.resourceLinkPressed,
                                         ]}
                                       >
-                                        <Text style={styles.resourceOpen}>
-                                          {isPrimaryVideo ? "Watch free course ↗" : "Open resource ↗"}
-                                        </Text>
+                                        <View style={styles.inlineRow}>
+                                          <Text style={styles.resourceOpen}>
+                                            {isPrimaryVideo ? "Watch free course" : "Open resource"}
+                                          </Text>
+                                          <ExternalLink color={colors.forest} size={14} strokeWidth={2.4} />
+                                        </View>
                                       </Pressable>
                                       <Pressable
                                         accessibilityHint="Hides this resource. An Undo option will appear briefly."
@@ -1030,7 +1064,7 @@ export default function RoadmapRoute() {
                             ]}
                           >
                             {completionConfirmed ? (
-                              <Text style={styles.checkboxMark}>✓</Text>
+                              <Check color={colors.onForest} size={18} strokeWidth={3} />
                             ) : null}
                           </View>
                           <Text style={styles.confirmationText}>
@@ -1065,7 +1099,7 @@ export default function RoadmapRoute() {
 }
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  backLink: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 2, marginBottom: 10, minHeight: 32 },
+  backLink: { alignItems: "center", alignSelf: "flex-start", flexDirection: "row", gap: 2, marginBottom: 10, minHeight: 44 },
   goalsLink: { color: colors.muted, fontSize: 14, fontWeight: "600" },
   title: {
     color: colors.ink,
@@ -1086,7 +1120,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: 14,
   },
   completionNoticeCopy: { flex: 1 },
-  completionNoticeLabel: { color: colors.forestDark, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  completionNoticeLabel: { color: colors.forestDark, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   completionNoticeText: { color: colors.forestDark, fontSize: 14, fontWeight: "700", lineHeight: 20, marginTop: 4 },
   completionNoticeDismiss: { color: colors.forestDark, fontSize: 24, fontWeight: "400", lineHeight: 23 },
   progressHeader: { flexDirection: "row", justifyContent: "space-between", marginTop: 18 },
@@ -1107,11 +1141,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 16,
     padding: 18,
   },
-  nextEyebrow: { color: colors.onForestMuted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  nextEyebrow: { color: colors.onForestMuted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   nextTitle: { color: colors.onForest, fontSize: 19, fontWeight: "800", lineHeight: 25, marginTop: 5 },
   nextAction: { color: colors.onForestMuted, fontSize: 14, lineHeight: 20, marginTop: 7 },
   nextMeta: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
-  nextMetaText: { color: colors.onForestMuted, fontSize: 11, fontWeight: "800" },
+  nextMetaText: { color: colors.onForestMuted, fontSize: 12, fontWeight: "800" },
+  inlineRow: { alignItems: "center", flexDirection: "row", gap: 4 },
+  iconButton: { alignItems: "center", height: 44, justifyContent: "center", marginRight: -10, marginTop: -10, width: 44 },
   nextOpen: { color: colors.onForest, fontSize: 13, fontWeight: "900", marginTop: 15 },
   nextCardPressed: { opacity: 0.84 },
   mapCard: {
@@ -1122,7 +1158,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 30,
     padding: 18,
   },
-  mapEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  mapEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "800", textTransform: "uppercase" },
   mapTitle: { color: colors.ink, fontSize: 17, fontWeight: "800", lineHeight: 23, marginTop: 5 },
   mapBody: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   mapMilestones: { marginTop: 17 },
@@ -1140,7 +1176,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   mapMilestoneContent: { flex: 1, paddingBottom: 14, paddingLeft: 10 },
   mapMilestoneTitle: { color: colors.ink, fontSize: 15, fontWeight: "800", lineHeight: 20 },
   mapMilestoneOutcome: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 2 },
-  mapMilestoneProgress: { color: colors.forestDark, fontSize: 11, fontWeight: "800", marginTop: 5 },
+  mapMilestoneProgress: { color: colors.forestDark, fontSize: 12, fontWeight: "800", marginTop: 5 },
   detailToggle: {
     alignItems: "center", borderColor: colors.softBorder, borderRadius: 12, borderWidth: 1,
     justifyContent: "center", marginTop: 4, minHeight: 44, paddingHorizontal: 12,
@@ -1150,25 +1186,25 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   detailMap: { gap: 12, marginTop: 14 },
   strategyCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
   rhythmCard: { backgroundColor: colors.card, borderRadius: 14, padding: 14 },
-  detailEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  detailEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   strategyText: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
   rhythmRow: { flexDirection: "row", gap: 7, marginTop: 7 },
   rhythmBullet: { color: colors.forest, fontSize: 15, fontWeight: "900", lineHeight: 19 },
   rhythmText: { color: colors.ink, flex: 1, fontSize: 13, lineHeight: 19 },
   detailPhaseCard: { backgroundColor: colors.card, borderColor: colors.softBorder, borderRadius: 14, borderWidth: 1, minWidth: 0, overflow: "hidden", padding: 14 },
-  detailPhaseLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  detailPhaseLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   detailPhaseTitle: { color: colors.ink, fontSize: 16, fontWeight: "900", lineHeight: 21, marginTop: 3 },
   focusList: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 10, minWidth: 0, width: "100%" },
   focusPill: { alignSelf: "flex-start", backgroundColor: colors.forestSoft, borderRadius: 14, flexShrink: 1, maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 6 },
   focusPillText: { color: colors.forestDark, flexShrink: 1, fontSize: 12, fontWeight: "800", lineHeight: 18 },
   practiceCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, marginBottom: 22, padding: 18 },
   practiceHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between" },
-  practiceEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  practiceEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   practiceCompleteMark: { color: colors.forest, fontSize: 12, fontWeight: "900" },
   practiceTitle: { color: colors.ink, fontSize: 17, fontWeight: "900", lineHeight: 23, marginTop: 5 },
   practiceBody: { color: colors.ink, fontSize: 13, lineHeight: 20, marginTop: 6 },
   practiceProof: { borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
-  practiceProofLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  practiceProofLabel: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   practiceProofText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
   practiceCompleteButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 10, borderWidth: 1, justifyContent: "center", marginTop: 14, minHeight: 44, paddingHorizontal: 14 },
   practiceCompleteButtonPressed: { opacity: 0.78 },
@@ -1176,11 +1212,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   practiceCelebration: { backgroundColor: colors.card, borderRadius: 12, marginTop: 14, padding: 12 },
   practiceCelebrationTitle: { color: colors.forest, fontSize: 13, fontWeight: "900" },
   practiceCelebrationText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 2 },
-  practiceNext: { alignSelf: "flex-start", marginTop: 13, paddingVertical: 4 },
+  practiceNext: { alignSelf: "flex-start", justifyContent: "center", marginTop: 5, minHeight: 44 },
   practiceNextPressed: { opacity: 0.65 },
   practiceNextText: { color: colors.forest, fontSize: 13, fontWeight: "900" },
   detailItem: { borderTopColor: colors.softBorder, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
-  detailItemLabel: { color: colors.muted, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  detailItemLabel: { color: colors.muted, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   detailItemText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
   goalComplete: {
     backgroundColor: colors.forestSoft,
@@ -1204,7 +1240,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     marginBottom: 22,
     padding: 18,
   },
-  premiumEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
+  premiumEyebrow: { color: colors.forest, fontSize: 12, fontWeight: "900", textTransform: "uppercase" },
   premiumTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", lineHeight: 24, marginTop: 5 },
   premiumBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
   path: { gap: 30 },
@@ -1271,12 +1307,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   lockedCard: { backgroundColor: colors.cardMuted, borderColor: colors.line, opacity: 0.85 },
   missionMeta: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 7 },
   missionKind: {
-    backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 10,
+    backgroundColor: colors.forestSoft, borderRadius: 99, color: colors.forestDark, fontSize: 12,
     fontWeight: "900", overflow: "hidden", paddingHorizontal: 8, paddingVertical: 4, textTransform: "uppercase",
   },
   stateLabel: {
     color: colors.muted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
@@ -1286,7 +1322,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   actionBox: { backgroundColor: colors.forestSoft, borderRadius: 14, marginTop: 16, padding: 14 },
   actionLabel: {
     color: colors.forestDark,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
@@ -1303,7 +1339,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     fontWeight: "800",
     textTransform: "uppercase",
   },
-  verifiedLabel: { color: colors.forest, fontSize: 11, fontWeight: "700" },
+  verifiedLabel: { color: colors.forest, fontSize: 12, fontWeight: "700" },
   resourceCardShell: {
     backgroundColor: colors.background,
     borderColor: colors.line,
@@ -1320,14 +1356,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.forestSoft,
     borderRadius: 99,
     color: colors.forestDark,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     overflow: "hidden",
     paddingHorizontal: 8,
     paddingVertical: 4,
     textTransform: "uppercase",
   },
-  resourceSource: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  resourceSource: { color: colors.muted, fontSize: 12, fontWeight: "700" },
   resourceTitle: {
     color: colors.ink,
     fontSize: 15,
@@ -1338,7 +1374,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   resourceDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
   resourceReason: { color: colors.forestDark, fontSize: 12, lineHeight: 18, marginTop: 9 },
   resourceFooter: { alignItems: "center", flexDirection: "row", gap: 10, marginTop: 10 },
-  resourceFooterLink: { flex: 1, justifyContent: "center", minHeight: 36 },
+  resourceFooterLink: { flex: 1, justifyContent: "center", minHeight: 44 },
   resourceOpen: { color: colors.forest, fontSize: 12, fontWeight: "800" },
   findAnother: {
     alignItems: "center",
@@ -1346,7 +1382,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     justifyContent: "center",
-    minHeight: 42,
+    minHeight: 44,
     paddingHorizontal: 12,
   },
   findAnotherText: { color: colors.forest, fontSize: 13, fontWeight: "800" },
@@ -1356,9 +1392,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 12,
     borderWidth: 1,
-    height: 36,
+    height: 44,
     justifyContent: "center",
-    width: 36,
+    width: 44,
   },
   notUsefulText: { alignItems: "center", color: colors.muted, fontSize: 14, fontWeight: "700", justifyContent: "center" },
   undoNotice: {
@@ -1403,11 +1439,12 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   savedWorkLabel: {
     color: colors.forestDark,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     textTransform: "uppercase",
   },
   savedWorkText: { color: colors.forestDark, fontSize: 13, lineHeight: 19 },
+  savedWorkLinkTarget: { justifyContent: "center", minHeight: 44 },
   savedWorkLink: { color: colors.forest, fontSize: 13, fontWeight: "800", marginTop: 2 },
   fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700", marginBottom: 6 },
   fieldHint: { color: colors.danger, fontSize: 13, marginBottom: 8, marginTop: -8 },

@@ -71,7 +71,7 @@ class FixtureRoadmapProvider:
         else:
             summary_lead = f"A focused path toward {goal_title}."
             starting_state = (
-                "You skipped the starting questions, so this path begins with the foundations. "
+                "You skipped the starting questions, so this roadmap begins with the foundations. "
                 "Note anything you already know in each step's learning record."
             )
             experience = "what you already know"
@@ -136,26 +136,26 @@ class FixtureRoadmapProvider:
         }[domain]
         draft = RoadmapDraft(
             schema_version="1.2",
-            title=f"Your path to {self._mid_sentence(goal_title)}",
+            title=f"Your roadmap to {self._mid_sentence(goal_title)}",
             summary=(
                 f"{facts['summary_lead']} "
-                "Each stage ends with observable evidence rather than time spent."
+                "Each milestone ends with observable evidence rather than time spent."
             ),
             strategy_summary=(
                 "Build only the capabilities that close the gap between what you can already do "
-                "and the evidence required for this outcome. Each phase turns learning into a "
+                "and the evidence required for this outcome. Each milestone turns learning into a "
                 "visible artifact before you move on."
             ),
             suggested_rhythm=[
                 "Use learning sessions to unlock the next concrete build or practice task.",
                 "Return to the current step until its completion condition has real evidence.",
-                "At each phase boundary, keep the strongest artifact and explain what it proves.",
+                "After each milestone, keep your strongest work and explain what it proves.",
             ],
             practice_tasks=self._practice_tasks(domain=domain, steps=steps),
             goal_outcome=outcome,
             starting_state_summary=facts["starting_state"],
             assumptions=[
-                "You can follow this path without a fixed daily schedule.",
+                "You can follow this roadmap without a fixed daily schedule.",
                 "Practice can use the tools and materials you already have.",
             ],
             milestones=[

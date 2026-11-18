@@ -75,7 +75,7 @@ export default function NewGoalRoute() {
       <Brand />
       <Text style={styles.step}>New goal</Text>
       <Heading>What do you want to achieve?</Heading>
-      <Body>Describe the destination. CareerOS will help shape the path.</Body>
+      <Body>Describe the destination. CareerOS will build your roadmap from it.</Body>
       <Field
         autoFocus
         maxLength={140}

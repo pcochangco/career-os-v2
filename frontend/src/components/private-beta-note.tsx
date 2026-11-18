@@ -46,6 +46,6 @@ const createStyles = (colors: ThemeColors) =>
     compact: { backgroundColor: "transparent", paddingHorizontal: 0, paddingVertical: 4 },
     title: { color: colors.ink, fontSize: 15, fontWeight: "700" },
     body: { color: colors.muted, fontSize: 14, lineHeight: 21 },
-    link: { alignSelf: "flex-start", minHeight: 32, justifyContent: "center" },
+    link: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center" },
     linkText: { color: colors.forest, fontSize: 14, fontWeight: "700" },
   });

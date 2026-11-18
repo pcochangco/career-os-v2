@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 
+import { Check } from "@/components/icons";
 import {
   Body,
   Brand,
@@ -284,7 +285,7 @@ export default function DiscoveryRoute() {
       <Screen width="narrow">
         <Brand />
         <Text style={styles.eyebrow}>Your starting context</Text>
-        <Heading>Ready to shape your path.</Heading>
+        <Heading>Ready to build your roadmap.</Heading>
         <Body>{state.completion_reason}</Body>
         {answeredContext.length > 0 ? (
           <View style={styles.summaryCard}>
@@ -369,8 +370,11 @@ export default function DiscoveryRoute() {
             >
               {!useCompactChoices ? (
                 <View style={[styles.choiceMark, active && styles.choiceMarkActive]}>
-                  {active ? <Text style={styles.choiceCheck}>✓</Text> : null}
+                  {active ? <Check color={colors.forest} size={15} strokeWidth={3.2} /> : null}
                 </View>
+              ) : null}
+              {useCompactChoices && active ? (
+                <Check color={colors.onForest} size={15} strokeWidth={3} style={styles.chipCheck} />
               ) : null}
               <Text
                 style={[
@@ -378,7 +382,7 @@ export default function DiscoveryRoute() {
                   active && styles.choiceTextActive,
                 ]}
               >
-                {useCompactChoices && active ? `✓ ${option.label}` : option.label}
+                {option.label}
               </Text>
             </Pressable>
           );
@@ -425,7 +429,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   choicePressed: { opacity: 0.78 },
   choiceMark: { alignItems: "center", borderColor: colors.muted, borderRadius: 7, borderWidth: 1.5, flexShrink: 0, height: 22, justifyContent: "center", width: 22 },
   choiceMarkActive: { backgroundColor: colors.onForest, borderColor: colors.onForest },
-  choiceCheck: { color: colors.forest, fontSize: 14, fontWeight: "900", lineHeight: 17 },
+  chipCheck: { marginRight: 6 },
   choiceText: { color: colors.ink, flex: 1, flexShrink: 1, fontSize: 15, fontWeight: "700", lineHeight: 21, minWidth: 0 },
   choiceChipText: { color: colors.ink, flexShrink: 1, fontSize: 15, fontWeight: "700", lineHeight: 21, maxWidth: "100%" },
   choiceTextActive: { color: colors.onForest },
