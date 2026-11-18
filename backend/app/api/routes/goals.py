@@ -23,6 +23,7 @@ from app.ai.schema import (
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import (
     DiscoveryAnswerWrite,
+    DiscoveryContextItemRead,
     DiscoveryOptionRead,
     DiscoveryQuestionRead,
     DiscoveryStateRead,
@@ -305,7 +306,18 @@ def to_discovery_state(db: Session, goal: Goal) -> DiscoveryStateRead:
             status="ready",
             goal_title=goal.title,
             context_summary=[f"{answer.question}: {answer.answer}" for answer in context],
-            completion_reason="You have given enough detail to shape a focused roadmap.",
+            context=[
+                DiscoveryContextItemRead(
+                    question=answer.question, answer=answer.answer, skipped=answer.skipped
+                )
+                for answer in context
+            ],
+            completion_reason=(
+                "You have given enough detail to shape a focused roadmap."
+                if any(not answer.skipped for answer in context)
+                else "You skipped the questions, so CareerOS will build a solid general path "
+                "you can tailor as you go."
+            ),
             answered_questions=answered_questions,
             minimum_questions=MIN_DISCOVERY_QUESTIONS,
             maximum_questions=MAX_DISCOVERY_QUESTIONS,

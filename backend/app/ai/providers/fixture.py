@@ -155,8 +155,8 @@ class FixtureRoadmapProvider:
             goal_outcome=outcome,
             starting_state_summary=facts["starting_state"],
             assumptions=[
-                "The path can be completed without a fixed daily schedule.",
-                "Practice can use tools and materials available to the learner.",
+                "You can follow this path without a fixed daily schedule.",
+                "Practice can use the tools and materials you already have.",
             ],
             milestones=[
                 self._milestone(

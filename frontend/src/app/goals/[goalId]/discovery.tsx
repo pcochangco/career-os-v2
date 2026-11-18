@@ -20,6 +20,7 @@ import {
   Screen,
 } from "@/components/ui";
 import { ApiError, apiRequest } from "@/lib/api";
+import { clearDraft, readDraft, writeDraft } from "@/lib/drafts";
 import { useSession } from "@/lib/session";
 import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -137,6 +138,27 @@ export default function DiscoveryRoute() {
   }, [generating, generationStages.length, reduceMotion]);
 
   const question = state?.question;
+  const draftKey = question ? `discovery.${question.id}` : null;
+
+  // Restore what the user typed or picked for this question before a refresh or back button.
+  useEffect(() => {
+    if (!draftKey) return;
+    const saved = readDraft(draftKey);
+    if (!saved) return;
+    try {
+      const draft = JSON.parse(saved) as { custom: string; selected: string[] };
+      setCustomAnswer(draft.custom ?? "");
+      setSelected(Array.isArray(draft.selected) ? draft.selected : []);
+    } catch {
+      clearDraft(draftKey);
+    }
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftKey) return;
+    if (!customAnswer && selected.length === 0) clearDraft(draftKey);
+    else writeDraft(draftKey, JSON.stringify({ custom: customAnswer, selected }));
+  }, [customAnswer, draftKey, selected]);
 
   function toggleOption(key: string) {
     if (!question) return;
@@ -161,6 +183,7 @@ export default function DiscoveryRoute() {
           token,
         },
       );
+      clearDraft(`discovery.${question.id}`);
       setState(next);
       setSelected([]);
       setCustomAnswer("");
@@ -248,6 +271,9 @@ export default function DiscoveryRoute() {
     );
   }
 
+  const answeredContext = (state.context ?? []).filter((item) => !item.skipped);
+  const skippedCount = (state.context ?? []).length - answeredContext.length;
+
   if (state?.status === "ready") {
     return (
       <Screen width="narrow">
@@ -255,9 +281,21 @@ export default function DiscoveryRoute() {
         <Text style={styles.eyebrow}>Your starting context</Text>
         <Heading>Ready to shape your path.</Heading>
         <Body>{state.completion_reason}</Body>
-        <View style={styles.summaryCard}>
-          {state.context_summary.map((item) => <Text key={item} style={styles.summaryItem}>{item}</Text>)}
-        </View>
+        {answeredContext.length > 0 ? (
+          <View style={styles.summaryCard}>
+            {answeredContext.map((item) => (
+              <View key={item.question} style={styles.summaryRow}>
+                <Text style={styles.summaryQuestion}>{item.question}</Text>
+                <Text style={styles.summaryItem}>{item.answer}</Text>
+              </View>
+            ))}
+            {skippedCount > 0 ? (
+              <Text style={styles.summarySkipped}>
+                {skippedCount === 1 ? "1 question skipped" : `${skippedCount} questions skipped`}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button onPress={() => void createRoadmap()}>Generate roadmap</Button>
       </Screen>
@@ -265,7 +303,8 @@ export default function DiscoveryRoute() {
   }
 
   const questionPosition = question?.position ?? state.answered_questions + 1;
-  const progressWidth = `${Math.min(92, 14 + questionPosition * 13)}%` as `${number}%`;
+  const maxQuestions = Math.max(state.maximum_questions, questionPosition);
+  const progressWidth = `${Math.round((questionPosition / maxQuestions) * 100)}%` as `${number}%`;
   const mayFinishAfterThisQuestion = questionPosition >= state.minimum_questions;
   const useCompactChoices = Boolean(
     question &&
@@ -281,13 +320,15 @@ export default function DiscoveryRoute() {
         accessibilityLabel={`Discovery progress. Question ${questionPosition}.`}
         accessibilityRole="progressbar"
         accessibilityValue={{
-          text: `Question ${questionPosition}. CareerOS will stop when it has enough context.`,
+          text: `Question ${questionPosition} of up to ${maxQuestions}. CareerOS will stop when it has enough context.`,
         }}
         style={styles.progress}
       >
         <View style={styles.progressCopy}>
           <Text style={styles.progressLabel}>Shaping your roadmap</Text>
-          <Text style={styles.progressCount}>Question {questionPosition}</Text>
+          <Text style={styles.progressCount}>
+            Question {questionPosition} of up to {maxQuestions}
+          </Text>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: progressWidth }]} />
@@ -391,6 +432,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   note: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 15, textAlign: "center" },
   summaryCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 22, padding: 18 },
   summaryItem: { color: colors.ink, fontSize: 15, lineHeight: 22 },
+  summaryRow: { gap: 2 },
+  summaryQuestion: { color: colors.subtle, fontSize: 13, lineHeight: 18 },
+  summarySkipped: { color: colors.subtle, fontSize: 13 },
   generating: { flex: 1, justifyContent: "center", minHeight: 480 },
   generatingIndicator: { alignItems: "center", backgroundColor: colors.forestSoft, borderRadius: 40, height: 80, justifyContent: "center", marginBottom: 24, width: 80 },
   generationStage: { color: colors.forestDark, fontSize: 17, fontWeight: "800", lineHeight: 25, marginBottom: 10 },

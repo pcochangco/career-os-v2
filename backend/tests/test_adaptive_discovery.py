@@ -83,6 +83,8 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     assert ready.json()["answered_questions"] == 3
     assert len(ready.json()["context_summary"]) == 3
     assert "Skipped" in ready.json()["context_summary"][1]
+    assert ready.json()["context"][1]["skipped"] is True
+    assert len(ready.json()["context"]) == 3
 
     generated = client.post(f"/api/v1/goals/{goal['id']}/roadmaps", headers=headers)
     assert generated.status_code == 201
@@ -308,3 +310,22 @@ def test_incomplete_discovery_turn_requires_an_actionable_question() -> None:
         pass
     else:
         raise AssertionError("An incomplete discovery response must not omit its question fields")
+
+
+def test_skipping_every_question_is_explained_honestly(client: TestClient) -> None:
+    headers = auth(create_session(client))
+    goal = client.post(
+        "/api/v1/goals", headers=headers, json={"title": "Learn conversational Spanish"}
+    ).json()
+    state = client.post(
+        f"/api/v1/goals/{goal['id']}/discovery/questions/next", headers=headers
+    ).json()
+    while state["status"] != "ready":
+        state = client.post(
+            f"/api/v1/goals/{goal['id']}/discovery/questions/{state['question']['id']}/answer",
+            headers=headers,
+            json={"skipped": True},
+        ).json()
+
+    assert all(item["skipped"] for item in state["context"])
+    assert "skipped the questions" in state["completion_reason"]

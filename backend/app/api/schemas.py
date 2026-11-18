@@ -115,11 +115,19 @@ class DiscoveryQuestionRead(BaseModel):
     placeholder: str
 
 
+class DiscoveryContextItemRead(BaseModel):
+    question: str
+    answer: str
+    skipped: bool = False
+
+
 class DiscoveryStateRead(BaseModel):
     status: Literal["unstarted", "question", "ready"]
     goal_title: str = ""
     question: DiscoveryQuestionRead | None = None
     context_summary: list[str] = Field(default_factory=list)
+    # Structured form of context_summary, so clients can present answers and skips cleanly.
+    context: list[DiscoveryContextItemRead] = Field(default_factory=list)
     completion_reason: str = ""
     answered_questions: int = 0
     minimum_questions: int = 3
