@@ -153,6 +153,7 @@ export type DiscoveryState = {
   goal_title: string;
   question: DiscoveryQuestion | null;
   context_summary: string[];
+  context: Array<{ question: string; answer: string; skipped: boolean }>;
   completion_reason: string;
   answered_questions: number;
   minimum_questions: number;

@@ -58,20 +58,27 @@ export default function ReviewRoute() {
   }
   if (!roadmap) return <LoadingState label="Preparing your roadmap…" />;
 
+  const startAction = (
+    <View style={styles.footerAction}>
+      {error ? <Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text> : null}
+      <Button loading={accepting} onPress={() => void acceptRoadmap()}>Start this roadmap</Button>
+    </View>
+  );
+
   return (
-    <Screen>
+    <Screen footer={startAction}>
       <Brand />
-      <Text style={styles.eyebrow}>Your first roadmap</Text>
+      <Text style={styles.eyebrow}>Review your roadmap</Text>
       <Heading>{roadmap.title}</Heading>
       <Body>{roadmap.summary}</Body>
       <View style={styles.notice}>
         <Text style={styles.noticeTitle}>
           {roadmap.generation_source === "fixture"
-            ? "Preview path quality checked"
-            : "AI-generated and quality checked"}
+            ? "Built from CareerOS’s proven path"
+            : "Personalized for you and quality-checked"}
         </Text>
         <Text style={styles.noticeBody}>
-          CareerOS validated the structure, sequence, actions, and completion evidence before showing this draft.
+          Every step has a concrete action and a clear way to know it’s done.
         </Text>
       </View>
       <View style={styles.contextCard}>
@@ -79,7 +86,7 @@ export default function ReviewRoute() {
         <Text style={styles.contextText}>{roadmap.starting_state_summary}</Text>
         {roadmap.assumptions.length ? (
           <>
-            <Text style={styles.assumptionsLabel}>Assumptions to review</Text>
+            <Text style={styles.assumptionsLabel}>What we assumed</Text>
             {roadmap.assumptions.map((assumption) => (
               <Text key={assumption} style={styles.assumption}>• {assumption}</Text>
             ))}
@@ -106,8 +113,7 @@ export default function ReviewRoute() {
           </View>
         ))}
       </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button loading={accepting} onPress={() => void acceptRoadmap()}>Use this roadmap</Button>
+
     </Screen>
   );
 }
@@ -133,5 +139,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   stepCopy: { flex: 1 },
   stepTitle: { color: colors.ink, fontSize: 15, fontWeight: "700", lineHeight: 21 },
   stepMeta: { color: colors.muted, fontSize: 12, marginTop: 3, textTransform: "capitalize" },
+  footerAction: { gap: 8 },
   error: { color: colors.danger, fontSize: 14, marginBottom: 14 },
 });

@@ -22,10 +22,13 @@ export type ScreenWidth = keyof typeof contentWidths;
 
 export function Screen({
   children,
+  footer,
   scrollViewRef,
   width = "default",
 }: {
   children: ReactNode;
+  /** Pinned below the scrolling content, for the screen's one primary action. */
+  footer?: ReactNode;
   scrollViewRef?: RefObject<ScrollView | null>;
   width?: ScreenWidth;
 }) {
@@ -43,6 +46,11 @@ export function Screen({
       >
         <View style={[styles.content, { maxWidth: contentWidths[width] }]}>{children}</View>
       </ScrollView>
+      {footer ? (
+        <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.line }]}>
+          <View style={[styles.footerInner, { maxWidth: contentWidths[width] }]}>{footer}</View>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -228,6 +236,8 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 20 },
   scrollContentWide: { paddingHorizontal: 40, paddingVertical: 36 },
   content: { alignSelf: "center", flex: 1, width: "100%" },
+  footer: { borderTopWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
+  footerInner: { alignSelf: "center", width: "100%" },
   appHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 20, minHeight: 40 },
   appHeaderEnd: { justifyContent: "flex-end" },
   brand: { alignItems: "center", flexDirection: "row", gap: 8, marginBottom: 28 },
