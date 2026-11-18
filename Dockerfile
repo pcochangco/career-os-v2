@@ -9,6 +9,10 @@ COPY frontend/package.json ./frontend/package.json
 RUN pnpm install --no-frozen-lockfile
 
 COPY frontend ./frontend
+# EXPO_PUBLIC_* values are inlined into the static web bundle at build time. Render passes
+# service environment variables to Docker builds as build arguments, so declare them here.
+ARG EXPO_PUBLIC_SUPPORT_EMAIL=""
+ENV EXPO_PUBLIC_SUPPORT_EMAIL=${EXPO_PUBLIC_SUPPORT_EMAIL}
 RUN pnpm frontend:export
 
 
