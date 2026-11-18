@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { AskAboutPremium } from "@/components/plan-limit";
 import { apiRequest } from "@/lib/api";
+import { clearDraft, readDraft, writeDraft } from "@/lib/drafts";
 import { useSession } from "@/lib/session";
 import { LearningResource, Roadmap, RoadmapStep, StepResources } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -31,10 +32,18 @@ const resourceUndoWindowMs = 6_000;
 
 function learningRecordFor(step: RoadmapStep | null): string {
   if (!step) return "";
-  return [step.notes, step.evidence_summary, step.evidence_url]
+  // Older records kept a separate summary; fold it into the notes the user edits.
+  return [step.notes, step.evidence_summary]
     .map((value) => value.trim())
     .filter(Boolean)
     .join("\n\n");
+}
+
+const AUTOSAVE_DELAY_MS = 1200;
+
+function isValidEvidenceLink(value: string): boolean {
+  const link = value.trim();
+  return !link || /^https?:\/\/[^\s/]+\.[^\s]+/i.test(link);
 }
 
 export default function RoadmapRoute() {
@@ -45,9 +54,15 @@ export default function RoadmapRoute() {
   const { token } = useSession();
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [savingAction, setSavingAction] = useState<"work" | "completion" | "practice" | null>(null);
   const [learningRecord, setLearningRecord] = useState("");
+  const [evidenceLink, setEvidenceLink] = useState("");
+  const [stepError, setStepError] = useState<string | null>(null);
+  const [practiceError, setPracticeError] = useState<string | null>(null);
+  const [autosaveState, setAutosaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // The step whose saved work is loaded into the editor. Autosave waits for this so the first
+  // render (empty fields, before loading) can never be mistaken for the user clearing their work.
+  const [editorStepId, setEditorStepId] = useState<string | null>(null);
   const [completionConfirmed, setCompletionConfirmed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [stepResources, setStepResources] = useState<StepResources | null>(null);
@@ -155,8 +170,8 @@ export default function RoadmapRoute() {
   }, [roadmap?.current_step_id, roadmap?.id]);
 
   async function completeTodayPractice() {
-    if (!roadmap || !token || roadmap.practice_completed_today) return;
-    setActionError(null);
+    if (!roadmap || !token || roadmap.practice_completed_today || savingAction) return;
+    setPracticeError(null);
     setSavingAction("practice");
     try {
       const updated = await apiRequest<Roadmap>(`/roadmaps/${roadmap.id}/practice/today`, {
@@ -165,7 +180,7 @@ export default function RoadmapRoute() {
       });
       setRoadmap(updated);
     } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Practice could not be saved.");
+      setPracticeError(caught instanceof Error ? caught.message : "Practice couldn’t be saved. Please try again.");
     } finally {
       setSavingAction(null);
     }
@@ -181,7 +196,23 @@ export default function RoadmapRoute() {
   }
 
   useEffect(() => {
-    setLearningRecord(learningRecordFor(currentStep));
+    const draft = currentStep ? readDraft(`step-work.${currentStep.id}`) : null;
+    let restored: { notes: string; link: string } | null = null;
+    try {
+      restored = draft ? (JSON.parse(draft) as { notes: string; link: string }) : null;
+    } catch {
+      restored = null;
+    }
+    // Only an unsaved draft with content may replace what the server has.
+    if (restored && !restored.notes?.trim() && !restored.link?.trim()) {
+      if (currentStep) clearDraft(`step-work.${currentStep.id}`);
+      restored = null;
+    }
+    setLearningRecord(restored?.notes ?? learningRecordFor(currentStep));
+    setEvidenceLink(restored?.link ?? currentStep?.evidence_url ?? "");
+    setEditorStepId(currentStep?.id ?? null);
+    setAutosaveState("idle");
+    setStepError(null);
     setCompletionConfirmed(false);
     setResourceRefreshCoolingDown(false);
     setDismissedResource(null);
@@ -315,36 +346,57 @@ export default function RoadmapRoute() {
 
   const workDirty = Boolean(
     currentStep &&
-      learningRecord.trim() !== learningRecordFor(currentStep),
+      (learningRecord.trim() !== learningRecordFor(currentStep) ||
+        evidenceLink.trim() !== (currentStep.evidence_url ?? "").trim()),
   );
+  const evidenceLinkValid = isValidEvidenceLink(evidenceLink);
 
   const workPayload = {
     evidence_summary: "",
-    evidence_url: "",
+    evidence_url: evidenceLink.trim(),
     notes: learningRecord,
   };
 
   async function saveStepWork(step: RoadmapStep) {
-    if (!token || step.progress_status !== "current") return;
-    setActionError(null);
-    setSavingAction("work");
+    if (!token || step.progress_status !== "current" || !evidenceLinkValid) return;
+    setAutosaveState("saving");
     try {
       const updated = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/work`, {
         body: workPayload,
         method: "PUT",
         token,
       });
+      clearDraft(`step-work.${step.id}`);
       setRoadmap(updated);
-    } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Your work could not be saved.");
-    } finally {
-      setSavingAction(null);
+      setAutosaveState("saved");
+    } catch {
+      // The draft stays on this device, so nothing typed is lost; the next edit retries.
+      setAutosaveState("error");
     }
   }
 
+  // Keep a local draft while typing and save to the server shortly after the user pauses.
+  useEffect(() => {
+    if (!currentStep || currentStep.progress_status !== "current" || !workDirty) return;
+    if (editorStepId !== currentStep.id) return;
+    writeDraft(
+      `step-work.${currentStep.id}`,
+      JSON.stringify({ notes: learningRecord, link: evidenceLink }),
+    );
+    if (!evidenceLinkValid) return;
+    const timer = setTimeout(() => void saveStepWork(currentStep), AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // saveStepWork reads the latest state through workPayload on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [learningRecord, evidenceLink, currentStep?.id, editorStepId, workDirty, evidenceLinkValid]);
+
   async function completeStep(step: RoadmapStep) {
     if (!token || step.progress_status !== "current" || !completionConfirmed) return;
-    setActionError(null);
+    if (!evidenceLinkValid) {
+      setStepError("Fix the evidence link (it should start with https://) or clear it first.");
+      return;
+    }
+    setStepError(null);
     setSavingAction("completion");
     try {
       const saved = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/work`, {
@@ -352,6 +404,7 @@ export default function RoadmapRoute() {
         method: "PUT",
         token,
       });
+      clearDraft(`step-work.${step.id}`);
       setRoadmap(saved);
       const updated = await apiRequest<Roadmap>(`/roadmap-steps/${step.id}/progress`, {
         body: { completed: true, completion_confirmed: true },
@@ -369,7 +422,11 @@ export default function RoadmapRoute() {
       );
       scrollViewRef.current?.scrollTo({ animated: true, y: 0 });
     } catch (caught) {
-      setActionError(caught instanceof Error ? caught.message : "Progress could not be saved.");
+      setStepError(
+        caught instanceof Error
+          ? caught.message
+          : "Your progress couldn’t be saved. Your notes are kept; please try again.",
+      );
     } finally {
       setSavingAction(null);
     }
@@ -440,49 +497,6 @@ export default function RoadmapRoute() {
           </View>
           <Text style={styles.nextOpen}>Open current step ↓</Text>
         </Pressable>
-      ) : null}
-
-      {roadmap.status === "accepted" && todayPractice ? (
-        <View style={styles.practiceCard}>
-          <View style={styles.practiceHeader}>
-            <Text style={styles.practiceEyebrow}>Daily mini win</Text>
-            {roadmap.practice_completed_today ? <Text style={styles.practiceCompleteMark}>✓ Done</Text> : null}
-          </View>
-          <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
-          <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
-          <View style={styles.practiceProof}>
-            <Text style={styles.practiceProofLabel}>Done when</Text>
-            <Text style={styles.practiceProofText}>{todayPractice.completion_signal}</Text>
-          </View>
-          {roadmap.practice_completed_today ? (
-            <View style={styles.practiceCelebration}>
-              <Text style={styles.practiceCelebrationTitle}>Practice logged.</Text>
-              <Text style={styles.practiceCelebrationText}>That is a real piece of work toward this goal.</Text>
-            </View>
-          ) : (
-            <Pressable
-              accessibilityHint="Records this optional practice as completed for today"
-              accessibilityRole="button"
-              accessibilityState={{ busy: savingAction === "practice" }}
-              onPress={completeTodayPractice}
-              style={({ pressed }) => [styles.practiceCompleteButton, pressed && styles.practiceCompleteButtonPressed]}
-            >
-              <Text style={styles.practiceCompleteButtonText}>
-                {savingAction === "practice" ? "Logging…" : "I completed this ✓"}
-              </Text>
-            </Pressable>
-          )}
-          {!roadmap.practice_completed_today && practiceTasks.length > 1 ? (
-            <Pressable
-              accessibilityHint="Shows another optional practice prompt from this roadmap"
-              accessibilityRole="button"
-              onPress={() => setPracticeTaskOffset((value) => value + 1)}
-              style={({ pressed }) => [styles.practiceNext, pressed && styles.practiceNextPressed]}
-            >
-              <Text style={styles.practiceNextText}>Try a different prompt →</Text>
-            </Pressable>
-          ) : null}
-        </View>
       ) : null}
 
       <View style={styles.mapCard}>
@@ -598,6 +612,52 @@ export default function RoadmapRoute() {
         ) : null}
       </View>
 
+      {roadmap.status === "accepted" && todayPractice ? (
+        <View style={styles.practiceCard}>
+          <View style={styles.practiceHeader}>
+            <Text style={styles.practiceEyebrow}>Daily mini win</Text>
+            {roadmap.practice_completed_today ? <Text style={styles.practiceCompleteMark}>✓ Done</Text> : null}
+          </View>
+          <Text style={styles.practiceTitle}>{todayPractice.title}</Text>
+          <Text style={styles.practiceBody}>{todayPractice.instruction}</Text>
+          <View style={styles.practiceProof}>
+            <Text style={styles.practiceProofLabel}>Done when</Text>
+            <Text style={styles.practiceProofText}>{todayPractice.completion_signal}</Text>
+          </View>
+          {roadmap.practice_completed_today ? (
+            <View style={styles.practiceCelebration}>
+              <Text style={styles.practiceCelebrationTitle}>Practice logged.</Text>
+              <Text style={styles.practiceCelebrationText}>That is a real piece of work toward this goal.</Text>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityHint="Records this optional practice as completed for today"
+              accessibilityRole="button"
+              accessibilityState={{ busy: savingAction === "practice" }}
+              onPress={completeTodayPractice}
+              style={({ pressed }) => [styles.practiceCompleteButton, pressed && styles.practiceCompleteButtonPressed]}
+            >
+              <Text style={styles.practiceCompleteButtonText}>
+                {savingAction === "practice" ? "Logging…" : "I did this today"}
+              </Text>
+            </Pressable>
+          )}
+          {practiceError ? (
+            <Text accessibilityLiveRegion="polite" style={styles.inlineError}>{practiceError}</Text>
+          ) : null}
+          {!roadmap.practice_completed_today && practiceTasks.length > 1 ? (
+            <Pressable
+              accessibilityHint="Shows another optional practice prompt from this roadmap"
+              accessibilityRole="button"
+              onPress={() => setPracticeTaskOffset((value) => value + 1)}
+              style={({ pressed }) => [styles.practiceNext, pressed && styles.practiceNextPressed]}
+            >
+              <Text style={styles.practiceNextText}>Try a different prompt →</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
       {roadmap.locked_step_count > 0 ? (
         <View style={styles.premiumCard}>
           <Text style={styles.premiumEyebrow}>Free plan</Text>
@@ -621,7 +681,6 @@ export default function RoadmapRoute() {
         </View>
       ) : null}
 
-      {actionError ? <Text style={styles.actionError}>{actionError}</Text> : null}
 
       <View onLayout={(event) => setPathOffset(event.nativeEvent.layout.y)} style={styles.path}>
         {roadmap.milestones.map((milestone, milestoneIndex) => (
@@ -716,12 +775,25 @@ export default function RoadmapRoute() {
                       </Text>
                     </View>
                     <Text style={styles.stepTitle}>{step.title}</Text>
-                    {isCompleted && learningRecordFor(step) ? (
+                    {isCompleted && (learningRecordFor(step) || step.evidence_url) ? (
                       <View style={styles.savedWork}>
                         <Text style={styles.savedWorkLabel}>Your learning record</Text>
-                        <Text selectable style={styles.savedWorkText}>
-                          {learningRecordFor(step)}
-                        </Text>
+                        {learningRecordFor(step) ? (
+                          <Text selectable style={styles.savedWorkText}>
+                            {learningRecordFor(step)}
+                          </Text>
+                        ) : null}
+                        {step.evidence_url ? (
+                          <Pressable
+                            accessibilityRole="link"
+                            hitSlop={8}
+                            onPress={() => void Linking.openURL(step.evidence_url)}
+                          >
+                            <Text numberOfLines={1} style={styles.savedWorkLink}>
+                              {step.evidence_url}
+                            </Text>
+                          </Pressable>
+                        ) : null}
                       </View>
                     ) : null}
                     {isCurrent ? (
@@ -913,21 +985,37 @@ export default function RoadmapRoute() {
                             style={styles.workField}
                             value={learningRecord}
                           />
-                          <View style={styles.saveRow}>
-                            <View style={styles.saveButton}>
-                              <Button
-                                disabled={!workDirty || savingAction !== null}
-                                loading={savingAction === "work"}
-                                onPress={() => void saveStepWork(step)}
-                                secondary
-                              >
-                                Save record
-                              </Button>
-                            </View>
-                            {!workDirty && step.work_updated_at ? (
-                              <Text style={styles.savedLabel}>Saved</Text>
-                            ) : null}
-                          </View>
+                          <Text style={styles.fieldLabel}>Evidence link (optional)</Text>
+                          <Field
+                            accessibilityHint="A link to your work, such as a document, portfolio, repository, or video"
+                            accessibilityLabel="Evidence link"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            inputMode="url"
+                            keyboardType="url"
+                            maxLength={2048}
+                            onChangeText={setEvidenceLink}
+                            placeholder="https://… link to a doc, portfolio, repo, or video"
+                            value={evidenceLink}
+                          />
+                          {!evidenceLinkValid ? (
+                            <Text accessibilityLiveRegion="polite" style={styles.fieldHint}>
+                              Use a full link that starts with https://
+                            </Text>
+                          ) : null}
+                          <Text accessibilityLiveRegion="polite" style={styles.savedLabel}>
+                            {!evidenceLinkValid
+                              ? ""
+                              : autosaveState === "saving"
+                              ? "Saving…"
+                              : autosaveState === "error"
+                                ? "Not saved yet. Kept on this device; it will retry when you edit."
+                                : !workDirty && (autosaveState === "saved" || step.work_updated_at)
+                                  ? "Saved"
+                                  : workDirty
+                                    ? "Saves automatically"
+                                    : ""}
+                          </Text>
                         </View>
                         <Pressable
                           accessibilityRole="checkbox"
@@ -957,6 +1045,11 @@ export default function RoadmapRoute() {
                           >
                             Complete this step
                           </Button>
+                          {stepError ? (
+                            <Text accessibilityLiveRegion="polite" style={styles.inlineError}>
+                              {stepError}
+                            </Text>
+                          ) : null}
                         </View>
                       </>
                     ) : null}
@@ -1077,9 +1170,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   practiceProof: { borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
   practiceProofLabel: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   practiceProofText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 3 },
-  practiceCompleteButton: { alignItems: "center", backgroundColor: colors.forest, borderRadius: 12, justifyContent: "center", marginTop: 14, minHeight: 44, paddingHorizontal: 14 },
+  practiceCompleteButton: { alignItems: "center", backgroundColor: colors.card, borderColor: colors.line, borderRadius: 10, borderWidth: 1, justifyContent: "center", marginTop: 14, minHeight: 44, paddingHorizontal: 14 },
   practiceCompleteButtonPressed: { opacity: 0.78 },
-  practiceCompleteButtonText: { color: colors.onForest, fontSize: 13, fontWeight: "900" },
+  practiceCompleteButtonText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
   practiceCelebration: { backgroundColor: colors.card, borderRadius: 12, marginTop: 14, padding: 12 },
   practiceCelebrationTitle: { color: colors.forest, fontSize: 13, fontWeight: "900" },
   practiceCelebrationText: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 2 },
@@ -1114,7 +1207,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   premiumEyebrow: { color: colors.forest, fontSize: 11, fontWeight: "900", textTransform: "uppercase" },
   premiumTitle: { color: colors.ink, fontSize: 18, fontWeight: "900", lineHeight: 24, marginTop: 5 },
   premiumBody: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 7 },
-  actionError: { color: colors.danger, fontSize: 14, marginBottom: 22 },
   path: { gap: 30 },
   milestoneHeader: {
     backgroundColor: colors.card,
@@ -1317,6 +1409,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   savedWorkText: { color: colors.forestDark, fontSize: 13, lineHeight: 19 },
   savedWorkLink: { color: colors.forest, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  fieldLabel: { color: colors.ink, fontSize: 13, fontWeight: "700", marginBottom: 6 },
+  fieldHint: { color: colors.danger, fontSize: 13, marginBottom: 8, marginTop: -8 },
+  inlineError: { color: colors.danger, fontSize: 14, lineHeight: 20, marginTop: 10 },
   workSection: {
     borderTopColor: colors.line,
     borderTopWidth: 1,
@@ -1327,8 +1422,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   workIntro: { color: colors.muted, fontSize: 13, lineHeight: 19, marginBottom: 13, marginTop: 4 },
   workField: { fontSize: 15, lineHeight: 22, marginBottom: 10, minHeight: 94 },
   linkField: { fontSize: 15, marginBottom: 10, minHeight: 50 },
-  saveRow: { alignItems: "center", flexDirection: "row", gap: 12 },
-  saveButton: { minWidth: 154 },
   savedLabel: { color: colors.forest, fontSize: 13, fontWeight: "800" },
   confirmationRow: {
     alignItems: "center",
