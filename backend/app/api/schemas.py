@@ -42,6 +42,9 @@ class AccountRead(BaseModel):
     providers: list[Literal["apple", "google", "email"]] = Field(default_factory=list)
     email: str = ""
     provider_config: AuthProviderConfigRead
+    plan: Literal["free", "premium"] = "free"
+    # Total goals the plan allows (None = unlimited). Free accounts keep this limit for life.
+    goal_limit: int | None = None
 
 
 class IssueReportWrite(BaseModel):

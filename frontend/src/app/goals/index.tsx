@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { ChevronRight } from "lucide-react-native";
 
 import { useIsWide } from "@/components/app-shell";
+import { GoalLimitCard } from "@/components/plan-limit";
 import { Body, Brand, Button, ErrorState, Heading, LoadingState, Screen } from "@/components/ui";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
@@ -22,7 +23,7 @@ export default function GoalsRoute() {
   const styles = createStyles(colors);
   const router = useRouter();
   const wide = useIsWide();
-  const { token } = useSession();
+  const { account, token } = useSession();
   const [goals, setGoals] = useState<Goal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -43,6 +44,9 @@ export default function GoalsRoute() {
     return <LoadingState label="Loading your goals…" />;
   }
 
+  const goalLimit = account?.goal_limit ?? null;
+  const atGoalLimit = goalLimit !== null && goals.length >= goalLimit;
+
   return (
     <Screen width="wide">
       <Brand />
@@ -51,12 +55,23 @@ export default function GoalsRoute() {
           <Heading>Your goals</Heading>
           <Body>Choose a path and continue exactly where you left it.</Body>
         </View>
-        {goals.length > 0 ? (
+        {goals.length > 0 && !atGoalLimit ? (
           <View style={styles.newGoalButton}>
             <Button onPress={() => router.push("/goals/new" as never)}>New goal</Button>
           </View>
         ) : null}
       </View>
+      {goalLimit !== null && goals.length > 0 ? (
+        atGoalLimit ? (
+          <View style={styles.limitCard}>
+            <GoalLimitCard limit={goalLimit} />
+          </View>
+        ) : (
+          <Text style={styles.planUsage}>
+            {goals.length} of {goalLimit} free goals used
+          </Text>
+        )
+      ) : null}
       <View style={[styles.list, wide && styles.grid]}>
         {goals.length === 0 ? (
           <View style={styles.emptyState}>
@@ -115,6 +130,8 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   headerWide: { alignItems: "flex-start", flexDirection: "row", gap: 24, justifyContent: "space-between" },
   headerCopy: { flex: 1 },
   newGoalButton: { alignSelf: "flex-start", minWidth: 120 },
+  limitCard: { marginBottom: 16 },
+  planUsage: { color: colors.subtle, fontSize: 14, marginBottom: 14, marginTop: -8 },
   list: { gap: 12 },
   grid: { flexDirection: "row", flexWrap: "wrap" },
   emptyState: {

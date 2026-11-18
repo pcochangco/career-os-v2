@@ -22,6 +22,7 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
 from app.db.models import AuthIdentity, User, UserSession
+from app.services.entitlements import FREE_GOAL_LIMIT, is_premium
 from app.services.identity import (
     IdentityProvider,
     IdentityProviderNotConfigured,
@@ -77,6 +78,8 @@ def account_response(user: User) -> AccountRead:
         providers=providers,
         email=email,
         provider_config=provider_config_response(),
+        plan="premium" if is_premium(user) else "free",
+        goal_limit=None if is_premium(user) else FREE_GOAL_LIMIT,
     )
 
 

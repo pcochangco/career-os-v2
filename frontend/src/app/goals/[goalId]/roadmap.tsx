@@ -13,6 +13,7 @@ import {
   Screen,
   ThumbDownGlyph,
 } from "@/components/ui";
+import { AskAboutPremium } from "@/components/plan-limit";
 import { apiRequest } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { LearningResource, Roadmap, RoadmapStep, StepResources } from "@/lib/types";
@@ -599,12 +600,14 @@ export default function RoadmapRoute() {
 
       {roadmap.locked_step_count > 0 ? (
         <View style={styles.premiumCard}>
-          <Text style={styles.premiumEyebrow}>Premium continues this path</Text>
-          <Text style={styles.premiumTitle}>Your first milestone is free.</Text>
+          <Text style={styles.premiumEyebrow}>Free plan</Text>
+          <Text style={styles.premiumTitle}>Your first milestone is included.</Text>
           <Text style={styles.premiumBody}>
-            You can see the complete roadmap now. Upgrade when you are ready to unlock the next
-            {roadmap.locked_step_count === 1 ? " step" : ` ${roadmap.locked_step_count} steps`}.
+            You can see the whole roadmap. The next
+            {roadmap.locked_step_count === 1 ? " step is" : ` ${roadmap.locked_step_count} steps are`}{" "}
+            part of Premium, which isn’t available to buy yet.
           </Text>
+          <AskAboutPremium topic="roadmap" />
         </View>
       ) : null}
 
