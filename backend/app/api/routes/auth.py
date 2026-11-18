@@ -23,6 +23,7 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
 from app.db.models import AuthIdentity, User, UserSession
+from app.services.analytics import record_active_day, record_event
 from app.services.data_export import build_account_export
 from app.services.entitlements import FREE_GOAL_LIMIT, is_premium
 from app.services.identity import (
@@ -150,6 +151,7 @@ def sign_in_with_email_test_access(
         user = User()
         db.add(user)
         db.flush()
+        record_event(db, user, "signup_completed", method="email")
         db.add(
             AuthIdentity(
                 user_id=user.id,
@@ -251,6 +253,7 @@ def sign_in(
         user = User()
         db.add(user)
         db.flush()
+        record_event(db, user, "signup_completed", method=provider)
         identity = AuthIdentity(
             user_id=user.id,
             provider=provider,
@@ -274,7 +277,8 @@ def sign_in(
 
 
 @router.get("/account", response_model=AccountRead)
-def read_account(user: CurrentUser) -> AccountRead:
+def read_account(user: CurrentUser, db: DbSession) -> AccountRead:
+    record_active_day(db, user)
     return account_response(user)
 
 

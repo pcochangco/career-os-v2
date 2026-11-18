@@ -277,3 +277,31 @@ These slices are implemented through the `/api/v1/auth`, `/api/v1/goals`,
 `/api/v1/roadmap-steps/{step_id}/progress`, and
 `/api/v1/roadmap-steps/{step_id}/resources/resolve` resource families. Both
 roadmap providers use the same persistence and response contracts.
+
+## Product funnel analytics
+
+CareerOS measures its core journey with first-party, privacy-safe events in the
+`product_events` table. There is no client tracking script, no cookies and no third party.
+Events are written on the server inside the same transaction as the action they describe.
+
+| Event | When | Properties |
+|---|---|---|
+| `signup_completed` | A new account is created at sign-in | `method`: apple/google/email |
+| `goal_created` | A goal is saved | `first`: bool |
+| `goal_limit_reached` | A Free account tries to exceed its goal limit | none |
+| `discovery_completed` | Discovery is ready for generation | `all_skipped`: bool |
+| `roadmap_generated` | A draft roadmap is saved | `source`: succeeded/fallback/quota_fallback/preview |
+| `roadmap_accepted` | A draft is accepted | none |
+| `step_completed` | A step is completed | `first_ever`: bool |
+| `practice_logged` | Daily practice is logged | none |
+| `active_day` | The app loads the account (at most once per user per UTC day) | none |
+
+Rules: only the names and values above are accepted (`app/services/analytics.py` drops
+anything else); never store goal titles, answers, notes, emails or other free text; rows
+cascade-delete with the account.
+
+Read the funnel (distinct people, by sign-up window) from the API container:
+
+```bash
+python -m app.cli.funnel --days 30
+```

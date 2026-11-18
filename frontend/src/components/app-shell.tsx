@@ -1,5 +1,5 @@
 import { usePathname, useRouter } from "expo-router";
-import { LayoutList, LucideIcon, Plus, Settings } from "lucide-react-native";
+import { LayoutList, LucideIcon, Plus, Settings } from "@/components/icons";
 import { createContext, ReactNode, useContext } from "react";
 import { Image, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

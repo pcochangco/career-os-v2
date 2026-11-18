@@ -18,6 +18,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.services.analytics import record_event
 from app.services.entitlements import can_access_step
 from app.services.progress import calculate_roadmap_progress, to_roadmap_read
 
@@ -135,7 +136,10 @@ def write_step_progress(
         if not can_access_step(user, owned_roadmap, step):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Complete this roadmap's first milestone or upgrade to Premium to continue.",
+                detail=(
+                    "This step is part of Premium, which isn't available to buy yet. "
+                    "Your Free plan includes this roadmap's first milestone."
+                ),
             )
         current_step_id = calculate_roadmap_progress(db, user, owned_roadmap).current_step_id
         if current_step_id != step.id:
@@ -144,6 +148,15 @@ def write_step_progress(
                 detail="Complete the current roadmap step first",
             )
         ensure_prerequisites_completed(db, user, step)
+        first_ever = (
+            db.scalar(
+                select(RoadmapStepProgress.id)
+                .where(RoadmapStepProgress.user_id == user.id)
+                .limit(1)
+            )
+            is None
+        )
+        record_event(db, user, "step_completed", first_ever=first_ever)
         db.add(
             RoadmapStepProgress(
                 user_id=user.id,

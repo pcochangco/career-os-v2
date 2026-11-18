@@ -1,5 +1,5 @@
 import { ReactNode, RefObject, useEffect, useState } from "react";
-import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "lucide-react-native";
+import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "@/components/icons";
 import {
   ActivityIndicator,
   Image,
