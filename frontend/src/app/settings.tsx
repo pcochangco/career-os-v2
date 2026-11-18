@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
 
 import { ProviderSignIn } from "@/components/provider-sign-in";
 import { AppHeader, Body, Button, Heading, Screen } from "@/components/ui";
+import { apiRequest } from "@/lib/api";
 import { IdentityProvider, useSession } from "@/lib/session";
 import { ThemeColors, ThemePreference, useTheme } from "@/lib/theme";
 
@@ -16,9 +17,10 @@ const options: Array<{ label: string; value: ThemePreference; description: strin
 export default function SettingsRoute() {
   const router = useRouter();
   const { colors, preference, setPreference } = useTheme();
-  const { account, accountLoading, deleteAccount, linkIdentity, signOut } = useSession();
+  const { account, accountLoading, deleteAccount, linkIdentity, signOut, token } = useSession();
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const styles = createStyles(colors);
 
   const handleProviderError = useCallback((message: string) => setActionError(message), []);
@@ -33,6 +35,33 @@ export default function SettingsRoute() {
     },
     [linkIdentity],
   );
+
+  async function handleExport() {
+    if (!token || exporting) return;
+    try {
+      setExporting(true);
+      setActionError(null);
+      const data = await apiRequest<unknown>("/auth/account/export", { token });
+      const json = JSON.stringify(data, null, 2);
+      const filename = `careeros-export-${new Date().toISOString().slice(0, 10)}.json`;
+      if (Platform.OS === "web" && typeof document !== "undefined") {
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({ message: json, title: filename });
+      }
+    } catch (caught) {
+      setActionError(caught instanceof Error ? caught.message : "Your data couldn’t be downloaded.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function handleSignOut() {
     try {
@@ -61,12 +90,17 @@ export default function SettingsRoute() {
       <Heading>Settings</Heading>
       <Text style={styles.sectionTitle}>Account</Text>
       <View style={styles.accountCard}>
-        <Text style={styles.accountStatus}>
-          Progress saved
-        </Text>
+        <Text style={styles.accountStatus}>Signed in</Text>
         <Text style={styles.accountDescription}>
-          {account?.email || (account ? `Connected with ${account.providers.map((provider) => provider === "apple" ? "Apple" : "Google").join(" and ")}` : "Opening your saved account…")}
+          {account?.email || (account ? `Connected with ${account.providers.map((provider) => provider === "apple" ? "Apple" : provider === "google" ? "Google" : "email").join(" and ")}` : "Opening your account…")}
         </Text>
+        {account ? (
+          <Text style={styles.planLine}>
+            {account.plan === "premium"
+              ? "Premium plan · unlimited goals"
+              : `Free plan · ${account.goal_limit ?? 2} goals in total`}
+          </Text>
+        ) : null}
         {account ? (
           <ProviderSignIn
             disabled={accountLoading}
@@ -83,6 +117,9 @@ export default function SettingsRoute() {
         ) : null}
         {account ? (
           <View style={styles.accountActions}>
+            <Button disabled={accountLoading || exporting} loading={exporting} onPress={() => void handleExport()} secondary>
+              Download my data
+            </Button>
             <Button disabled={accountLoading} loading={accountLoading} onPress={handleSignOut} secondary>
               Sign out
             </Button>
@@ -92,7 +129,7 @@ export default function SettingsRoute() {
                   This permanently deletes your account, goals, roadmaps, notes, and progress on
                   every device.
                 </Text>
-                <Button disabled={accountLoading} loading={accountLoading} onPress={handleDeleteAccount}>
+                <Button danger disabled={accountLoading} loading={accountLoading} onPress={handleDeleteAccount}>
                   Delete account permanently
                 </Button>
                 <Pressable
@@ -170,6 +207,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   accountCard: { backgroundColor: colors.card, borderColor: colors.line, borderRadius: 12, borderWidth: 1, gap: 12, marginBottom: 30, padding: 18 },
   accountDescription: { color: colors.muted, fontSize: 15, lineHeight: 22 },
   accountStatus: { color: colors.ink, fontSize: 17, fontWeight: "700" },
+  planLine: { color: colors.subtle, fontSize: 14 },
   deleteConfirm: { backgroundColor: colors.cardMuted, borderRadius: 14, gap: 12, padding: 14 },
   deleteLabel: { color: colors.danger, fontSize: 14, fontWeight: "800", textAlign: "center" },
   deleteWarning: { color: colors.danger, fontSize: 14, lineHeight: 21, textAlign: "center" },

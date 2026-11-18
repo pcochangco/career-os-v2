@@ -1,4 +1,4 @@
-import { ReactNode, RefObject, useState } from "react";
+import { ReactNode, RefObject, useEffect, useState } from "react";
 import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "@/components/icons";
 import {
   ActivityIndicator,
@@ -146,9 +146,11 @@ type ButtonProps = {
   loading?: boolean;
   onPress: () => void;
   secondary?: boolean;
+  /** For irreversible actions such as deleting an account. */
+  danger?: boolean;
 };
 
-export function Button({ children, disabled, loading, onPress, secondary }: ButtonProps) {
+export function Button({ children, danger, disabled, loading, onPress, secondary }: ButtonProps) {
   const { colors } = useTheme();
   const inactive = disabled || loading;
   return (
@@ -159,9 +161,11 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
       onPress={onPress}
       style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
         styles.button,
-        secondary
-          ? { backgroundColor: hovered ? colors.hover : colors.card, borderColor: colors.line, borderWidth: 1 }
-          : { backgroundColor: hovered ? colors.forestDark : colors.forest },
+        danger
+          ? { backgroundColor: colors.danger, opacity: hovered ? 0.9 : 1 }
+          : secondary
+            ? { backgroundColor: hovered ? colors.hover : colors.card, borderColor: colors.line, borderWidth: 1 }
+            : { backgroundColor: hovered ? colors.forestDark : colors.forest },
         inactive && styles.buttonDisabled,
         pressed && styles.buttonPressed,
       ]}
@@ -169,7 +173,14 @@ export function Button({ children, disabled, loading, onPress, secondary }: Butt
       {loading ? (
         <ActivityIndicator color={secondary ? colors.forest : colors.onForest} />
       ) : (
-        <Text style={[styles.buttonLabel, { color: secondary ? colors.ink : colors.onForest }]}>{children}</Text>
+        <Text
+          style={[
+            styles.buttonLabel,
+            { color: danger ? colors.card : secondary ? colors.ink : colors.onForest },
+          ]}
+        >
+          {children}
+        </Text>
       )}
     </Pressable>
   );
@@ -203,6 +214,12 @@ export function Field(props: TextInputProps) {
 
 export function LoadingState({ label = "Opening your path…" }: { label?: string }) {
   const { colors } = useTheme();
+  // The free hosting plan sleeps when idle; the first request can take up to a minute.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
   return (
     <Screen>
       <View style={styles.centered}>
@@ -214,6 +231,12 @@ export function LoadingState({ label = "Opening your path…" }: { label?: strin
         />
         <ActivityIndicator color={colors.forest} />
         <Text style={[styles.loadingLabel, { color: colors.muted }]}>{label}</Text>
+        {slow ? (
+          <Text accessibilityLiveRegion="polite" style={[styles.loadingHint, { color: colors.subtle }]}>
+            Still working. If CareerOS hasn’t been used for a while, waking it up can take up
+            to a minute.
+          </Text>
+        ) : null}
       </View>
     </Screen>
   );
@@ -274,6 +297,7 @@ const styles = StyleSheet.create({
   fieldMultiline: { minHeight: 132, textAlignVertical: "top" },
   centered: { alignItems: "center", flex: 1, gap: 12, justifyContent: "center", minHeight: 420 },
   loadingLabel: { fontSize: 15, textAlign: "center" },
+  loadingHint: { fontSize: 14, lineHeight: 20, maxWidth: 340, textAlign: "center" },
   loadingMark: { alignSelf: "center", height: 56, marginBottom: 4, width: 56 },
   iconFrame: { alignItems: "center", height: 20, justifyContent: "center", width: 20 },
 });
