@@ -126,8 +126,9 @@ def create_goal(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                f"Free accounts can create up to {FREE_GOAL_LIMIT} goals in total. "
-                "Upgrade to Premium to create more."
+                f"You've used all {FREE_GOAL_LIMIT} goals included with the Free plan. "
+                "Your existing goals and roadmaps stay available. Premium isn't available to "
+                "buy yet; contact support if you need more goals."
             ),
         )
     settings = get_settings()

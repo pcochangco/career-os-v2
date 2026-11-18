@@ -25,6 +25,9 @@ export type ProviderConfig = {
 
 export type Account = {
   email: string;
+  /** Total goals the plan allows; null means unlimited (Premium). */
+  goal_limit: number | null;
+  plan: "free" | "premium";
   provider_config: ProviderConfig;
   providers: IdentityProvider[];
   status: "guest" | "saved";

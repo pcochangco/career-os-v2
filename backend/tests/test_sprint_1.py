@@ -197,7 +197,8 @@ def test_free_account_can_only_create_two_goals_in_total(client: TestClient) -> 
     )
 
     assert limited.status_code == 403
-    assert "2 goals in total" in limited.json()["detail"]
+    assert "all 2 goals included with the Free plan" in limited.json()["detail"]
+    assert "Upgrade" not in limited.json()["detail"]
 
 
 def test_premium_roadmap_keeps_full_access_after_a_free_downgrade() -> None:
