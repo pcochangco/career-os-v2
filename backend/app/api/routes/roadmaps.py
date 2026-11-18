@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import RoadmapRead
 from app.db.models import Goal, RoadmapMilestone, RoadmapPracticeCompletion, RoadmapVersion, User
+from app.services.analytics import record_event
 from app.services.progress import to_roadmap_read
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
@@ -62,6 +63,7 @@ def accept_roadmap(
     goal = db.get(Goal, roadmap.goal_id)
     if goal is not None:
         goal.status = "active"
+    record_event(db, user, "roadmap_accepted")
     db.commit()
     return to_roadmap_read(db, user, get_owned_roadmap(db, user, roadmap.id))
 
@@ -94,6 +96,7 @@ def complete_today_practice(
         )
     )
     if existing is None:
+        record_event(db, user, "practice_logged")
         db.add(
             RoadmapPracticeCompletion(
                 user_id=user.id,

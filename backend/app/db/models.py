@@ -62,6 +62,9 @@ class User(Base):
     practice_completions: Mapped[list[RoadmapPracticeCompletion]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    product_events: Mapped[list[ProductEvent]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -469,3 +472,22 @@ class RoadmapStepResource(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     step: Mapped[RoadmapStep] = relationship(back_populates="resources")
+
+
+class ProductEvent(Base):
+    """A privacy-safe funnel event: a fixed event name plus small enum properties.
+
+    Never stores goal titles, answers, notes, emails, or other free text. Rows are deleted
+    with the account.
+    """
+
+    __tablename__ = "product_events"
+    __table_args__ = (Index("ix_product_events_event_occurred", "event", "occurred_at"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    event: Mapped[str] = mapped_column(String(40))
+    properties: Mapped[dict[str, str | bool | int]] = mapped_column(JSON, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped[User] = relationship(back_populates="product_events")

@@ -56,7 +56,8 @@ from app.services.ai_usage import (
     finish_ai_usage_event,
     start_ai_usage_event,
 )
-from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, is_premium
+from app.services.analytics import record_event
+from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, goal_count, is_premium
 from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
@@ -124,6 +125,8 @@ def create_goal(
     goal_intent_service: GoalIntentService,
 ) -> GoalRead:
     if not can_create_goal(db, user):
+        record_event(db, user, "goal_limit_reached")
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -173,8 +176,10 @@ def create_goal(
                 "project, credential, or personal milestone."
             ),
         )
+    first_goal = goal_count(db, user) == 0
     goal = Goal(user_id=user.id, title=assessment.value.normalized_title.strip())
     db.add(goal)
+    record_event(db, user, "goal_created", first=first_goal)
     db.commit()
     db.refresh(goal)
     return to_goal_read(db, goal)
@@ -211,6 +216,7 @@ def save_discovery(
             )
         )
     goal.status = "ready_to_generate"
+    record_event(db, user, "discovery_completed", all_skipped=False)
     db.commit()
     db.refresh(goal)
     return to_goal_read(db, goal)
@@ -470,6 +476,9 @@ def advance_discovery(
     )
     if result.value.is_complete:
         goal.status = "ready_to_generate"
+        record_event(
+            db, user, "discovery_completed", all_skipped=all(answer.skipped for answer in context)
+        )
         db.commit()
         db.refresh(goal)
         return to_discovery_state(db, goal)
@@ -904,6 +913,7 @@ def generate_roadmap(
                 )
             )
     goal.status = "roadmap_review"
+    record_event(db, user, "roadmap_generated", source=attempt_outcome)
     db.commit()
     finish_generation_attempt(
         db,

@@ -2,7 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight } from "@/components/icons";
 
 import { useIsWide } from "@/components/app-shell";
 import { GoalLimitCard } from "@/components/plan-limit";
