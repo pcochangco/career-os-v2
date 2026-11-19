@@ -72,8 +72,8 @@ def test_fixture_roadmap_covers_the_selected_curriculum(goal_title: str, curricu
     for phase in curriculum.phases:
         for capability in phase.capabilities:
             assert capability.label.casefold() in roadmap_text
-            assert f"apply {capability.label}".casefold() in roadmap_text
-            assert f"validate {capability.label}".casefold() in roadmap_text
+            assert f"learn {capability.label}".casefold() in roadmap_text
+            assert f"put {capability.label} to the test".casefold() in roadmap_text
 
 
 def test_fixture_roadmap_uses_capability_prerequisite_edges() -> None:
