@@ -40,3 +40,19 @@ def test_exported_frontend_serves_routes_without_masking_api_404s(
         assert client.get("/asset.txt").text == "deployed"
         assert client.get("/api/v1/health").json() == {"status": "ok"}
         assert client.get("/api/v1/missing").status_code == 404
+
+
+def test_pages_revalidate_and_hashed_bundles_cache_forever(tmp_path: Path) -> None:
+    (tmp_path / "index.html").write_text("<html></html>")
+    bundle = tmp_path / "_expo" / "static" / "js"
+    bundle.mkdir(parents=True)
+    (bundle / "entry-abc123.js").write_text("app")
+    application = FastAPI()
+    mount_frontend(application, str(tmp_path))
+
+    with TestClient(application) as client:
+        assert client.get("/").headers["cache-control"] == "no-cache"
+        assert client.get("/settings").headers["cache-control"] == "no-cache"
+        bundle_response = client.get("/_expo/static/js/entry-abc123.js")
+        assert "immutable" in bundle_response.headers["cache-control"]
+        assert client.get("/_expo/static/js/missing.js").status_code == 404
