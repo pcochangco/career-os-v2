@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.core.config import EMAIL_PATTERN
+
 
 class AnonymousSessionRead(BaseModel):
     access_token: str
@@ -27,10 +29,32 @@ class EmailTestSignInWrite(BaseModel):
         return value.strip()
 
 
+class EmailCodeRequestWrite(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        email = value.strip().casefold()
+        if not re.fullmatch(EMAIL_PATTERN, email):
+            raise ValueError("Enter a valid email address")
+        return email
+
+
+class EmailCodeVerifyWrite(EmailCodeRequestWrite):
+    code: str = Field(pattern=r"^\s*\d{6}\s*$")
+
+    @field_validator("code")
+    @classmethod
+    def trim_code(cls, value: str) -> str:
+        return value.strip()
+
+
 class AuthProviderConfigRead(BaseModel):
     apple: bool = False
     google: bool = False
     email_test: bool = False
+    email_code: bool = False
     google_web_client_id: str = ""
     google_ios_client_id: str = ""
     google_android_client_id: str = ""

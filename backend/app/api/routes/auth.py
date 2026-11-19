@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from secrets import compare_digest, token_urlsafe
+from secrets import compare_digest, randbelow, token_urlsafe
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -17,14 +17,17 @@ from app.api.schemas import (
     AccountRead,
     AnonymousSessionRead,
     AuthProviderConfigRead,
+    EmailCodeRequestWrite,
+    EmailCodeVerifyWrite,
     EmailTestSignInWrite,
     IdentityLinkWrite,
 )
 from app.core.config import get_settings
 from app.core.rate_limit import SlidingWindowRateLimiter, get_auth_rate_limiter
-from app.db.models import AuthIdentity, User, UserSession
+from app.db.models import AuthIdentity, EmailSignInCode, User, UserSession
 from app.services.analytics import record_active_day, record_event
 from app.services.data_export import build_account_export
+from app.services.email import EmailDeliveryError, send_sign_in_code
 from app.services.entitlements import FREE_GOAL_LIMIT, is_premium
 from app.services.identity import (
     IdentityProvider,
@@ -92,6 +95,7 @@ def provider_config_response() -> AuthProviderConfigRead:
         apple=bool(settings.allowed_apple_client_ids),
         google=bool(settings.google_client_ids),
         email_test=settings.email_test_login_enabled,
+        email_code=settings.email_code_login_ready,
         google_web_client_id=settings.google_web_client_id,
         google_ios_client_id=settings.google_ios_client_id,
         google_android_client_id=settings.google_android_client_id,
@@ -144,6 +148,13 @@ def sign_in_with_email_test_access(
             detail="Email sign-in could not be verified.",
         )
 
+    session = session_for_verified_email(db, email)
+    db.commit()
+    return session
+
+
+def session_for_verified_email(db: DbSession, email: str) -> AnonymousSessionRead:
+    """Sign in the account that owns this (already verified) email, creating it if new."""
     identity = db.scalar(
         select(AuthIdentity).where(func.lower(AuthIdentity.email) == email)
     )
@@ -169,8 +180,113 @@ def sign_in_with_email_test_access(
                 detail="The saved account could not be opened.",
             )
         identity.last_sign_in_at = datetime.now(UTC)
+    return issue_session(db, user)
 
-    session = issue_session(db, user)
+
+EMAIL_CODE_TTL = timedelta(minutes=10)
+EMAIL_CODE_MAX_ATTEMPTS = 5
+EMAIL_CODE_REQUESTS_PER_EMAIL = 5
+EMAIL_CODE_FAILED = "That code didn't work. Check it, or request a new one."
+
+
+def hash_email_code(email: str, code: str) -> str:
+    return sha256(f"{email}:{code}".encode()).hexdigest()
+
+
+def require_email_code_login() -> None:
+    if not get_settings().email_code_login_ready:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Email sign-in isn't available yet.",
+        )
+
+
+def client_source(request: Request) -> str:
+    client_host = request.client.host if request.client else "unknown"
+    return f"{client_host}:{request.headers.get('User-Agent', '')[:160]}"
+
+
+@router.post("/email-code/request", status_code=status.HTTP_202_ACCEPTED)
+def request_email_code(
+    payload: EmailCodeRequestWrite,
+    request: Request,
+    db: DbSession,
+    limiter: AuthRateLimiter,
+) -> Response:
+    """Email a one-time code. Same response whether or not an account exists."""
+    require_email_code_login()
+    settings = get_settings()
+    enforce_rate_limit(
+        limiter,
+        action="email-code-request",
+        source=client_source(request),
+        limit=settings.auth_identity_limit_per_15_minutes,
+    )
+    enforce_rate_limit(
+        limiter,
+        action="email-code-request-email",
+        source=payload.email,
+        limit=EMAIL_CODE_REQUESTS_PER_EMAIL,
+    )
+    now = datetime.now(UTC)
+    for previous in db.scalars(
+        select(EmailSignInCode).where(
+            EmailSignInCode.email == payload.email, EmailSignInCode.consumed_at.is_(None)
+        )
+    ):
+        previous.consumed_at = now  # only the newest code works
+    code = f"{randbelow(1_000_000):06d}"
+    db.add(
+        EmailSignInCode(
+            email=payload.email,
+            code_hash=hash_email_code(payload.email, code),
+            expires_at=now + EMAIL_CODE_TTL,
+        )
+    )
+    db.commit()
+    try:
+        send_sign_in_code(settings, payload.email, code)
+    except EmailDeliveryError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="We couldn't send the email. Try again in a minute.",
+        ) from error
+    return Response(status_code=status.HTTP_202_ACCEPTED)
+
+
+@router.post("/email-code/verify", response_model=AnonymousSessionRead)
+def verify_email_code(
+    payload: EmailCodeVerifyWrite,
+    request: Request,
+    db: DbSession,
+    limiter: AuthRateLimiter,
+) -> AnonymousSessionRead:
+    require_email_code_login()
+    enforce_rate_limit(
+        limiter,
+        action="email-code-verify",
+        source=client_source(request),
+        limit=get_settings().auth_identity_limit_per_15_minutes,
+    )
+    row = db.scalar(
+        select(EmailSignInCode)
+        .where(EmailSignInCode.email == payload.email, EmailSignInCode.consumed_at.is_(None))
+        .order_by(EmailSignInCode.created_at.desc())
+        .limit(1)
+    )
+    now = datetime.now(UTC)
+    if row is None or row.attempts >= EMAIL_CODE_MAX_ATTEMPTS:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=EMAIL_CODE_FAILED)
+    # SQLite returns naive datetimes; Postgres returns aware ones.
+    expires_at = row.expires_at if row.expires_at.tzinfo else row.expires_at.replace(tzinfo=UTC)
+    if expires_at <= now or not compare_digest(
+        row.code_hash, hash_email_code(payload.email, payload.code)
+    ):
+        row.attempts += 1
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=EMAIL_CODE_FAILED)
+    row.consumed_at = now
+    session = session_for_verified_email(db, payload.email)
     db.commit()
     return session
 

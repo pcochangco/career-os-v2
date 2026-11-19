@@ -67,14 +67,15 @@ export default function IndexRoute() {
   }, [attempt, router, session.ready, session.token]);
 
   const handleProviderError = useCallback((message: string) => setError(message), []);
-  const handleIdentityToken = useCallback(
-    async (provider: IdentityProvider, identityToken: string) => {
+  /** Shared by every sign-in method: sign in, then create the typed goal or open saved ones. */
+  const completeSignIn = useCallback(
+    async (signIn: () => Promise<string>, failure: string) => {
       if (signInInProgress.current) return;
       signInInProgress.current = true;
       setSigningIn(true);
       setError(null);
       try {
-        const token = await session.signIn(provider, identityToken);
+        const token = await signIn();
         const goalTitle = title.trim();
         if (goalTitle) {
           const goal = await apiRequest<Goal>("/goals", {
@@ -90,45 +91,34 @@ export default function IndexRoute() {
           else router.replace("/goals" as never);
         }
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Sign-in could not be completed.");
+        setError(caught instanceof Error ? caught.message : failure);
       } finally {
         signInInProgress.current = false;
         setSigningIn(false);
       }
     },
-    [router, session, title],
+    [router, title],
   );
-
+  const handleIdentityToken = useCallback(
+    (provider: IdentityProvider, identityToken: string) =>
+      completeSignIn(() => session.signIn(provider, identityToken), "Sign-in could not be completed."),
+    [completeSignIn, session],
+  );
   const handleEmailTestSignIn = useCallback(
-    async (email: string, accessCode: string) => {
-      if (signInInProgress.current) return;
-      signInInProgress.current = true;
-      setSigningIn(true);
-      setError(null);
-      try {
-        const token = await session.signInWithEmailTestAccess(email, accessCode);
-        const goalTitle = title.trim();
-        if (goalTitle) {
-          const goal = await apiRequest<Goal>("/goals", {
-            body: { title: goalTitle },
-            method: "POST",
-            token,
-          });
-          router.replace(`/goals/${goal.id}/discovery` as never);
-        } else {
-          const goals = await loadGoals(token);
-          if (goals.length === 0) router.replace("/goals/new" as never);
-          else if (goals.length === 1 && goals[0]) router.replace(routeForGoal(goals[0]) as never);
-          else router.replace("/goals" as never);
-        }
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Email sign-in could not be completed.");
-      } finally {
-        signInInProgress.current = false;
-        setSigningIn(false);
-      }
-    },
-    [router, session, title],
+    (email: string, accessCode: string) =>
+      completeSignIn(
+        () => session.signInWithEmailTestAccess(email, accessCode),
+        "Email sign-in could not be completed.",
+      ),
+    [completeSignIn, session],
+  );
+  const handleEmailCodeSignIn = useCallback(
+    (email: string, code: string) =>
+      completeSignIn(
+        () => session.signInWithEmailCode(email, code),
+        "Email sign-in could not be completed.",
+      ),
+    [completeSignIn, session],
   );
 
   if (!session.ready) return <LoadingState />;
@@ -194,6 +184,7 @@ export default function IndexRoute() {
             disabled={signingIn || session.accountLoading}
             mode="sign-in"
             onError={handleProviderError}
+            onEmailCodeSignIn={handleEmailCodeSignIn}
             onEmailTestSignIn={handleEmailTestSignIn}
             onIdentityToken={handleIdentityToken}
             providerConfig={session.providerConfig}

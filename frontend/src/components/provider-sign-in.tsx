@@ -6,6 +6,7 @@ import {
   GoogleOneTapSignIn,
 } from "react-native-nitro-google-signin";
 
+import { EmailCodeSignIn } from "@/components/email-code-sign-in";
 import { PrivateBetaNote } from "@/components/private-beta-note";
 import { IdentityProvider, ProviderConfig } from "@/lib/session";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -16,12 +17,14 @@ export type ProviderSignInProps = {
   onError: (message: string) => void;
   onIdentityToken: (provider: IdentityProvider, token: string) => void;
   onEmailTestSignIn?: (email: string, accessCode: string) => void;
+  onEmailCodeSignIn?: (email: string, code: string) => void;
   providerConfig: ProviderConfig;
 };
 
 export function ProviderSignIn({
   disabled,
   mode = "sign-in",
+  onEmailCodeSignIn,
   onError,
   onIdentityToken,
   providerConfig,
@@ -85,7 +88,9 @@ export function ProviderSignIn({
     }
   }
 
-  if (!googleConfigured && !appleAvailable) {
+  const emailCodeEnabled = providerConfig.email_code && Boolean(onEmailCodeSignIn) && mode === "sign-in";
+
+  if (!googleConfigured && !appleAvailable && !emailCodeEnabled) {
     // Nothing to link from Settings, and no public sign-up yet: say so plainly.
     return mode === "link" ? null : <PrivateBetaNote />;
   }
@@ -129,6 +134,9 @@ export function ProviderSignIn({
           size="wide"
           style={styles.providerButton}
         />
+      ) : null}
+      {emailCodeEnabled && onEmailCodeSignIn ? (
+        <EmailCodeSignIn disabled={disabled} onError={onError} onSignIn={onEmailCodeSignIn} />
       ) : null}
       {providerLoading ? (
         <Text accessibilityLiveRegion="polite" style={styles.loading}>

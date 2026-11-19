@@ -69,6 +69,7 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       : message;
     throw new ApiError(displayMessage, response.status, requestId);
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  // 202/204 and other bodiless successes resolve to undefined instead of a JSON parse error.
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }

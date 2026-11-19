@@ -17,6 +17,7 @@ export type IdentityProvider = "apple" | "google" | "email";
 
 export type ProviderConfig = {
   apple: boolean;
+  email_code: boolean;
   email_test: boolean;
   google: boolean;
   google_android_client_id: string;
@@ -55,12 +56,14 @@ type SessionContextValue = {
   retry: () => void;
   signIn: (provider: IdentityProvider, identityToken: string) => Promise<string>;
   signInWithEmailTestAccess: (email: string, accessCode: string) => Promise<string>;
+  signInWithEmailCode: (email: string, code: string) => Promise<string>;
   signOut: () => Promise<void>;
   token: string | null;
 };
 
 const EMPTY_PROVIDER_CONFIG: ProviderConfig = {
   apple: false,
+  email_code: false,
   email_test: false,
   google: false,
   google_android_client_id: "",
@@ -237,6 +240,22 @@ export function SessionProvider({
     [activateSession],
   );
 
+  const signInWithEmailCode = useCallback(
+    async (email: string, code: string): Promise<string> => {
+      setAccountLoading(true);
+      try {
+        const session = await apiRequest<SessionResponse>("/auth/email-code/verify", {
+          body: { code, email },
+          method: "POST",
+        });
+        return await activateSession(session);
+      } finally {
+        setAccountLoading(false);
+      }
+    },
+    [activateSession],
+  );
+
   const linkIdentity = useCallback(
     async (provider: IdentityProvider, identityToken: string) => {
       if (!token) throw new Error("Sign in before linking another provider.");
@@ -295,6 +314,7 @@ export function SessionProvider({
       retry: () => setAttempt((value) => value + 1),
       signIn,
       signInWithEmailTestAccess,
+      signInWithEmailCode,
       signOut,
       token,
     }),
@@ -309,6 +329,7 @@ export function SessionProvider({
       ready,
       signIn,
       signInWithEmailTestAccess,
+      signInWithEmailCode,
       signOut,
       token,
     ],

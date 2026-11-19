@@ -25,6 +25,8 @@ services:
     environment:
       CAREEROS_DATABASE_URL: ${CAREEROS_DATABASE_URL:-postgresql+psycopg://careeros:careeros_local@db:5432/careeros}
       CAREEROS_ENVIRONMENT: local
+      # Email-code sign-in with the log sender: codes appear in `docker compose logs api`.
+      CAREEROS_EMAIL_CODE_LOGIN_ENABLED: ${CAREEROS_EMAIL_CODE_LOGIN_ENABLED:-true}
       CAREEROS_AI_MODE: ${CAREEROS_AI_MODE:-fixture}
       CAREEROS_AI_PROVIDER: ${CAREEROS_AI_PROVIDER:-openai}
       CAREEROS_AI_BASE_URL: ${CAREEROS_AI_BASE_URL:-https://api.openai.com/v1}
