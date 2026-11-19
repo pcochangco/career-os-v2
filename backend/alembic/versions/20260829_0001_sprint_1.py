@@ -64,9 +64,7 @@ def upgrade() -> None:
             "goal_id", "revision", "question_key", name="uq_goal_answer_revision_key"
         ),
     )
-    op.create_index(
-        "ix_goal_discovery_answers_goal_id", "goal_discovery_answers", ["goal_id"]
-    )
+    op.create_index("ix_goal_discovery_answers_goal_id", "goal_discovery_answers", ["goal_id"])
     op.create_table(
         "roadmap_versions",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -91,15 +89,11 @@ def upgrade() -> None:
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("title", sa.String(length=180), nullable=False),
         sa.Column("outcome", sa.Text(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["roadmap_id"], ["roadmap_versions.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["roadmap_id"], ["roadmap_versions.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("roadmap_id", "position", name="uq_milestone_position"),
     )
-    op.create_index(
-        "ix_roadmap_milestones_roadmap_id", "roadmap_milestones", ["roadmap_id"]
-    )
+    op.create_index("ix_roadmap_milestones_roadmap_id", "roadmap_milestones", ["roadmap_id"])
     op.create_table(
         "roadmap_steps",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -111,9 +105,7 @@ def upgrade() -> None:
         sa.Column("action", sa.Text(), nullable=False),
         sa.Column("completion_condition", sa.Text(), nullable=False),
         sa.Column("effort_label", sa.String(length=40), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["milestone_id"], ["roadmap_milestones.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["milestone_id"], ["roadmap_milestones.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("milestone_id", "position", name="uq_step_position"),
     )
