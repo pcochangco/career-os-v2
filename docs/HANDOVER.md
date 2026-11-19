@@ -29,6 +29,8 @@ GitHub is the truth for current code. This brief is the truth for intent and dec
 - The Docker CMD runs `python -m app.cli.migrate` (an `alembic upgrade head` wrapper) before uvicorn, so a DB connection failure still takes the whole site down. Since PR #15 it starts anyway (with a warning) when the DB is at a revision the image doesn't know, after an ~18 min outage on 2026-11-18 where a restarted older image crash-looped. Keep migrations additive (expand now, drop columns in a later release).
 - Planned: possibly move hosting to **Vercel** (frontend static + FastAPI as Python functions) with Supabase. Not started. Known work if we do it: (a) `backend/app/core/rate_limit.py` is an in-memory limiter assuming one process — must move to Postgres for serverless; (b) migrations must move out of container startup into a separate step (e.g. GitHub Action); (c) serverless should use Supabase's transaction pooler with psycopg prepared statements disabled; (d) roadmap generation (generate → critic → repair, 60s per AI call) may exceed function time limits — tune timeouts, rely on deterministic fallback; (e) Vercel Hobby is non-commercial use only. Cloudflare's free plan was ruled out for the backend (no free container runtime for this stack).
 
+**Owner setup still to do** (domain, Resend, custom domain, Google, backups, AI provider): one checklist in `docs/LAUNCH_SETUP.md`, deliberately left until the end.
+
 ## 2. Tech stack
 - Frontend: Expo / React Native / TypeScript, exported as a static web app (`pnpm`)
 - Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL (`uv`, `pytest`, `ruff`)
