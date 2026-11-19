@@ -99,6 +99,20 @@ class AuthIdentity(Base):
     user: Mapped[User] = relationship(back_populates="identities")
 
 
+class EmailSignInCode(Base):
+    """A one-time sign-in code. Only a hash is stored; it expires and allows few attempts."""
+
+    __tablename__ = "email_sign_in_codes"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class IssueReport(Base):
     __tablename__ = "issue_reports"
 

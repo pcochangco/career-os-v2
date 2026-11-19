@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { EmailCodeSignIn } from "@/components/email-code-sign-in";
 import { PrivateBetaNote } from "@/components/private-beta-note";
 import type { ProviderSignInProps } from "@/components/provider-sign-in";
 import { ThemeColors, useTheme } from "@/lib/theme";
@@ -53,6 +54,7 @@ function loadGoogleIdentity(): Promise<void> {
 export function ProviderSignIn({
   disabled,
   mode = "sign-in",
+  onEmailCodeSignIn,
   onError,
   onEmailTestSignIn,
   onIdentityToken,
@@ -100,8 +102,9 @@ export function ProviderSignIn({
   }, [clientId, disabled, isDark, mode, onError, onIdentityToken]);
 
   const emailTestEnabled = providerConfig.email_test && Boolean(onEmailTestSignIn);
+  const emailCodeEnabled = providerConfig.email_code && Boolean(onEmailCodeSignIn) && mode === "sign-in";
 
-  if (!clientId && !emailTestEnabled) {
+  if (!clientId && !emailTestEnabled && !emailCodeEnabled) {
     // Nothing to link from Settings, and no public sign-up yet: say so plainly.
     return mode === "link" ? null : <PrivateBetaNote />;
   }
@@ -113,6 +116,9 @@ export function ProviderSignIn({
           <View accessibilityLabel="Sign in with Google" ref={buttonHost} style={styles.googleHost} />
           {loading ? <Text style={styles.loading}>Loading secure Google sign-in…</Text> : null}
         </>
+      ) : null}
+      {emailCodeEnabled && onEmailCodeSignIn ? (
+        <EmailCodeSignIn disabled={disabled} onError={onError} onSignIn={onEmailCodeSignIn} />
       ) : null}
       {emailTestEnabled ? (
         <View style={styles.emailTestCard}>
@@ -155,7 +161,9 @@ export function ProviderSignIn({
           </Pressable>
         </View>
       ) : null}
-      {emailTestEnabled && !clientId && mode === "sign-in" ? <PrivateBetaNote compact /> : null}
+      {emailTestEnabled && !clientId && !emailCodeEnabled && mode === "sign-in" ? (
+        <PrivateBetaNote compact />
+      ) : null}
     </View>
   );
 }

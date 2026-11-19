@@ -6,6 +6,13 @@ from urllib.parse import urlsplit
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Lower-case email addresses as accepted by allowlists and email sign-in.
+EMAIL_PATTERN = (
+    r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+"
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -58,6 +65,11 @@ class Settings(BaseSettings):
     manual_premium_emails: str = ""
     email_test_login_emails: str = ""
     email_test_access_code: SecretStr | None = None
+    # Passwordless sign-in with a one-time emailed code. Off until a sending domain exists.
+    email_code_login_enabled: bool = False
+    email_sender: Literal["log", "resend"] = "log"
+    email_from: str = ""
+    resend_api_key: SecretStr | None = None
     allow_guest_access: bool = True
     auth_anonymous_limit_per_15_minutes: int = Field(default=120, ge=10, le=5000)
     auth_identity_limit_per_15_minutes: int = Field(default=20, ge=5, le=200)
@@ -145,12 +157,7 @@ class Settings(BaseSettings):
         )
         emails = tuple(dict.fromkeys(normalized_items))
         for email in emails:
-            if not re.fullmatch(
-                r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
-                r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
-                r"(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+",
-                email,
-            ):
+            if not re.fullmatch(EMAIL_PATTERN, email):
                 raise ValueError("email allowlists must contain valid email addresses")
         return ",".join(emails)
 
@@ -222,6 +229,20 @@ class Settings(BaseSettings):
             self.email_test_login_email_set
             and self.email_test_access_code
             and self.email_test_access_code.get_secret_value()
+        )
+
+    @property
+    def email_code_login_ready(self) -> bool:
+        """On only when codes can actually reach people. The log sender (codes printed to the
+        server log) is for local work and is never allowed in production."""
+        if not self.email_code_login_enabled:
+            return False
+        if self.email_sender == "log":
+            return self.environment.lower() != "production"
+        return bool(
+            self.email_from.strip()
+            and self.resend_api_key
+            and self.resend_api_key.get_secret_value().strip()
         )
 
     @property
