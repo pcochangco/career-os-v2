@@ -3,6 +3,7 @@ import re
 from app.ai.providers.base import ProviderResult
 from app.ai.schema import (
     ADAPTIVE_INSTRUCTION_PREFIX,
+    DiscoveryContextAnswer,
     ProviderCritique,
     QualityIssue,
     RoadmapDraft,
@@ -44,6 +45,52 @@ DOMAIN_PATTERNS: list[tuple[str, str]] = [
         r"film\w*|animation|pottery|ceramics|knit\w*|crochet)\b",
     ),
 ]
+
+
+# Adaptive discovery picks its own question keys, so answers are recognised by meaning.
+PROOF_QUESTION = r"\b(proof|prove|show|evidence|success|look like|count as|finish line)\b"
+TIME_QUESTION = r"\b(time|hours?|minutes?|schedule|how often|per week|available|commit)\b"
+TIME_ANSWER = (
+    r"\b(\d+\s*(min|mins|minutes|hours?|hrs?)|weekends?|evenings?|mornings?|commute|"
+    r"daily|every day|per week|a week|days a week|lunch breaks?)\b"
+)
+LEVEL_QUESTION = (
+    r"\b(already|experience|tried|built|starting|level|background|familiar|done before)\b"
+)
+BEGINNER_ANSWER = (
+    r"\b(beginner|starting fresh|new to|never|no experience|just starting|from scratch)\b"
+)
+EXPERIENCED_ANSWER = (
+    r"\b(\d+\+? years?|years of|professional(ly)?|at work|advanced|senior|experienced|"
+    r"shipped|built a)\b"
+)
+
+
+def read_answers(context: list[DiscoveryContextAnswer]) -> dict[str, str]:
+    """Pick out the starting level, available time and wanted proof from free-form answers.
+
+    Returns "level" ("beginner", "experienced" or ""), "experience", "schedule" and "proof";
+    each is "" when no answer clearly says it.
+    """
+    found = {"level": "", "experience": "", "schedule": "", "proof": ""}
+    for item in context:
+        answer = item.answer.strip().rstrip(". ")
+        if item.skipped or not answer:
+            continue
+        question, text = item.question.casefold(), answer.casefold()
+        if not found["proof"] and re.search(PROOF_QUESTION, question):
+            found["proof"] = answer
+        elif not found["schedule"] and (
+            re.search(TIME_QUESTION, question) or re.search(TIME_ANSWER, text)
+        ):
+            found["schedule"] = answer
+        elif not found["experience"] and re.search(LEVEL_QUESTION, question):
+            found["experience"] = answer
+            if re.search(BEGINNER_ANSWER, text):
+                found["level"] = "beginner"
+            elif re.search(EXPERIENCED_ANSWER, text):
+                found["level"] = "experienced"
+    return found
 
 
 def mid_sentence_label(label: str) -> str:
@@ -105,10 +152,20 @@ class FixtureRoadmapProvider:
             for answer in generation_input.discovery_context
             if not answer.skipped and answer.answer.strip()
         ]
+        shared = read_answers(generation_input.discovery_context)
+        clip = FixtureRoadmapProvider._clip
         if answers:
             summary_lead = f"A focused roadmap for “{title}”, shaped by what you shared."
+            if shared["level"] == "experienced":
+                summary_lead += " The first steps are a quick review, since you have experience."
+            elif shared["level"] == "beginner":
+                summary_lead += " It starts from the basics."
             starting_state = f"What you shared: {'; '.join(answers[:3])}."
-            experience = "; ".join(answers[:2])
+            experience = (
+                "anything you've picked up so far"
+                if shared["level"] == "beginner"
+                else clip(shared["experience"], 160) or "; ".join(answers[:2])
+            )
         else:
             summary_lead = f"A focused roadmap for “{title}”."
             starting_state = (
@@ -119,9 +176,14 @@ class FixtureRoadmapProvider:
         return {
             # goal_outcome needs at least 12 characters; short goals ("Become CEO") get a frame.
             "outcome": title if len(title) >= 12 else f"Reach this goal: {title}",
-            "proof": f"a concrete piece of work that shows real progress toward {goal_title}",
+            "proof": clip(shared["proof"], 160) if answers and shared["proof"] else (
+                f"a concrete piece of work that shows real progress toward {goal_title}"
+            ),
             "experience": experience,
-            "constraints": "the time, tools, and preferences you have right now",
+            "constraints": (clip(shared["schedule"], 160) if answers else "")
+            or "the time, tools, and preferences you have right now",
+            "schedule": clip(shared["schedule"], 160) if answers else "",
+            "level": shared["level"] if answers else "",
             "summary_lead": summary_lead,
             "starting_state": starting_state,
         }
@@ -140,6 +202,11 @@ class FixtureRoadmapProvider:
             existing_experience=facts["experience"],
             constraints=facts["constraints"],
         )
+        if facts.get("level") == "experienced":
+            steps = [
+                step.model_copy(update={"effort_label": "Quick review"}) if index < 3 else step
+                for index, step in enumerate(steps)
+            ]
         foundation_title, foundation_outcome, workflow_title, workflow_outcome, proof_title = {
             "language": (
                 "Build usable language foundations",
@@ -201,6 +268,11 @@ class FixtureRoadmapProvider:
                 "visible artifact before you move on."
             ),
             suggested_rhythm=[
+                *(
+                    [f"Fit the work into the time you have: {facts['schedule']}."]
+                    if facts.get("schedule")
+                    else []
+                ),
                 "Use learning sessions to unlock the next concrete build or practice task.",
                 "Return to the current step until its completion condition has real evidence.",
                 "After each milestone, keep your strongest work and explain what it proves.",
@@ -916,7 +988,7 @@ class FixtureRoadmapProvider:
                     "Try it once with guidance",
                     "Use the workflow without copying the original example.",
                     "A changed context tests whether the workflow is understood.",
-                    f"Create a small practice output related to {goal_title}. Apply this "
+                    "Create a small practice output related to your goal. Apply this "
                     "constraint: "
                     f"{constraints}. Record two gaps you corrected.",
                     "The output works and includes a reflection describing two corrected gaps.",

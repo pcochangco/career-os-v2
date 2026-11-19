@@ -132,3 +132,61 @@ def test_a_failing_fallback_becomes_a_friendly_provider_error():
         service.generate(adaptive_input("Become CEO", SKIPPED))
 
     assert raised.value.diagnostic_code == "stage=fallback;ValueError"
+
+
+def said(key: str, question: str, answer: str, skipped: bool = False) -> DiscoveryContextAnswer:
+    return DiscoveryContextAnswer(
+        question_key=key, question=question, answer=answer, skipped=skipped
+    )
+
+
+def test_read_answers_recognises_level_time_and_proof_by_meaning() -> None:
+    from app.ai.providers.fixture import read_answers
+
+    found = read_answers(
+        [
+            said("ai-key-1", "What have you already tried?", "Senior engineer, 6 years"),
+            said("ai-key-2", "Which days work best?", "Mornings before work, 4 days a week"),
+            said("ai-key-3", "What would count as success?", "Lead a team of 5 by next year"),
+        ]
+    )
+    assert found == {
+        "level": "experienced",
+        "experience": "Senior engineer, 6 years",
+        "schedule": "Mornings before work, 4 days a week",  # recognised by the answer alone
+        "proof": "Lead a team of 5 by next year",
+    }
+    beginner = read_answers([said("key", "Where are you starting from?", "I am starting fresh")])
+    assert beginner["level"] == "beginner"
+    skipped = read_answers([said("key", "How much time do you have?", "Skipped", skipped=True)])
+    assert skipped["schedule"] == ""
+
+
+def test_answers_shape_the_roadmap_steps() -> None:
+    answers = [
+        said("start", "What have you already tried?", "Senior engineer, 6 years"),
+        said("time", "How much time can you give it?", "30 minutes on my commute"),
+        said("proof", "What would prove you made it?", "Lead a team of 5 by next year"),
+    ]
+    draft = FixtureRoadmapProvider().generate(
+        adaptive_input("Get promoted to engineering manager", answers)
+    ).value
+    steps = [step for milestone in draft.milestones for step in milestone.steps]
+
+    assert "quick review" in draft.summary.casefold()
+    assert [step.effort_label for step in steps[:3]] == ["Quick review"] * 3
+    assert "30 minutes on my commute" in draft.suggested_rhythm[0]
+    assert any("30 minutes on my commute" in step.action for step in steps)
+    assert any("Lead a team of 5 by next year" in step.action for step in steps)
+    assert "Senior engineer, 6 years" in steps[1].action
+
+
+def test_beginner_roadmap_starts_from_the_basics_without_echoing_the_level() -> None:
+    answers = [said("start", "Where are you starting from?", "Complete beginner, never painted")]
+    draft = FixtureRoadmapProvider().generate(
+        adaptive_input("Learn to paint with watercolors", answers)
+    ).value
+    steps = [step for milestone in draft.milestones for step in milestone.steps]
+    assert "starts from the basics" in draft.summary
+    assert "Complete beginner" not in steps[1].action
+    assert steps[0].effort_label != "Quick review"
