@@ -75,6 +75,14 @@ def test_fixture_passes_representative_eval_cases(
     )
 
 
+SHARED_REVIEW_KEYS = {
+    "review-independent-result",
+    "strengthen-key-gap",
+    "test-transfer",
+    "prepare-final-demonstration",
+}
+
+
 def test_fixture_uses_goal_domain_to_vary_the_learner_path() -> None:
     provider = FixtureRoadmapProvider()
     technical = provider.generate(base_input()).value
@@ -103,12 +111,13 @@ def test_fixture_uses_goal_domain_to_vary_the_learner_path() -> None:
     language_steps = [step for milestone in language.milestones for step in milestone.steps]
     business_steps = [step for milestone in business.milestones for step in milestone.steps]
 
-    assert {step.title for step in technical_steps}.isdisjoint(
-        step.title for step in language_steps
-    )
-    assert {step.title for step in technical_steps}.isdisjoint(
-        step.title for step in business_steps
-    )
+    # The review steps (review, fix, transfer, demonstrate) are shared on purpose; the learning
+    # path around them is what each domain must make its own.
+    def own_titles(steps: list) -> set[str]:
+        return {step.title for step in steps if step.stable_key not in SHARED_REVIEW_KEYS}
+
+    assert own_titles(technical_steps).isdisjoint(own_titles(language_steps))
+    assert own_titles(technical_steps).isdisjoint(own_titles(business_steps))
     assert "failure path" in technical_steps[3].action
     assert "role-play" in language_steps[3].title.lower()
     assert "responses" in business_steps[3].completion_condition
@@ -206,3 +215,31 @@ def test_critic_issue_can_drive_repair() -> None:
     )
 
     assert critique.issues[0].repair_instruction.startswith("Add one")
+
+
+@pytest.mark.parametrize(
+    ("goal_title", "domain"),
+    [
+        ("Learn to paint with watercolors", "creative"),  # "paint" once matched "ai"
+        ("Write and publish a fantasy novel", "creative"),
+        ("Run my first marathon", "fitness"),
+        ("Get promoted to engineering manager", "general"),
+        ("Raise capital for my startup", "business"),  # "capital" once matched "api"
+        ("Become a data engineer", "technical"),
+        ("Learn conversational Japanese", "language"),
+        ("Become a better parent", "general"),
+    ],
+)
+def test_fixture_domain_matches_whole_words(goal_title: str, domain: str) -> None:
+    assert FixtureRoadmapProvider._domain(goal_title) == domain
+
+
+@pytest.mark.parametrize("goal_title", ["Learn to paint with watercolors", "Run my first marathon"])
+def test_new_domains_pass_the_quality_gate(goal_title: str) -> None:
+    generation_input = base_input().model_copy(
+        update={"goal_title": goal_title, "desired_outcome": f"Achieve: {goal_title}"}
+    )
+    outcome = RoadmapGenerationService(FixtureRoadmapProvider()).generate(generation_input)
+    assert outcome.quality.passed is True
+    titles = [step.title for milestone in outcome.draft.milestones for step in milestone.steps]
+    assert all(title[:1].isupper() and "  " not in title for title in titles)

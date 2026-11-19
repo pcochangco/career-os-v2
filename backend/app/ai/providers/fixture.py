@@ -1,3 +1,5 @@
+import re
+
 from app.ai.providers.base import ProviderResult
 from app.ai.schema import (
     ADAPTIVE_INSTRUCTION_PREFIX,
@@ -9,6 +11,44 @@ from app.ai.schema import (
     RoadmapGenerationInput,
     RoadmapPracticeTask,
 )
+
+# Checked in order; whole words only, so "ai" never matches "paint" and "api" never "capital".
+DOMAIN_PATTERNS: list[tuple[str, str]] = [
+    (
+        "language",
+        r"\b(spanish|language|english|french|japanese|german|korean|mandarin|chinese|italian|"
+        r"portuguese|tagalog|speaking|conversational|fluent|fluency)\b",
+    ),
+    (
+        "business",
+        r"\b(business|coffee|shop|store|bakery|sales|customers?|clients?|startup|entrepreneur\w*|"
+        r"marketing|revenue|freelanc\w*|side hustle)\b",
+    ),
+    # Leadership goals need the general roadmap, even in technical fields.
+    ("general", r"\b(manager|management|leader\w*|lead a team|promot\w*|executive|ceo)\b"),
+    (
+        "fitness",
+        r"\b(marathon|half-marathon|5k|10k|running|runner|jog\w*|fitness|workouts?|gym|"
+        r"strength|weight ?lifting|lose weight|weight loss|triathlon|cycling|swim\w*|yoga|"
+        r"pilates|push-?ups?|pull-?ups?)\b",
+    ),
+    (
+        "technical",
+        r"\b(engineer|developer|programming|programmer|coding|code|software|python|javascript|"
+        r"sql|machine learning|data science|data engineer\w*|ai|api|devops|cloud)\b",
+    ),
+    (
+        "creative",
+        r"\b(paint\w*|watercolou?rs?|draw\w*|sketch\w*|illustrat\w*|art|artist|music\w*|guitar|"
+        r"piano|violin|drums?|sing\w*|songs?|songwriting|photograph\w*|novel|poe\w+|writ\w*|"
+        r"film\w*|animation|pottery|ceramics|knit\w*|crochet)\b",
+    ),
+]
+
+
+def mid_sentence_label(label: str) -> str:
+    """'Data tooling' -> 'data tooling', but keep acronyms: 'SQL and modeling' stays."""
+    return label if label[1:2].isupper() else label[:1].lower() + label[1:]
 
 
 class FixtureRoadmapProvider:
@@ -59,23 +99,23 @@ class FixtureRoadmapProvider:
 
         # Answers can be up to 1,200 characters each; clip them so the composed copy always
         # fits the draft's field limits (starting state 1,000, step action 1,600).
+        title = generation_input.goal_title.strip().rstrip(". ")
         answers = [
             FixtureRoadmapProvider._clip(answer.answer.strip().rstrip(". "), 160)
             for answer in generation_input.discovery_context
             if not answer.skipped and answer.answer.strip()
         ]
         if answers:
-            summary_lead = f"A focused path toward {goal_title}, shaped by what you shared."
+            summary_lead = f"A focused roadmap for “{title}”, shaped by what you shared."
             starting_state = f"What you shared: {'; '.join(answers[:3])}."
             experience = "; ".join(answers[:2])
         else:
-            summary_lead = f"A focused path toward {goal_title}."
+            summary_lead = f"A focused roadmap for “{title}”."
             starting_state = (
                 "You skipped the starting questions, so this roadmap begins with the foundations. "
                 "Note anything you already know in each step's learning record."
             )
             experience = "what you already know"
-        title = generation_input.goal_title.strip().rstrip(". ")
         return {
             # goal_outcome needs at least 12 characters; short goals ("Become CEO") get a frame.
             "outcome": title if len(title) >= 12 else f"Reach this goal: {title}",
@@ -125,6 +165,20 @@ class FixtureRoadmapProvider:
                 "Build and test a working system",
                 "Create a usable implementation and improve it through deliberate testing.",
                 "Demonstrate an engineering outcome",
+            ),
+            "creative": (
+                "Build your creative foundations",
+                "Know what you want to make and the techniques it takes.",
+                "Make work regularly",
+                "Turn techniques into finished pieces, with less guidance each time.",
+                "Finish and share your work",
+            ),
+            "fitness": (
+                "Set a safe starting point",
+                "Know your baseline, your target, and a routine your body can keep up with.",
+                "Train consistently",
+                "Build fitness week by week and adjust based on how training actually goes.",
+                "Reach the target",
             ),
             "general": (
                 "Set the foundation",
@@ -244,7 +298,7 @@ class FixtureRoadmapProvider:
                 apply_step = RoadmapDraftStep(
                     stable_key=study_key,
                     kind="learn",
-                    title=f"Apply {capability.label}",
+                    title=f"Learn {mid_sentence_label(capability.label)}",
                     objective=(
                         f"Use {topics} in the context of {generation_input.goal_title}, building "
                         "on demonstrated experience instead of repeating basic theory."
@@ -279,7 +333,7 @@ class FixtureRoadmapProvider:
                 proof_step = RoadmapDraftStep(
                     stable_key=proof_key,
                     kind=proof_kind,
-                    title=f"Validate {capability.label}",
+                    title=f"Put {mid_sentence_label(capability.label)} to the test",
                     objective=(
                         f"Turn the {capability.label.lower()} work into evidence another engineer "
                         "could inspect, test, or review."
@@ -351,6 +405,32 @@ class FixtureRoadmapProvider:
                     "Record the signal and decision in one note.",
                 ),
             ],
+            "creative": [
+                (
+                    "Make a ten-minute sketch",
+                    "Make a quick, rough piece using the technique from your current step. "
+                    "Don't fix anything; just finish it.",
+                    "Keep the piece, however rough.",
+                ),
+                (
+                    "Study one detail",
+                    "Look closely at one piece you admire and copy a single small detail.",
+                    "Save the copy and one line on what you noticed.",
+                ),
+            ],
+            "fitness": [
+                (
+                    "Do an easy movement session",
+                    "Do 15 to 20 minutes of easy movement related to your goal at a pace where "
+                    "you could still talk.",
+                    "Log the time and how it felt.",
+                ),
+                (
+                    "Practise form for five minutes",
+                    "Spend five minutes on the form or warm-up from your current step.",
+                    "Note one thing that improved.",
+                ),
+            ],
             "general": [
                 (
                     "Rehearse the current capability",
@@ -367,7 +447,7 @@ class FixtureRoadmapProvider:
         }[domain]
         step_prompts = [
             (
-                f"Make a small move on: {step.title}",
+                f"Start small: {step.title}",
                 f"Choose one contained part of this step: {step.objective}",
                 f"Leave evidence that moves this step forward: {step.evidence_suggestion}",
             )
@@ -408,55 +488,10 @@ class FixtureRoadmapProvider:
 
     @staticmethod
     def _domain(goal_title: str) -> str:
-        text = goal_title.lower()
-        if any(
-            word in text
-            for word in (
-                "spanish",
-                "language",
-                "english",
-                "french",
-                "japanese",
-                "german",
-                "korean",
-                "mandarin",
-                "italian",
-                "speaking",
-            )
-        ):
-            return "language"
-        if any(
-            word in text
-            for word in (
-                "coffee",
-                "business",
-                "shop",
-                "store",
-                "sales",
-                "customer",
-                "startup",
-                "entrepreneur",
-                "marketing",
-                "revenue",
-            )
-        ):
-            return "business"
-        if any(
-            word in text
-            for word in (
-                "engineer",
-                "developer",
-                "python",
-                "programming",
-                "machine learning",
-                "data science",
-                "ai",
-                "software",
-                "code",
-                "api",
-            )
-        ):
-            return "technical"
+        text = goal_title.casefold()
+        for domain, pattern in DOMAIN_PATTERNS:
+            if re.search(pattern, text):
+                return domain
         return "general"
 
     @staticmethod
@@ -716,9 +751,137 @@ class FixtureRoadmapProvider:
                     f"how to present {goal_title} engineering portfolio project",
                 ),
             ],
+            "creative": [
+                (
+                    "Choose what you want to make",
+                    "Turn the creative goal into a specific kind of piece you can picture.",
+                    "A concrete target makes it obvious which techniques to practise first.",
+                    f"Collect three to five examples of work like what you want to make for this "
+                    f"goal: {outcome}. For each, note one thing you love and one thing you'd do "
+                    "differently.",
+                    "A short reference board with at least three examples and a note on each.",
+                    "Reference board with notes",
+                    f"{goal_title} inspiration examples for beginners",
+                ),
+                (
+                    "Map the techniques it takes",
+                    "Name the few techniques your target pieces depend on.",
+                    "Practising the right techniques beats practising everything.",
+                    f"List five to seven techniques your reference pieces use. Mark which ones you "
+                    f"already have ({existing_experience}) and pick the one that would make the "
+                    "biggest difference first.",
+                    "A technique list with each item marked as comfortable or to practise.",
+                    "Technique map",
+                    f"{goal_title} essential techniques",
+                ),
+                (
+                    "Study one finished piece closely",
+                    "See how an experienced maker puts the techniques together.",
+                    "Copying a small part of real work teaches decisions a tutorial skips.",
+                    "Pick one piece you admire. Recreate a small section of it as a study, and "
+                    "write down three choices the maker made and why they work.",
+                    "A study piece plus three noted choices.",
+                    "Study piece with notes",
+                    f"{goal_title} step by step tutorial",
+                ),
+                (
+                    "Make a guided practice piece",
+                    "Create a small piece of your own using what the study taught you.",
+                    "Small finished pieces build skill faster than one big unfinished one.",
+                    "Make one small, complete piece in your own subject or style, working within "
+                    f"this: {constraints}. Note two things you'd fix next time.",
+                    "One finished small piece and two notes on what to improve.",
+                    "Practice piece and notes",
+                    f"{goal_title} practice exercises",
+                ),
+                (
+                    "Create an original piece on your own",
+                    "Make the kind of work you set out to make, with no tutorial to follow.",
+                    "An original piece shows the skill is yours, not borrowed from a guide.",
+                    f"Plan and finish the piece you chose as proof: {proof}.",
+                    "The piece is finished and ready for someone else to look at, read, or hear.",
+                    proof,
+                    f"{goal_title} project ideas",
+                ),
+                (
+                    "Share the work and get feedback",
+                    "Put the work in front of real people and learn from their response.",
+                    "Feedback from others shows what lands, which practice alone can't.",
+                    "Share your strongest piece with at least two people or one community. Ask "
+                    "one specific question, then write down what you'll keep and what you'll "
+                    "change in the next piece.",
+                    "The work has been shared and the feedback is noted with a next step.",
+                    "Shared piece and feedback notes",
+                    f"where to share {goal_title} work for feedback",
+                ),
+            ],
+            "fitness": [
+                (
+                    "Set your target and baseline",
+                    "Know exactly where you are now and what you're training toward.",
+                    "Training is easier to plan, and safer, when it starts from your real level.",
+                    f"Write down the target ({outcome}) and do one easy baseline test: a timed "
+                    "distance, a set count, or a session you can finish comfortably. If you "
+                    "have a health condition or injury, check with a professional first.",
+                    "A written target and one recorded baseline result.",
+                    "Target and baseline record",
+                    f"{goal_title} beginner baseline test",
+                ),
+                (
+                    "Plan a gradual weekly routine",
+                    "Lay out a week of training that builds up slowly and includes rest.",
+                    "Gradual increases prevent most injuries and keep training sustainable.",
+                    f"Plan one week that fits your schedule ({constraints}). Include easy days, "
+                    "one harder session, and at least one rest day. Build on what you already "
+                    f"do ({existing_experience}).",
+                    "A one-week plan with session types, durations, and rest days.",
+                    "Weekly training plan",
+                    f"{goal_title} beginner training plan",
+                ),
+                (
+                    "Learn good form and recovery",
+                    "Understand the technique, warm-up, and recovery your training needs.",
+                    "Good form and recovery keep you training week after week.",
+                    "Learn the correct form for your main exercise and a simple warm-up and "
+                    "cool-down. Film or check one session against a reliable guide.",
+                    "A warm-up and cool-down you use, and one form check done.",
+                    "Form check and warm-up routine",
+                    f"{goal_title} proper form and recovery",
+                ),
+                (
+                    "Complete your first full training week",
+                    "Follow the plan for a whole week and see how it really goes.",
+                    "A completed week shows whether the plan fits your life and body.",
+                    "Do every planned session for one week. After each one, log how it felt "
+                    "(easy, right, too hard) and adjust next week if needed.",
+                    "A week of logged sessions with one adjustment noted.",
+                    "Training log for one week",
+                    f"{goal_title} how to track training progress",
+                ),
+                (
+                    "Do a practice run toward the target",
+                    "Try a shorter or easier version of your target to see where you stand.",
+                    "A practice run shows what's ready and what still needs training.",
+                    f"Do a scaled-down version of your target ({proof}). Note what held up, "
+                    "what was hard, and how you felt the next day.",
+                    "A practice run is done and logged with notes on what to work on.",
+                    "Practice run log",
+                    f"{goal_title} practice run tips",
+                ),
+                (
+                    "Review progress and plan what's next",
+                    "Compare where you started with where you are, and decide how to keep going.",
+                    "A clear review keeps the habit going after the goal is reached.",
+                    "Compare your baseline with your latest results. Note what worked, what "
+                    "you'd change, and the next target to keep the habit going.",
+                    "A before-and-after comparison and a next target.",
+                    "Progress review and next target",
+                    f"after {goal_title} what next",
+                ),
+            ],
             "general": [
                 (
-                    f"Define success for {goal_title}",
+                    "Define what success looks like",
                     "Turn the goal into outcomes that can be recognized and reviewed.",
                     "The rest of the roadmap needs an observable destination.",
                     f"Write a one-page success brief for this outcome: {outcome}. List what you "
@@ -729,7 +892,7 @@ class FixtureRoadmapProvider:
                     f"{goal_title} competency framework beginner guide",
                 ),
                 (
-                    "Map the essential foundations",
+                    "Map what you know and what's missing",
                     "Identify the smallest set of concepts or skills used by later work.",
                     "An explicit foundation map reveals gaps without repeating everything.",
                     f"Create a map of five to seven essentials. Mark what your experience covers "
@@ -739,7 +902,7 @@ class FixtureRoadmapProvider:
                     f"{goal_title} essential concepts roadmap",
                 ),
                 (
-                    "Learn one complete workflow",
+                    "Learn from one complete example",
                     "See how the essential pieces connect from start to finish.",
                     "A complete example supplies context before independent practice.",
                     "Follow one credible end-to-end introduction and reproduce the workflow with "
@@ -750,7 +913,7 @@ class FixtureRoadmapProvider:
                     f"{goal_title} complete practical tutorial",
                 ),
                 (
-                    "Complete a guided practice output",
+                    "Try it once with guidance",
                     "Use the workflow without copying the original example.",
                     "A changed context tests whether the workflow is understood.",
                     f"Create a small practice output related to {goal_title}. Apply this "
@@ -761,7 +924,7 @@ class FixtureRoadmapProvider:
                     f"{goal_title} practice project ideas",
                 ),
                 (
-                    "Create an independent final output",
+                    "Do it on your own",
                     "Demonstrate the target ability with limited guidance.",
                     "Independent work exposes the remaining gaps and proves transfer.",
                     f"Plan and produce the evidence you chose: {proof}.",
@@ -785,7 +948,7 @@ class FixtureRoadmapProvider:
         templates = [
             *templates[:5],
             (
-                "Review the first independent result",
+                "Review your first solo result",
                 "Compare the independent result against the intended outcome and identify the "
                 "few gaps that matter most.",
                 "A deliberate review prevents a finished-looking artifact from hiding a weak "
@@ -799,7 +962,7 @@ class FixtureRoadmapProvider:
                 f"{goal_title} self review rubric practical project",
             ),
             (
-                "Strengthen the highest-impact gap",
+                "Fix the biggest gap",
                 "Improve the part of the work that most limits the target capability.",
                 "Targeted revision turns feedback into stronger evidence instead of starting a "
                 "disconnected new exercise.",
@@ -812,7 +975,7 @@ class FixtureRoadmapProvider:
                 f"{goal_title} improvement case study examples",
             ),
             (
-                "Test transfer in a changed scenario",
+                "Try it in a new situation",
                 "Show that the capability survives a realistic variation rather than only one "
                 "rehearsed example.",
                 "A changed scenario distinguishes repeatable skill from a one-off successful "
@@ -826,7 +989,7 @@ class FixtureRoadmapProvider:
                 f"{goal_title} realistic scenario test examples",
             ),
             (
-                "Prepare a final capability demonstration",
+                "Prepare to show your result",
                 "Assemble the exact evidence a reviewer would need to judge the target capability.",
                 "A deliberate demonstration connects the finished work to the learner's intended "
                 "outcome and proof.",
@@ -839,17 +1002,6 @@ class FixtureRoadmapProvider:
                 f"{goal_title} portfolio demonstration rubric",
             ),
             templates[5],
-        ]
-        domain_prefix = {
-            "technical": "Technical",
-            "language": "Communication",
-            "business": "Business",
-            "general": "Capability",
-        }[domain]
-        templates = [
-            *templates[:5],
-            *[(f"{domain_prefix} {template[0]}", *template[1:]) for template in templates[5:9]],
-            templates[9],
         ]
         keys = [
             "define-success",
