@@ -116,11 +116,15 @@ def test_completed_generation_clears_the_in_flight_state(client: TestClient) -> 
     assert created.status_code == 201
     assert goal["roadmap_generation_in_progress"] is False
     assert goal["latest_draft_roadmap_id"] == created.json()["id"]
-    outcomes = db_session().scalars(
-        select(RoadmapGenerationAttempt.outcome).where(
-            RoadmapGenerationAttempt.goal_id == UUID(goal_id)
+    outcomes = (
+        db_session()
+        .scalars(
+            select(RoadmapGenerationAttempt.outcome).where(
+                RoadmapGenerationAttempt.goal_id == UUID(goal_id)
+            )
         )
-    ).all()
+        .all()
+    )
     assert outcomes and "started" not in outcomes
 
 

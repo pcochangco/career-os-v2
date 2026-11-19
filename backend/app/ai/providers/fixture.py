@@ -176,9 +176,9 @@ class FixtureRoadmapProvider:
         return {
             # goal_outcome needs at least 12 characters; short goals ("Become CEO") get a frame.
             "outcome": title if len(title) >= 12 else f"Reach this goal: {title}",
-            "proof": clip(shared["proof"], 160) if answers and shared["proof"] else (
-                f"a concrete piece of work that shows real progress toward {goal_title}"
-            ),
+            "proof": clip(shared["proof"], 160)
+            if answers and shared["proof"]
+            else (f"a concrete piece of work that shows real progress toward {goal_title}"),
             "experience": experience,
             "constraints": (clip(shared["schedule"], 160) if answers else "")
             or "the time, tools, and preferences you have right now",

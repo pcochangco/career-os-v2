@@ -80,9 +80,7 @@ def test_fixture_roadmap_uses_capability_prerequisite_edges() -> None:
     generation_input = learner_input("Become an AI automation engineer", APPLIED_AI)
     outcome = RoadmapGenerationService(FixtureRoadmapProvider()).generate(generation_input)
     steps = {
-        step.stable_key: step
-        for milestone in outcome.draft.milestones
-        for step in milestone.steps
+        step.stable_key: step for milestone in outcome.draft.milestones for step in milestone.steps
     }
 
     for phase in APPLIED_AI.phases:
@@ -97,9 +95,7 @@ def test_fixture_roadmap_uses_capability_prerequisite_edges() -> None:
 
 def test_curriculum_rejects_a_forward_capability_prerequisite() -> None:
     curriculum_data = PYTHON_BACKEND.model_dump()
-    curriculum_data["phases"][0]["capabilities"][0]["prerequisite_capability_keys"] = [
-        "web-api"
-    ]
+    curriculum_data["phases"][0]["capabilities"][0]["prerequisite_capability_keys"] = ["web-api"]
 
     with pytest.raises(ValueError, match="occur earlier"):
         CurriculumBackbone.model_validate(curriculum_data)

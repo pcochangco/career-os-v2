@@ -39,24 +39,22 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
+/**
+ * Navigation chrome around every screen. Public pages render it with `chrome={false}` instead of
+ * leaving it out, so signing in doesn't rebuild (and remount) the screen underneath.
+ */
+export function AppShell({ children, chrome = true }: { children: ReactNode; chrome?: boolean }) {
   const { colors } = useTheme();
   const wide = useIsWide();
   const styles = createStyles(colors);
 
   return (
-    <ShellContext.Provider value={{ inShell: true, wide }}>
-      {wide ? (
-        <View style={styles.row}>
-          <Sidebar />
-          <View style={styles.main}>{children}</View>
-        </View>
-      ) : (
-        <View style={styles.column}>
-          <View style={styles.main}>{children}</View>
-          <BottomTabs />
-        </View>
-      )}
+    <ShellContext.Provider value={{ inShell: chrome, wide }}>
+      <View style={wide ? styles.row : styles.column}>
+        {chrome && wide ? <Sidebar /> : null}
+        <View style={styles.main}>{children}</View>
+        {chrome && !wide ? <BottomTabs /> : null}
+      </View>
     </ShellContext.Provider>
   );
 }

@@ -26,9 +26,10 @@ function AuthGate({ children }: { children: ReactNode }) {
   }, [mounted, publicRoute, router, session.ready, session.token]);
 
   if (!mounted) return <LoadingState />;
-  if (publicRoute) return children;
-  if (!session.ready || !session.token) return <LoadingState label="Sign in to continue…" />;
-  return <AppShell>{children}</AppShell>;
+  if (!publicRoute && (!session.ready || !session.token)) {
+    return <LoadingState label="Sign in to continue…" />;
+  }
+  return <AppShell chrome={!publicRoute}>{children}</AppShell>;
 }
 
 /**

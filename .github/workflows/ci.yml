@@ -60,6 +60,10 @@ jobs:
         working-directory: backend
         run: python -m ruff check .
 
+      - name: Check formatting
+        working-directory: backend
+        run: python -m ruff format --check .
+
       - name: Build deployment image
         run: docker build --tag careeros:ci .
 

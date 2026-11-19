@@ -84,7 +84,6 @@ A topic-agnostic, mobile-first roadmap app: user goal → adaptive discovery →
 - The repo does not track a `uv.lock`; `uv sync` creates `backend/uv.lock` — don't commit it unless the owner decides to pin dependencies.
 - Google sign-in unavailable; real email verification not implemented. The native app has no beta email sign-in form (web only).
 - Groq free tier hits token-length limits and 429s, so production often serves the deterministic fallback roadmap.
-- Leaving the public landing page remounts the signed-in shell, so Goals fetches its list once more after sign-in (extra request, no visible delay). Fix with the auth layout.
 - Existing roadmaps keep stored titles like "Your path to …"; new fallback roadmaps say "Your roadmap to …".
 
 ## 10. Next steps (priority order)
@@ -106,6 +105,7 @@ Backend checks:
 uv sync --project backend --extra dev
 backend/.venv/bin/pytest backend/tests -q
 backend/.venv/bin/ruff check backend/app backend/tests
+backend/.venv/bin/ruff format --check backend
 ```
 Frontend checks:
 ```bash

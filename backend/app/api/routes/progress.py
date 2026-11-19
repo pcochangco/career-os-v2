@@ -109,11 +109,7 @@ def update_goal_status(db: Session, user: User, roadmap: RoadmapVersion, goal: G
             RoadmapMilestone.roadmap_id == roadmap.id,
         )
     )
-    goal.status = (
-        "completed"
-        if total_steps and completed_steps == total_steps
-        else "active"
-    )
+    goal.status = "completed" if total_steps and completed_steps == total_steps else "active"
 
 
 @router.put("/{step_id}/progress", response_model=RoadmapRead)

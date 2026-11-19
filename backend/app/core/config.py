@@ -152,9 +152,7 @@ class Settings(BaseSettings):
         """
         if not isinstance(value, str):
             raise ValueError("email allowlists must be comma-separated strings")
-        normalized_items = (
-            item.strip().casefold() for item in value.split(",") if item.strip()
-        )
+        normalized_items = (item.strip().casefold() for item in value.split(",") if item.strip())
         emails = tuple(dict.fromkeys(normalized_items))
         for email in emails:
             if not re.fullmatch(EMAIL_PATTERN, email):

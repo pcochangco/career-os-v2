@@ -145,8 +145,6 @@ def to_roadmap_read(db: Session, user: User, roadmap: RoadmapVersion) -> Roadmap
             ),
             "subscription_tier": user.subscription_tier,
             "free_access_milestone_limit": free_access_limit,
-            "locked_step_count": sum(
-                status == "locked" for status in snapshot.statuses.values()
-            ),
+            "locked_step_count": sum(status == "locked" for status in snapshot.statuses.values()),
         }
     )

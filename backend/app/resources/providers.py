@@ -128,9 +128,7 @@ class YouTubeResourceProvider:
                     ),
                     thumbnail_url=thumbnail_url,
                     verified_at=verified_at,
-                    quality_score=self._quality_score(
-                        views, published_at, title, duration_seconds
-                    ),
+                    quality_score=self._quality_score(views, published_at, title, duration_seconds),
                 )
             )
         return resources
@@ -193,8 +191,7 @@ class YouTubeResourceProvider:
         return (
             any(term in lower_title for term in course_terms)
             or (
-                duration_seconds >= 45 * 60
-                and any(term in lower_title for term in practical_terms)
+                duration_seconds >= 45 * 60 and any(term in lower_title for term in practical_terms)
             )
             or duration_seconds >= 2 * 60 * 60
         )
@@ -273,9 +270,7 @@ class BraveSearchResourceProvider:
             description = str(result.get("description", "")).strip()
             profile = result.get("profile")
             source_name = (
-                str(profile.get("long_name", "")).strip()
-                if isinstance(profile, dict)
-                else ""
+                str(profile.get("long_name", "")).strip() if isinstance(profile, dict) else ""
             ) or hostname.removeprefix("www.")
             if not title or not source_name:
                 continue
