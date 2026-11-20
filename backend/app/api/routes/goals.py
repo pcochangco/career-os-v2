@@ -452,6 +452,18 @@ def run_discovery_operation(
     return result
 
 
+def commit_question(db: Session, goal: Goal) -> DiscoveryStateRead:
+    """Save a new discovery question. Two overlapping requests for the same goal (a double
+    page load, a retry) both try to save the next question; the database allows only one per
+    position, so the loser returns the winner's question instead of failing with a 500."""
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+    db.refresh(goal)
+    return to_discovery_state(db, goal)
+
+
 def start_next_discovery_question(
     *,
     db: Session,
@@ -510,9 +522,7 @@ def start_next_discovery_question(
             placeholder=question.placeholder,
         )
     )
-    db.commit()
-    db.refresh(goal)
-    return to_discovery_state(db, goal)
+    return commit_question(db, goal)
 
 
 def advance_discovery(
@@ -556,9 +566,7 @@ def advance_discovery(
             placeholder=question.placeholder,
         )
     )
-    db.commit()
-    db.refresh(goal)
-    return to_discovery_state(db, goal)
+    return commit_question(db, goal)
 
 
 @router.get("/{goal_id}/discovery", response_model=DiscoveryStateRead)
