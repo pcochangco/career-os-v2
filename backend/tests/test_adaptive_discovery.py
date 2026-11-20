@@ -1,10 +1,14 @@
+import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.ai.dependencies import get_discovery_service
 from app.ai.providers.base import ProviderResult
+from app.ai.providers.fixture import read_answers
 from app.ai.schema import DiscoveryContextAnswer, DiscoveryQuestionDraft
 from app.discovery.service import (
+    FALLBACK_OPTIONS,
+    FALLBACK_QUESTIONS,
     AdaptiveDiscoveryService,
     DiscoveryValidationError,
     FixtureDiscoveryProvider,
@@ -55,7 +59,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{first_question['id']}/answer",
         headers=headers,
         json={
-            "selected_option_keys": ["practical-project", "career-change"],
+            "selected_option_keys": ["build-a-practical-project", "prepare-for-a-career-move"],
             "custom_answer": "I want to focus on agent reliability.",
         },
     )
@@ -76,7 +80,7 @@ def test_adaptive_discovery_persists_answers_skips_and_generates_roadmap(
     ready = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{third_question['id']}/answer",
         headers=headers,
-        json={"selected_option_keys": ["proof"]},
+        json={"selected_option_keys": ["creating-strong-proof-of-my-skills"]},
     )
     assert ready.status_code == 200
     assert ready.json()["status"] == "ready"
@@ -115,19 +119,24 @@ def test_adaptive_discovery_validates_answer_options_and_allows_multiple_choices
     second_question = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{first_question['id']}/answer",
         headers=headers,
-        json={"selected_option_keys": ["practical-project"]},
+        json={"selected_option_keys": ["build-a-practical-project"]},
     ).json()["question"]
     third_question = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{second_question['id']}/answer",
         headers=headers,
-        json={"selected_option_keys": ["work-experience"]},
+        json={"selected_option_keys": ["used-it-at-work"]},
     ).json()["question"]
     assert third_question["selection_mode"] == "multiple"
 
     multiple = client.post(
         f"/api/v1/goals/{goal['id']}/discovery/questions/{third_question['id']}/answer",
         headers=headers,
-        json={"selected_option_keys": ["proof", "confidence"]},
+        json={
+            "selected_option_keys": [
+                "creating-strong-proof-of-my-skills",
+                "confidence-explaining-my-work",
+            ]
+        },
     )
     assert multiple.status_code == 200
     assert multiple.json()["status"] == "ready"
@@ -329,3 +338,51 @@ def test_skipping_every_question_is_explained_honestly(client: TestClient) -> No
 
     assert all(item["skipped"] for item in state["context"])
     assert "skipped the questions" in state["completion_reason"]
+
+
+@pytest.mark.parametrize(
+    ("goal_title", "expected", "unexpected"),
+    [
+        ("Run my first marathon", "Finish an event or race", "career"),
+        ("Speak conversational Spanish", "Hold everyday conversations", "career"),
+        ("Learn watercolour painting", "Find my own style", "career"),
+        ("Open a coffee shop", "Win my first customers", "career"),
+        ("Learn to cook", "Learn the basics properly", "career"),
+        ("Become a Python developer", "Prepare for a career move", "race"),
+    ],
+)
+def test_fallback_questions_match_the_goal_topic(
+    goal_title: str, expected: str, unexpected: str
+) -> None:
+    fixture = FixtureDiscoveryProvider()
+    answers: list[DiscoveryContextAnswer] = []
+    labels: list[str] = []
+    while not (
+        question := fixture.next_question(
+            goal_title=goal_title, answers=answers, used_question_keys=[]
+        ).value
+    ).is_complete:
+        AdaptiveDiscoveryService._validate_question(question, [a.question_key for a in answers])
+        labels += [option.label for option in question.options]
+        answers.append(
+            DiscoveryContextAnswer(
+                question_key=question.question_key,
+                question=question.question,
+                answer=question.options[0].label,
+            )
+        )
+    assert len(answers) == 3
+    assert expected in labels
+    assert not any(unexpected in label.casefold() for label in labels)
+
+
+@pytest.mark.parametrize("domain", sorted(FALLBACK_OPTIONS))
+def test_fallback_starting_point_options_reveal_the_level(domain: str) -> None:
+    question = FALLBACK_QUESTIONS[1][1]
+    levels = {
+        read_answers(
+            [DiscoveryContextAnswer(question_key="starting-point", question=question, answer=label)]
+        )["level"]
+        for label in FALLBACK_OPTIONS[domain]["starting-point"]
+    }
+    assert {"beginner", "experienced"} <= levels

@@ -47,6 +47,14 @@ DOMAIN_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
+def domain_of(goal_title: str) -> str:
+    text = goal_title.casefold()
+    for domain, pattern in DOMAIN_PATTERNS:
+        if re.search(pattern, text):
+            return domain
+    return "general"
+
+
 # Adaptive discovery picks its own question keys, so answers are recognised by meaning.
 PROOF_QUESTION = r"\b(proof|prove|show|evidence|success|look like|count as|finish line)\b"
 TIME_QUESTION = r"\b(time|hours?|minutes?|schedule|how often|per week|available|commit)\b"
@@ -62,7 +70,7 @@ BEGINNER_ANSWER = (
 )
 EXPERIENCED_ANSWER = (
     r"\b(\d+\+? years?|years of|professional(ly)?|at work|advanced|senior|experienced|"
-    r"shipped|built a)\b"
+    r"shipped|built a|for years)\b"
 )
 
 
@@ -558,13 +566,7 @@ class FixtureRoadmapProvider:
             steps=steps,
         )
 
-    @staticmethod
-    def _domain(goal_title: str) -> str:
-        text = goal_title.casefold()
-        for domain, pattern in DOMAIN_PATTERNS:
-            if re.search(pattern, text):
-                return domain
-        return "general"
+    _domain = staticmethod(domain_of)
 
     @staticmethod
     def _steps(
