@@ -10,7 +10,37 @@ from app.resources.schema import ResourceCandidate
 
 
 class ResourceResolver:
+    # Words that say nothing about the topic. Without them, "Become a Barista" matched
+    # "How to Crush a Job Interview" on the word "a".
     generic_query_words = {
+        "a",
+        "about",
+        "after",
+        "an",
+        "and",
+        "as",
+        "at",
+        "be",
+        "become",
+        "becoming",
+        "by",
+        "for",
+        "from",
+        "get",
+        "i",
+        "in",
+        "into",
+        "is",
+        "it",
+        "my",
+        "next",
+        "of",
+        "on",
+        "or",
+        "what",
+        "with",
+        "you",
+        "your",
         "beginner",
         "build",
         "capstone",
