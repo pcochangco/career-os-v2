@@ -27,6 +27,7 @@ class YouTubeResourceProvider:
     name = "youtube"
     search_endpoint = "https://www.googleapis.com/youtube/v3/search"
     videos_endpoint = "https://www.googleapis.com/youtube/v3/videos"
+    min_duration_seconds = 3 * 60
 
     def __init__(self, api_key: str, timeout_seconds: float) -> None:
         self.api_key = api_key
@@ -108,6 +109,8 @@ class YouTubeResourceProvider:
             published_at = self._parse_datetime(snippet.get("publishedAt"))
             duration = str(item.get("contentDetails", {}).get("duration", "")).strip()
             duration_seconds = self._duration_seconds(duration)
+            if "#short" in title.lower() or 0 < duration_seconds < self.min_duration_seconds:
+                continue  # Shorts and clips can't teach a step.
             published_label = published_at.strftime("%Y") if published_at else "recently"
             details_label = f"{self._view_label(views)} views · Published {published_label}"
             if duration_seconds:

@@ -675,3 +675,49 @@ def test_resource_text_reaches_the_app_without_html() -> None:
     assert resource.title == "Barista basics & latte art"
     assert resource.source_name == "Coffee's Studies"
     assert resource.description == "Most new baristas reach taking orders, making drinks."
+
+
+def test_a_shared_filler_word_is_not_a_topic_match() -> None:
+    query = "Become a Barista competency framework beginner guide"
+    off_topic = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=interview",
+        title="How to Crush a Job Interview",
+        resource_type="video",
+    )
+    on_topic = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=barista",
+        title="Barista training for beginners",
+        resource_type="video",
+    )
+    assert not ResourceResolver.is_relevant(off_topic, query)
+    assert ResourceResolver.is_relevant(on_topic, query)
+
+
+def test_youtube_provider_skips_shorts_and_clips(monkeypatch: pytest.MonkeyPatch) -> None:
+    def video(video_id: str, title: str, duration: str) -> dict:
+        return {
+            "id": video_id,
+            "snippet": {"title": title, "channelTitle": "Coffee Lab"},
+            "statistics": {"viewCount": "1000"},
+            "contentDetails": {"duration": duration},
+            "status": {"privacyStatus": "public"},
+        }
+
+    def fake_get(url: str, **_: object) -> StubResponse:
+        if url == YouTubeResourceProvider.search_endpoint:
+            return StubResponse({"items": [{"id": {"videoId": v}} for v in "abc"]})
+        return StubResponse(
+            {
+                "items": [
+                    video("a", "Barista tips #shorts", "PT5M"),
+                    video("b", "Barista latte art", "PT45S"),
+                    video("c", "Barista training course", "PT25M"),
+                ]
+            }
+        )
+
+    monkeypatch.setattr("app.resources.providers.httpx.get", fake_get)
+    resources = YouTubeResourceProvider("test-key", 2).search("barista", 3)
+    assert [resource.title for resource in resources] == ["Barista training course"]
