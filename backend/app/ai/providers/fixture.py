@@ -101,6 +101,17 @@ def read_answers(context: list[DiscoveryContextAnswer]) -> dict[str, str]:
     return found
 
 
+GOAL_LEAD_IN = re.compile(
+    r"^(become|becoming|learn( how)?( to)?|get better at|improve( my)?|master)\s+(an?\s+)?",
+    re.IGNORECASE,
+)
+
+
+def search_topic(goal_title: str) -> str:
+    """'Become a Barista' -> 'Barista': search engines match the subject, not the ambition."""
+    return GOAL_LEAD_IN.sub("", goal_title).strip() or goal_title
+
+
 def mid_sentence_label(label: str) -> str:
     """'Data tooling' -> 'data tooling', but keep acronyms: 'SQL and modeling' stays."""
     return label if label[1:2].isupper() else label[:1].lower() + label[1:]
@@ -405,7 +416,7 @@ class FixtureRoadmapProvider:
                         or ([previous_key] if previous_key else [])
                     ),
                     resource_queries=[
-                        f"{generation_input.goal_title} {capability.label} practical tutorial"
+                        f"{search_topic(generation_input.goal_title)} {capability.label} tutorial"
                     ],
                 )
                 proof_key = f"{capability_key}-evidence"
@@ -431,7 +442,7 @@ class FixtureRoadmapProvider:
                     evidence_suggestion=capability.proof,
                     prerequisite_step_keys=[study_key],
                     resource_queries=[
-                        f"{generation_input.goal_title} {capability.label} testing case study"
+                        f"{search_topic(generation_input.goal_title)} {capability.label} examples"
                     ],
                 )
                 phase_steps.extend([apply_step, proof_step])
@@ -589,7 +600,7 @@ class FixtureRoadmapProvider:
                     "Three conversation scenarios each include an intended result and observable "
                     "speaking or listening behavior.",
                     "Conversation target brief",
-                    f"{goal_title} conversational ability framework",
+                    f"{goal_title} for beginners",
                 ),
                 (
                     "Map the language needed for those situations",
@@ -603,7 +614,7 @@ class FixtureRoadmapProvider:
                     "each "
                     "item marked as known or needing practice.",
                     "Annotated language map",
-                    f"{goal_title} essential phrases grammar listening guide",
+                    f"{goal_title} basic phrases and grammar",
                 ),
                 (
                     "Study and shadow one complete conversation",
@@ -615,7 +626,7 @@ class FixtureRoadmapProvider:
                     "An annotated dialogue and a recorded or written reproduction cover every turn "
                     "without copying unexplained lines.",
                     "Annotated dialogue and reproduction",
-                    f"{goal_title} practical dialogue audio transcript",
+                    f"{goal_title} listening practice",
                 ),
                 (
                     "Complete a guided role-play",
@@ -630,7 +641,7 @@ class FixtureRoadmapProvider:
                     "The role-play reaches its practical result and includes two explained "
                     "corrections.",
                     "Role-play recording or transcript with corrections",
-                    f"{goal_title} guided speaking role play prompts",
+                    f"{goal_title} speaking practice",
                 ),
                 (
                     "Hold an independent practical conversation",
@@ -641,7 +652,7 @@ class FixtureRoadmapProvider:
                     "The conversation evidence is complete, reviewable, and shows whether the "
                     "intended practical result was reached.",
                     proof,
-                    f"{goal_title} conversation proficiency rubric",
+                    f"{goal_title} conversation practice",
                 ),
                 (
                     "Review and package your communication evidence",
@@ -669,7 +680,7 @@ class FixtureRoadmapProvider:
                     "measurable "
                     "result.",
                     "Customer and offer brief",
-                    f"{goal_title} customer value proposition examples",
+                    f"{goal_title} how to find your target customers",
                 ),
                 (
                     "Map the smallest repeatable operating loop",
@@ -685,7 +696,7 @@ class FixtureRoadmapProvider:
                     "and "
                     "feedback, with an owner or risk note for each stage.",
                     "Annotated operating-loop map",
-                    f"{goal_title} small business operating process checklist",
+                    f"{goal_title} daily operations for beginners",
                 ),
                 (
                     "Study one complete customer cycle",
@@ -698,7 +709,7 @@ class FixtureRoadmapProvider:
                     "A customer-cycle analysis explains every major stage and at least three "
                     "decisions.",
                     "Customer-cycle analysis",
-                    f"{goal_title} customer journey small business case study",
+                    f"{goal_title} success story",
                 ),
                 (
                     "Run a small offer test",
@@ -712,7 +723,7 @@ class FixtureRoadmapProvider:
                     "one "
                     "evidence-based change.",
                     "Offer-test log and reflection",
-                    f"{goal_title} minimum viable offer test guide",
+                    f"{goal_title} how to test your idea",
                 ),
                 (
                     "Run and evaluate an independent sales cycle",
@@ -726,7 +737,7 @@ class FixtureRoadmapProvider:
                     "response, "
                     "delivery result, and an outcome measure.",
                     proof,
-                    f"{goal_title} small business experiment scorecard",
+                    f"{goal_title} how to get your first customers",
                 ),
                 (
                     "Turn the result into a simple playbook",
@@ -755,7 +766,7 @@ class FixtureRoadmapProvider:
                     "The system brief contains at least three testable behaviors plus failure and "
                     "quality criteria.",
                     "System brief and acceptance criteria",
-                    f"{goal_title} requirements and acceptance criteria example",
+                    f"{goal_title} for beginners",
                 ),
                 (
                     "Map the architecture and technical gaps",
@@ -770,7 +781,7 @@ class FixtureRoadmapProvider:
                     "test "
                     "for every boundary.",
                     "Annotated architecture and gap map",
-                    f"{goal_title} architecture patterns practical guide",
+                    f"{goal_title} architecture explained",
                 ),
                 (
                     "Reproduce one end-to-end reference workflow",
@@ -783,7 +794,7 @@ class FixtureRoadmapProvider:
                     "The reference workflow runs end to end and the notes explain every interface, "
                     "decision, and simulated failure.",
                     "Working reference implementation with notes",
-                    f"{goal_title} end to end implementation tutorial",
+                    f"{goal_title} step by step tutorial",
                 ),
                 (
                     "Build and test a constrained prototype",
@@ -796,7 +807,7 @@ class FixtureRoadmapProvider:
                     "includes "
                     "two explained corrections.",
                     "Working prototype, checks, and reflection",
-                    f"{goal_title} prototype testing project ideas",
+                    f"{goal_title} project ideas for beginners",
                 ),
                 (
                     "Build and evaluate the independent system",
@@ -809,7 +820,7 @@ class FixtureRoadmapProvider:
                     "The system is runnable or inspectable, its evaluation covers every acceptance "
                     "criterion, and known limitations are documented.",
                     proof,
-                    f"{goal_title} engineering project evaluation rubric",
+                    f"{goal_title} project walkthrough",
                 ),
                 (
                     "Document the engineering decisions and evidence",
@@ -899,7 +910,7 @@ class FixtureRoadmapProvider:
                     "have a health condition or injury, check with a professional first.",
                     "A written target and one recorded baseline result.",
                     "Target and baseline record",
-                    f"{goal_title} beginner baseline test",
+                    f"{goal_title} for beginners",
                 ),
                 (
                     "Plan a gradual weekly routine",
@@ -950,7 +961,7 @@ class FixtureRoadmapProvider:
                     "you'd change, and the next target to keep the habit going.",
                     "A before-and-after comparison and a next target.",
                     "Progress review and next target",
-                    f"after {goal_title} what next",
+                    f"{goal_title} next level training plan",
                 ),
             ],
             "general": [
@@ -963,7 +974,7 @@ class FixtureRoadmapProvider:
                     "explain, do, or produce.",
                     "A written success brief contains at least three observable outcomes.",
                     "One-page success brief",
-                    f"{goal_title} competency framework beginner guide",
+                    f"{goal_title} for beginners",
                 ),
                 (
                     "Map what you know and what's missing",
@@ -973,7 +984,7 @@ class FixtureRoadmapProvider:
                     f"({existing_experience}) and one concrete gap for every remaining item.",
                     "The foundation map exists and every item has a confidence and gap note.",
                     "Annotated foundation map",
-                    f"{goal_title} essential concepts roadmap",
+                    f"{goal_title} basics explained",
                 ),
                 (
                     "Learn from one complete example",
@@ -984,7 +995,7 @@ class FixtureRoadmapProvider:
                     "explaining every major decision.",
                     "A complete walkthrough exists with an explanation at every major stage.",
                     "Reproduced walkthrough with personal notes",
-                    f"{goal_title} complete practical tutorial",
+                    f"{goal_title} step by step tutorial",
                 ),
                 (
                     "Try it once with guidance",
@@ -1004,7 +1015,7 @@ class FixtureRoadmapProvider:
                     f"Plan and produce the evidence you chose: {proof}.",
                     "The final output is complete, accessible, and reviewable by another person.",
                     proof,
-                    f"{goal_title} capstone project rubric",
+                    f"{goal_title} how to keep improving",
                 ),
                 (
                     "Review, explain, and package your learning",
@@ -1033,7 +1044,7 @@ class FixtureRoadmapProvider:
                 "A review note identifies the strongest evidence, one high-impact gap, and one "
                 "specific revision tied to the proof target.",
                 "Evidence review and revision plan",
-                f"{goal_title} self review rubric practical project",
+                f"{goal_title} common mistakes",
             ),
             (
                 "Fix the biggest gap",
@@ -1046,7 +1057,7 @@ class FixtureRoadmapProvider:
                 "The revised result includes a visible before-and-after comparison and an "
                 "explanation of the improvement.",
                 "Revision comparison and explanation",
-                f"{goal_title} improvement case study examples",
+                f"{goal_title} tips to improve",
             ),
             (
                 "Try it in a new situation",
@@ -1060,7 +1071,7 @@ class FixtureRoadmapProvider:
                 "The changed scenario reaches a reviewable result and records one justified "
                 "adjustment or trade-off.",
                 "Transfer test and trade-off note",
-                f"{goal_title} realistic scenario test examples",
+                f"{goal_title} real world practice",
             ),
             (
                 "Prepare to show your result",
@@ -1073,7 +1084,7 @@ class FixtureRoadmapProvider:
                 "A reviewer can follow the demonstration, inspect the evidence, and understand "
                 "one limitation without needing extra context.",
                 "Final demonstration outline and evidence set",
-                f"{goal_title} portfolio demonstration rubric",
+                f"{goal_title} portfolio examples",
             ),
             templates[5],
         ]
@@ -1126,7 +1137,7 @@ class FixtureRoadmapProvider:
                 effort_label=efforts[index],
                 evidence_suggestion=template[5],
                 prerequisite_step_keys=prerequisites[index],
-                resource_queries=[template[6]],
+                resource_queries=[template[6].replace(goal_title, search_topic(goal_title))],
             )
             for index, template in enumerate(templates)
         ]

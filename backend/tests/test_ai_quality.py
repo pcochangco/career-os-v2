@@ -243,3 +243,33 @@ def test_new_domains_pass_the_quality_gate(goal_title: str) -> None:
     assert outcome.quality.passed is True
     titles = [step.title for milestone in outcome.draft.milestones for step in milestone.steps]
     assert all(title[:1].isupper() and "  " not in title for title in titles)
+
+
+@pytest.mark.parametrize(
+    ("goal_title", "topic"),
+    [
+        ("Become a Barista", "Barista"),
+        ("Learn conversational Japanese", "conversational Japanese"),
+        ("Open a coffee shop", "Open a coffee shop"),
+        ("Become a data engineer", "data engineer"),
+        ("Learn to paint with watercolors", "paint with watercolors"),
+        ("Run my first marathon", "Run my first marathon"),
+    ],
+)
+def test_fallback_resource_searches_read_like_real_searches(goal_title: str, topic: str) -> None:
+    generation_input = base_input().model_copy(
+        update={"goal_title": goal_title, "desired_outcome": f"Achieve: {goal_title}"}
+    )
+    draft = FixtureRoadmapProvider().generate(generation_input).value
+    queries = [
+        query
+        for milestone in draft.milestones
+        for step in milestone.steps
+        for query in step.resource_queries
+    ]
+    jargon = ("framework", "rubric", "scorecard", "acceptance criteria", "capstone", "case study")
+    assert queries
+    for query in queries:
+        assert topic.casefold() in query.casefold(), query
+        assert not query.casefold().startswith(("become", "learn ")), query
+        assert not any(word in query.casefold() for word in jargon), query
