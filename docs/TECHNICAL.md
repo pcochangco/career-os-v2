@@ -159,6 +159,16 @@ report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
 stored with each step; model-generated URLs are rejected.
 
+The roadmap prompt's design guidance is a skill folder:
+`backend/app/ai/skills/<name>/SKILL.md` (a `---` header with `name` and
+`description`, then plain instructions) plus optional `references/*.md`. The app
+contract (untrusted input, no URLs, no schedules, effort labels, step keys) stays in
+code and wraps the skill, so a swapped skill cannot drop it. To try another skill,
+add its folder in a PR and set `CAREEROS_ROADMAP_SKILL=<name>`; a missing or
+malformed skill fails at startup. Each roadmap's `prompt_version` records the skill
+name and a content hash (for example `roadmap-schema-1.0-compatible-11+roadmap-mentor@1a2b3c4d`).
+Skills load only from the repository, never from a URL.
+
 Production `auto` mode activates the configured provider only when the generic
 backend secret is present. A provider or quality failure switches the entire request
 to the deterministic quality-checked provider; partial live-provider drafts are

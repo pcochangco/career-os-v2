@@ -9,6 +9,7 @@ from app.ai.service import (
     RetryingRoadmapGenerationService,
     RoadmapGenerationService,
 )
+from app.ai.skills import load_skill
 from app.core.config import Settings, get_settings
 from app.discovery.service import AdaptiveDiscoveryService, FixtureDiscoveryProvider
 
@@ -43,6 +44,7 @@ def live_service(settings: Settings) -> RetryingRoadmapGenerationService:
         critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
+        skill=load_skill(settings.roadmap_skill),
     )
     return RetryingRoadmapGenerationService(
         RoadmapGenerationService(
@@ -107,6 +109,7 @@ def get_discovery_service() -> AdaptiveDiscoveryService:
         critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
+        skill=load_skill(settings.roadmap_skill),
     )
     return AdaptiveDiscoveryService(provider)
 

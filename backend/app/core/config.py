@@ -53,6 +53,8 @@ class Settings(BaseSettings):
     ai_goal_intent_limit_per_hour: int = Field(default=4, ge=1, le=100)
     ai_global_goal_intent_limit_per_hour: int = Field(default=40, ge=1, le=1000)
     ai_live_evaluation_case_limit: int = Field(default=3, ge=1, le=20)
+    # Folder name under app/ai/skills/ holding the roadmap guidance (SKILL.md).
+    roadmap_skill: str = "roadmap-mentor"
     resource_request_timeout_seconds: float = Field(default=4.0, ge=1.0, le=15.0)
     resource_max_results_per_step: int = Field(default=3, ge=1, le=6)
     resource_cache_ttl_hours: int = Field(default=168, ge=1, le=720)
@@ -92,6 +94,15 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,23}", normalized):
             raise ValueError("AI provider must be a lowercase identifier")
         return normalized
+
+    @field_validator("roadmap_skill")
+    @classmethod
+    def validate_roadmap_skill(cls, value: str) -> str:
+        """Fail at startup, not on the first roadmap, when the skill folder is wrong."""
+        from app.ai.skills import load_skill
+
+        load_skill(value)
+        return value
 
     @field_validator(
         "ai_model", "ai_critic_model", "ai_repair_model", "ai_discovery_model", mode="before"
