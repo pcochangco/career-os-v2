@@ -87,6 +87,28 @@ class ResourceResolver:
         "tutorial",
         "work",
     }
+    # Words that mark a resource as a programming tutorial (title only; descriptions mention
+    # "code" in passing too often).
+    programming_words = {
+        "c#",
+        "c++",
+        "code",
+        "coding",
+        "css",
+        "developer",
+        "github",
+        "golang",
+        "html",
+        "java",
+        "javascript",
+        "programmer",
+        "programming",
+        "pygame",
+        "python",
+        "react",
+        "sql",
+        "typescript",
+    }
     allowed_thumbnail_hosts = {
         "i.ytimg.com",
     }
@@ -160,6 +182,12 @@ class ResourceResolver:
         title: str,
         description: str,
     ) -> bool:
+        query_tokens = cls.normalized_tokens(query)
+        title_tokens = cls.normalized_tokens(title)
+        # "Build a chess engine in Python" shares "chess" with a chess step but teaches coding.
+        # A programming resource only fits a step whose search is itself about programming.
+        if title_tokens & cls.programming_words and not query_tokens & cls.programming_words:
+            return False
         topic_tokens = cls.topic_tokens(query)
         if not topic_tokens:
             return True
