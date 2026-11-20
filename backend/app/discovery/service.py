@@ -1,6 +1,7 @@
 import re
 
 from app.ai.providers.base import DiscoveryProvider, ProviderResult
+from app.ai.providers.fixture import domain_of
 from app.ai.schema import (
     DiscoveryContextAnswer,
     DiscoveryOption,
@@ -198,72 +199,176 @@ class FixtureDiscoveryProvider:
         used_question_keys: list[str],
     ) -> ProviderResult[DiscoveryQuestionDraft]:
         del used_question_keys
-        if not answers:
+        if len(answers) >= len(FALLBACK_QUESTIONS):
             return ProviderResult(
                 value=DiscoveryQuestionDraft(
-                    is_complete=False,
-                    question_key="focus-area",
-                    question=(
-                        f'For "{goal_title}", what would make the biggest difference right now?'
-                    ),
-                    help_text=(
-                        "Choose the direction that would make this particular roadmap most useful."
-                    ),
-                    selection_mode="multiple",
-                    options=[
-                        DiscoveryOption(key="practical-project", label="Build a practical project"),
-                        DiscoveryOption(key="career-change", label="Prepare for a career move"),
-                        DiscoveryOption(key="deeper-expertise", label="Build deeper expertise"),
-                        DiscoveryOption(
-                            key="solve-current-work", label="Solve a current work problem"
-                        ),
-                    ],
-                    placeholder=(
-                        f'What would meaningful progress in "{goal_title}" look like to you?'
-                    ),
+                    is_complete=True,
+                    completion_reason="You have shared enough to create a focused first roadmap.",
                 )
             )
-        if len(answers) == 1:
-            return ProviderResult(
-                value=DiscoveryQuestionDraft(
-                    is_complete=False,
-                    question_key="starting-point",
-                    question="What have you already tried or built that relates to this?",
-                    help_text=(
-                        "This keeps your roadmap from sending you back through familiar basics."
-                    ),
-                    selection_mode="multiple",
-                    options=[
-                        DiscoveryOption(key="work-experience", label="Used it at work"),
-                        DiscoveryOption(key="personal-project", label="Built a personal project"),
-                        DiscoveryOption(key="courses", label="Completed courses or tutorials"),
-                        DiscoveryOption(key="starting-fresh", label="I am starting fresh"),
-                    ],
-                    placeholder="Add tools, projects, or experience…",
-                )
-            )
-        if len(answers) == 2:
-            return ProviderResult(
-                value=DiscoveryQuestionDraft(
-                    is_complete=False,
-                    question_key="biggest-gap",
-                    question="What is the biggest thing holding you back?",
-                    help_text="Pick the gap the roadmap should solve first.",
-                    selection_mode="multiple",
-                    options=[
-                        DiscoveryOption(
-                            key="know-what-to-learn", label="Knowing what to learn next"
-                        ),
-                        DiscoveryOption(key="real-practice", label="Getting real practice"),
-                        DiscoveryOption(key="confidence", label="Confidence explaining my work"),
-                        DiscoveryOption(key="proof", label="Creating strong proof of my skills"),
-                    ],
-                    placeholder="Describe another obstacle…",
-                )
-            )
+        key, question, help_text, placeholder = FALLBACK_QUESTIONS[len(answers)]
+        labels = FALLBACK_OPTIONS[domain_of(goal_title)][key]
         return ProviderResult(
             value=DiscoveryQuestionDraft(
-                is_complete=True,
-                completion_reason="You have shared enough to create a focused first roadmap.",
+                is_complete=False,
+                question_key=key,
+                question=question.format(goal=goal_title),
+                help_text=help_text,
+                selection_mode="multiple",
+                options=[DiscoveryOption(key=option_key(label), label=label) for label in labels],
+                placeholder=placeholder.format(goal=goal_title),
             )
         )
+
+
+def option_key(label: str) -> str:
+    return "-".join(re.findall(r"[a-z0-9]+", label.casefold()))
+
+
+# (key, question, help text, placeholder) for the fixed fallback questions, asked in order.
+FALLBACK_QUESTIONS = [
+    (
+        "focus-area",
+        'For "{goal}", what would make the biggest difference right now?',
+        "Choose the direction that would make this particular roadmap most useful.",
+        'What would meaningful progress in "{goal}" look like to you?',
+    ),
+    (
+        "starting-point",
+        "What have you already tried or done that relates to this?",
+        "This keeps your roadmap from sending you back through familiar basics.",
+        "Add what you have tried, made or learned…",
+    ),
+    (
+        "biggest-gap",
+        "What is the biggest thing holding you back?",
+        "Pick the gap the roadmap should solve first.",
+        "Describe another obstacle…",
+    ),
+]
+
+# Answer options per goal topic. Each starting-point list has a beginner and an experienced
+# option worded so the fallback roadmap can read the learner's level from them.
+FALLBACK_OPTIONS: dict[str, dict[str, list[str]]] = {
+    "technical": {
+        "focus-area": [
+            "Build a practical project",
+            "Prepare for a career move",
+            "Build deeper expertise",
+            "Solve a current work problem",
+        ],
+        "starting-point": [
+            "Used it at work",
+            "Built a personal project",
+            "Completed courses or tutorials",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing what to learn next",
+            "Getting real practice",
+            "Confidence explaining my work",
+            "Creating strong proof of my skills",
+        ],
+    },
+    "language": {
+        "focus-area": [
+            "Hold everyday conversations",
+            "Travel or move abroad",
+            "Use it at work",
+            "Pass an exam or certificate",
+        ],
+        "starting-point": [
+            "Took classes or used an app",
+            "Can get by in simple conversations",
+            "Used it at work",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Speaking without freezing",
+            "Understanding native speakers",
+            "Vocabulary and grammar",
+            "Practising regularly",
+        ],
+    },
+    "business": {
+        "focus-area": [
+            "Test whether the idea works",
+            "Win my first customers",
+            "Grow sales",
+            "Run things more smoothly",
+        ],
+        "starting-point": [
+            "Researched or planned it",
+            "Sold things on the side",
+            "Worked in this industry for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing where to start",
+            "Finding customers",
+            "Money and pricing",
+            "Time to work on it",
+        ],
+    },
+    "fitness": {
+        "focus-area": [
+            "Finish an event or race",
+            "Build a regular habit",
+            "Get stronger or faster",
+            "Feel healthier day to day",
+        ],
+        "starting-point": [
+            "Exercise now and then",
+            "Done an event like this before",
+            "Trained regularly for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Staying consistent",
+            "Knowing what to do each session",
+            "Avoiding injury",
+            "Finding the time",
+        ],
+    },
+    "creative": {
+        "focus-area": [
+            "Learn the fundamentals",
+            "Finish a piece I'm proud of",
+            "Find my own style",
+            "Share or sell my work",
+        ],
+        "starting-point": [
+            "Followed tutorials or classes",
+            "Made pieces on my own",
+            "Practised it for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing what to practise",
+            "Finishing what I start",
+            "Confidence in my work",
+            "Finding the time",
+        ],
+    },
+    # Anything else, including leadership goals.
+    "general": {
+        "focus-area": [
+            "Learn the basics properly",
+            "Work on a real project",
+            "Go deeper than I am now",
+            "Use it in my job or studies",
+        ],
+        "starting-point": [
+            "Read or watched tutorials",
+            "Tried it a few times",
+            "Done it for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing what to learn next",
+            "Getting real practice",
+            "Staying consistent",
+            "Finding the time",
+        ],
+    },
+}
