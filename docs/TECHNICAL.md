@@ -159,6 +159,19 @@ report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
 stored with each step; model-generated URLs are rejected.
 
+Live roadmaps are generated in stages by default (`CAREEROS_AI_GENERATION_STRATEGY=staged`)
+so no single answer hits a free-tier output cap: an outline call lists every milestone and
+step (key, kind, title, one-line objective), which is checked and reviewed and repaired once
+if needed; then one call per milestone writes that milestone's full step details
+(`CAREEROS_AI_EXPAND_MAX_COMPLETION_TOKENS`, default 2500), alternating between the main and
+repair models because each has its own tokens-per-minute budget. Step-level problems found
+in the assembled roadmap regenerate only their milestone. All calls share
+`CAREEROS_AI_GENERATION_TIME_BUDGET_SECONDS` (default 150); within it, rate limits (429) are
+waited out using the provider's `retry-after`. Running out of budget falls back to the
+deterministic roadmap. `single` keeps the one-call path for models with large output limits.
+Try a strategy with real calls: `uv run python evals/run_live.py --limit 1 --confirm-live
+[--strategy staged|single]` (needs `CAREEROS_AI_API_KEY` in your local `.env`).
+
 The roadmap prompt's design guidance is a skill folder:
 `backend/app/ai/skills/<name>/SKILL.md` (a `---` header with `name` and
 `description`, then plain instructions) plus optional `references/*.md`. The app
