@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { ComponentRef, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { EmailCodeSignIn } from "@/components/email-code-sign-in";
@@ -62,7 +62,7 @@ export function ProviderSignIn({
 }: ProviderSignInProps) {
   const { colors, isDark } = useTheme();
   const styles = createStyles(colors);
-  const buttonHost = useRef<View>(null);
+  const buttonHost = useRef<ComponentRef<typeof View>>(null);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [accessCode, setAccessCode] = useState("");

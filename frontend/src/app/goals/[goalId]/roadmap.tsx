@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ComponentRef, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -74,7 +74,7 @@ export default function RoadmapRoute() {
   const [completionNotice, setCompletionNotice] = useState<string | null>(null);
   const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<string>>(new Set());
   const [practiceTaskOffset, setPracticeTaskOffset] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const resourceUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pathOffset, setPathOffset] = useState<number | null>(null);
   const [currentMilestoneOffset, setCurrentMilestoneOffset] = useState<number | null>(null);

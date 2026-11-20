@@ -41,7 +41,7 @@ module.exports = () => {
   const plugins = [
     ...(baseConfig.plugins || []),
     "expo-apple-authentication",
-    "./plugins/with-ios-scene-lifecycle",
+    "expo-status-bar",
   ];
 
   if (googleIosClientId) {

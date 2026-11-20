@@ -1,4 +1,4 @@
-import { ReactNode, RefObject, useEffect, useState } from "react";
+import { ComponentRef, ReactNode, RefObject, useEffect, useState } from "react";
 import { LockKeyhole, SlidersHorizontal, ThumbsDown } from "@/components/icons";
 import {
   ActivityIndicator,
@@ -29,7 +29,7 @@ export function Screen({
   children: ReactNode;
   /** Pinned below the scrolling content, for the screen's one primary action. */
   footer?: ReactNode;
-  scrollViewRef?: RefObject<ScrollView | null>;
+  scrollViewRef?: RefObject<ComponentRef<typeof ScrollView> | null>;
   width?: ScreenWidth;
 }) {
   const { colors } = useTheme();
