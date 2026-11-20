@@ -87,6 +87,8 @@ class FakeStagedProvider:
         self.critiques = [critique()]
         self.expansions: dict[int, list[MilestoneStepDetails]] = {}
         self.expand_issues: dict[int, list[list[str]]] = {}
+        self.expand_keys: dict[int, list[list[str] | None]] = {}
+        self.too_long: set[int] = set()
 
     def _result(self, value):
         assert self.deadline is not None  # every call runs inside the time budget
@@ -104,11 +106,22 @@ class FakeStagedProvider:
         self.calls.append("repair_outline")
         return self._result(self.outline)
 
-    def expand_milestone(self, generation_input, outline, milestone_index, issues=()):
+    def expand_milestone(
+        self, generation_input, outline, milestone_index, issues=(), step_keys=None
+    ):
         self.calls.append(f"expand{milestone_index}")
         self.expand_issues.setdefault(milestone_index, []).append([i.code for i in issues])
+        self.expand_keys.setdefault(milestone_index, []).append(step_keys)
+        if step_keys is None and milestone_index in self.too_long:
+            raise RoadmapProviderError(
+                "too long", diagnostic_code="stage=expand;finish_reason=length"
+            )
         queued = self.expansions.get(milestone_index)
         value = queued.pop(0) if queued else self.details[milestone_index]
+        if step_keys is not None:
+            value = value.model_copy(
+                update={"steps": [d for d in value.steps if d.stable_key in step_keys]}
+            )
         return self._result(value)
 
 
@@ -326,3 +339,70 @@ def test_a_ten_milestone_forty_step_outline_is_allowed() -> None:
 
     _, issues = evaluate_outline(outline, learner_input())
     assert "too_many_steps" not in {item.code for item in issues}
+
+
+def test_a_milestone_too_long_for_one_answer_is_detailed_in_halves() -> None:
+    provider = FakeStagedProvider()
+    provider.too_long = {0}
+    keys = [step.stable_key for step in provider.outline.milestones[0].steps]
+
+    outcome = staged(provider).generate(learner_input())
+
+    middle = len(keys) // 2
+    assert provider.expand_keys[0] == [None, keys[:middle], keys[middle:]]
+    assert outcome.draft == provider.draft
+
+
+def test_topic_order_is_judged_on_the_outline_not_on_finished_step_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.ai import service
+    from app.ai.quality import issue
+
+    order = issue("curriculum_prerequisite_order", "order", "milestones", "fix order")
+    url = issue("unverified_url", "url", "steps.x", "remove url")
+    monkeypatch.setattr(service, "evaluate_structure", lambda draft, gi: (72, [order, url]))
+
+    score, issues = service.evaluate_detailed_draft(FakeStagedProvider().draft, learner_input())
+
+    assert [item.code for item in issues] == ["unverified_url"]
+    assert score == 86
+
+
+def test_a_cut_off_json_answer_is_also_split_in_halves() -> None:
+    provider = FakeStagedProvider()
+    original = provider.expand_milestone
+
+    def json_cut_off(gi, outline, index, issues=(), step_keys=None):
+        if index == 1 and step_keys is None:
+            provider.calls.append("expand1")
+            raise RoadmapProviderError(
+                "bad json", diagnostic_code="stage=expand;json_validate_failed"
+            )
+        return original(gi, outline, index, issues, step_keys)
+
+    provider.expand_milestone = json_cut_off
+    outcome = staged(provider).generate(learner_input())
+    assert outcome.draft == provider.draft
+
+
+def test_outline_repair_asks_for_a_fresh_outline_without_resending_the_old_one() -> None:
+    from app.ai.schema import QualityIssue
+
+    fake = FakeStagedProvider()
+    requests: list[dict] = []
+    provider = provider_with(client_returning(fake.outline.model_dump_json(), requests))
+    problem = QualityIssue(
+        severity="error",
+        code="missing_prove",
+        message="m",
+        path="milestones",
+        repair_instruction="r",
+    )
+    provider.repair_outline(learner_input(), fake.outline, [problem])
+
+    [request] = requests
+    content = request["messages"][-1]["content"]
+    payload = json.loads(content[content.index("{") :])
+    assert set(payload) == {"input", "quality_issues"}
+    assert (request["model"], request["max_completion_tokens"]) == ("openai/gpt-oss-120b", 5000)

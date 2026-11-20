@@ -16,6 +16,7 @@ from app.core.config import get_settings
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument("--case", help="Run only the case with this exact name from cases.json.")
     parser.add_argument(
         "--strategy",
         choices=["staged", "single"],
@@ -49,7 +50,12 @@ def main() -> int:
     live_service = build_live_service(settings)
     fixture_service = RoadmapGenerationService(FixtureRoadmapProvider())
     cases_path = Path(__file__).with_name("cases.json")
-    cases = json.loads(cases_path.read_text())[: args.limit]
+    cases = json.loads(cases_path.read_text())
+    if args.case:
+        cases = [case for case in cases if case["name"] == args.case]
+        if not cases:
+            raise SystemExit(f"No case named {args.case!r} in cases.json")
+    cases = cases[: args.limit]
     results: list[dict[str, object]] = []
 
     for case in cases:
@@ -77,6 +83,11 @@ def main() -> int:
                     "status": "failed",
                     "error_type": type(error).__name__,
                     "diagnostic_code": getattr(error, "diagnostic_code", ""),
+                    # Quality failures: which checks failed (codes and paths only, no text).
+                    "issues": [
+                        f"{item.severity}:{item.code}@{item.path}"
+                        for item in getattr(getattr(error, "report", None), "issues", [])
+                    ],
                     "fixture": fixture,
                 }
             )

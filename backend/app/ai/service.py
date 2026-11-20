@@ -242,6 +242,7 @@ class StagedRoadmapProvider(Protocol):
         outline: RoadmapOutline,
         milestone_index: int,
         issues: list[QualityIssue] = ...,
+        step_keys: list[str] | None = ...,
     ) -> ProviderResult: ...
 
 
@@ -296,6 +297,20 @@ def evaluate_outline(
 ) -> tuple[int, list[QualityIssue]]:
     _, issues = evaluate_structure(outline_as_draft(outline), generation_input)
     kept = [item for item in issues if item.code in OUTLINE_CHECK_CODES]
+    return max(0, 100 - sum(14 if i.severity == "error" else 5 for i in kept)), kept
+
+
+# The accepted outline already passed this check, and detail calls can't reorder steps. On
+# full step text it misfires: an early step that merely mentions a later topic ("you'll deploy
+# this later") makes that topic look like it comes before its prerequisites.
+OUTLINE_ONLY_CODES = {"curriculum_prerequisite_order"}
+
+
+def evaluate_detailed_draft(
+    draft: RoadmapDraft, generation_input: RoadmapGenerationInput
+) -> tuple[int, list[QualityIssue]]:
+    _, issues = evaluate_structure(draft, generation_input)
+    kept = [item for item in issues if item.code not in OUTLINE_ONLY_CODES]
     return max(0, 100 - sum(14 if i.severity == "error" else 5 for i in kept)), kept
 
 
@@ -374,7 +389,7 @@ class StagedRoadmapGenerationService:
             draft, repairs = self._detailed_draft(generation_input, outline, critique, repairs)
         finally:
             self.provider.deadline = None
-        score, issues = evaluate_structure(draft, generation_input)
+        score, issues = evaluate_detailed_draft(draft, generation_input)
         report = combine_quality(
             structural_score=score,
             structural_issues=issues,
@@ -432,11 +447,14 @@ class StagedRoadmapGenerationService:
         outline: RoadmapOutline,
         index: int,
         issues: list[QualityIssue],
+        step_keys: list[str] | None = None,
     ) -> MilestoneStepDetails:
-        expected = [step.stable_key for step in outline.milestones[index].steps]
+        expected = step_keys or [step.stable_key for step in outline.milestones[index].steps]
         for _attempt in range(2):
             details = self._record(
-                self.provider.expand_milestone(generation_input, outline, index, issues)
+                self.provider.expand_milestone(
+                    generation_input, outline, index, issues, step_keys=step_keys
+                )
             )
             missing = [key for key in expected if key not in {d.stable_key for d in details.steps}]
             if not missing:
@@ -456,6 +474,31 @@ class StagedRoadmapGenerationService:
             diagnostic_code=f"stage=expand;milestone={index + 1};missing_step_details",
         )
 
+    def _expand_fitting(
+        self,
+        generation_input: RoadmapGenerationInput,
+        outline: RoadmapOutline,
+        index: int,
+        issues: list[QualityIssue],
+        step_keys: list[str] | None = None,
+    ) -> MilestoneStepDetails:
+        """Detail a milestone; if the answer runs out of room, detail each half separately."""
+        keys = step_keys or [step.stable_key for step in outline.milestones[index].steps]
+        try:
+            return self._expand(generation_input, outline, index, issues, step_keys)
+        except RoadmapProviderError as error:
+            # In JSON mode Groq reports a cut-off answer as json_validate_failed, not length.
+            too_long = any(
+                marker in error.diagnostic_code
+                for marker in ("finish_reason=length", "json_validate_failed")
+            )
+            if not too_long or len(keys) < 2:
+                raise
+        middle = len(keys) // 2
+        first = self._expand_fitting(generation_input, outline, index, issues, keys[:middle])
+        second = self._expand_fitting(generation_input, outline, index, issues, keys[middle:])
+        return first.model_copy(update={"steps": [*first.steps, *second.steps]})
+
     def _detailed_draft(
         self,
         generation_input: RoadmapGenerationInput,
@@ -464,11 +507,11 @@ class StagedRoadmapGenerationService:
         repairs: int,
     ) -> tuple[RoadmapDraft, int]:
         details = {
-            index: self._expand(generation_input, outline, index, [])
+            index: self._expand_fitting(generation_input, outline, index, [])
             for index in range(len(outline.milestones))
         }
         draft = assemble_draft(outline, details)
-        _, issues = evaluate_structure(draft, generation_input)
+        _, issues = evaluate_detailed_draft(draft, generation_input)
         by_milestone: dict[int, list[QualityIssue]] = {}
         for item in issues:
             index = milestone_of_issue(item, outline)
@@ -477,7 +520,9 @@ class StagedRoadmapGenerationService:
         # One targeted round: only milestones with step-level errors are rewritten.
         if by_milestone and self.max_repair_attempts > 0:
             for index, milestone_issues in by_milestone.items():
-                details[index] = self._expand(generation_input, outline, index, milestone_issues)
+                details[index] = self._expand_fitting(
+                    generation_input, outline, index, milestone_issues
+                )
             draft = assemble_draft(outline, details)
             repairs += 1
         return draft, repairs
