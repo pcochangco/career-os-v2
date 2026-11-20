@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Callable, Sequence
 from time import monotonic, sleep
 from typing import Literal, TypeVar
@@ -76,6 +77,23 @@ def strict_response_format(response_format: type[BaseModel]) -> dict[str, object
             "schema": portable_strict_schema(response_format.model_json_schema()),
         },
     }
+
+
+RETRY_IN_MESSAGE = re.compile(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", re.IGNORECASE)
+
+
+def retry_after_seconds(error: Exception, default: float = 15.0) -> float:
+    """How long the provider asks us to wait: the retry-after header, else Groq's message
+    ("Please try again in 1m12.5s"), else a default long enough for a per-minute window."""
+    headers = getattr(getattr(error, "response", None), "headers", None) or {}
+    try:
+        return float(headers["retry-after"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    match = RETRY_IN_MESSAGE.search(str(getattr(error, "message", "") or error))
+    if match:
+        return int(match.group(1) or 0) * 60 + float(match.group(2))
+    return default
 
 
 def safe_provider_diagnostic(error: Exception) -> str:
@@ -264,6 +282,7 @@ class OpenAICompatibleRoadmapProvider:
         repair_max_completion_tokens: int = 4800,
         discovery_max_completion_tokens: int = 700,
         expand_max_completion_tokens: int = 2500,
+        expand_models: Sequence[str] | None = None,
         skill: Skill | None = None,
         client: OpenAI | None = None,
         sleeper: Callable[[float], None] = sleep,
@@ -289,7 +308,10 @@ class OpenAICompatibleRoadmapProvider:
             "expand": model,
         }
         # Each Groq model has its own tokens-per-minute budget, so milestones alternate.
-        self.expand_models = list(dict.fromkeys([model, repair_model or model]))
+        # Milestones alternate between these (each Groq model has its own per-minute budget).
+        # Default: main + critic. Qwen was dropped after live runs: its hidden reasoning used up
+        # the whole answer budget on every milestone, even when split into quarters.
+        self.expand_models = list(dict.fromkeys(expand_models or [model, critic_model or model]))
         self.stage_max_completion_tokens = {
             "generate": max_completion_tokens,
             "critique": critic_max_completion_tokens,
@@ -550,7 +572,7 @@ class OpenAICompatibleRoadmapProvider:
             try:
                 return self.client.chat.completions.create(**request)
             except (OpenAIError, ValueError) as error:
-                wait = self._rate_limit_wait(error) if waits < 4 else None
+                wait = self._rate_limit_wait(error) if waits < 8 else None
                 if wait is None:
                     raise
                 waits += 1
@@ -559,12 +581,9 @@ class OpenAICompatibleRoadmapProvider:
     def _rate_limit_wait(self, error: Exception) -> float | None:
         if self.deadline is None or getattr(error, "status_code", None) != 429:
             return None
-        headers = getattr(getattr(error, "response", None), "headers", None) or {}
-        try:
-            wait = float(headers.get("retry-after", 6))
-        except (TypeError, ValueError):
-            wait = 6.0
-        wait = min(max(wait, 1.0), 30.0)
+        wait = retry_after_seconds(error)
+        # Per-minute limits can need most of a minute to clear; the time budget is the cap.
+        wait = min(max(wait, 1.0), 60.0)
         return wait if self.clock() + wait < self.deadline else None
 
     def generate_outline(

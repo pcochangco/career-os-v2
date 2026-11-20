@@ -48,6 +48,7 @@ def live_service(
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
         expand_max_completion_tokens=settings.ai_expand_max_completion_tokens,
+        expand_models=[m.strip() for m in settings.ai_expand_models.split(",") if m.strip()],
         skill=load_skill(settings.roadmap_skill),
     )
     if settings.ai_generation_strategy == "staged":

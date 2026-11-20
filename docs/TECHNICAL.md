@@ -173,7 +173,7 @@ so no single answer hits a free-tier output cap: an outline call lists every mil
 step (key, kind, title, one-line objective), which is checked and reviewed and repaired once
 if needed; then one call per milestone writes that milestone's full step details
 (`CAREEROS_AI_EXPAND_MAX_COMPLETION_TOKENS`, default 2500), alternating between the main and
-repair models because each has its own tokens-per-minute budget. Step-level problems found
+critic models (`CAREEROS_AI_EXPAND_MODELS`) because each has its own tokens-per-minute budget. Step-level problems found
 in the assembled roadmap regenerate only their milestone. All calls share
 `CAREEROS_AI_GENERATION_TIME_BUDGET_SECONDS` (default 240); within it, rate limits (429) are
 waited out using the provider's `retry-after`. Running out of budget falls back to the
