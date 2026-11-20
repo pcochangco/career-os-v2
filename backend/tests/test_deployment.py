@@ -10,9 +10,7 @@ from app.web import mount_frontend
 def test_render_postgres_url_uses_installed_psycopg_driver() -> None:
     settings = Settings(database_url="postgresql://user:password@database.example/careeros")
 
-    assert settings.database_url == (
-        "postgresql+psycopg://user:password@database.example/careeros"
-    )
+    assert settings.database_url == ("postgresql+psycopg://user:password@database.example/careeros")
 
 
 def test_explicit_database_driver_is_preserved() -> None:
@@ -56,3 +54,20 @@ def test_pages_revalidate_and_hashed_bundles_cache_forever(tmp_path: Path) -> No
         bundle_response = client.get("/_expo/static/js/entry-abc123.js")
         assert "immutable" in bundle_response.headers["cache-control"]
         assert client.get("/_expo/static/js/missing.js").status_code == 404
+
+
+def test_pages_send_a_csp_with_the_build_inline_script_hash(tmp_path: Path) -> None:
+    (tmp_path / "index.html").write_text(
+        "<html><script>globalThis.boot=true;</script><script src='/app.js'></script></html>"
+    )
+    (tmp_path / "app.js").write_text("app")
+    application = FastAPI()
+    mount_frontend(application, str(tmp_path))
+
+    with TestClient(application) as client:
+        csp = client.get("/settings").headers["content-security-policy"]
+        assert "script-src 'self' 'sha256-" in csp
+        assert "'unsafe-inline'" not in csp.split("script-src")[1].split(";")[0]
+        assert "https://accounts.google.com/gsi/client" in csp
+        assert "frame-ancestors 'none'" in csp
+        assert "content-security-policy" not in client.get("/app.js").headers

@@ -647,12 +647,8 @@ def latest_discovery(db: Session, goal: Goal) -> RoadmapGenerationInput:
         generation_input = RoadmapGenerationInput(
             goal_title=goal.title,
             desired_outcome=f"Achieve the goal: {goal.title}",
-            current_level=(
-                f"{ADAPTIVE_INSTRUCTION_PREFIX} to establish their starting point."
-            ),
-            existing_experience=(
-                f"{ADAPTIVE_INSTRUCTION_PREFIX} to identify existing experience."
-            ),
+            current_level=(f"{ADAPTIVE_INSTRUCTION_PREFIX} to establish their starting point."),
+            existing_experience=(f"{ADAPTIVE_INSTRUCTION_PREFIX} to identify existing experience."),
             relevant_constraints=(
                 f"{ADAPTIVE_INSTRUCTION_PREFIX} to identify preferences and constraints."
             ),

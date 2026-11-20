@@ -19,9 +19,28 @@ WEAK_COMPLETION_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PERSONALIZATION_STOP_WORDS = {
-    "about", "after", "already", "and", "are", "build", "from", "into", "learner",
-    "learning", "need", "needed", "only", "proof", "that", "the", "their", "this",
-    "through", "with", "work", "your",
+    "about",
+    "after",
+    "already",
+    "and",
+    "are",
+    "build",
+    "from",
+    "into",
+    "learner",
+    "learning",
+    "need",
+    "needed",
+    "only",
+    "proof",
+    "that",
+    "the",
+    "their",
+    "this",
+    "through",
+    "with",
+    "work",
+    "your",
 }
 
 
@@ -320,8 +339,7 @@ def evaluate_structure(
                             position
                             for position, step_text in enumerate(step_texts)
                             if any(
-                                term.casefold() in step_text
-                                for term in capability.coverage_terms
+                                term.casefold() in step_text for term in capability.coverage_terms
                             )
                         ]
                     if covered_steps:

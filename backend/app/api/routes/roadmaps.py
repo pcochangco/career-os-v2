@@ -19,9 +19,7 @@ def get_owned_roadmap(db: Session, user: User, roadmap_id: UUID) -> RoadmapVersi
         select(RoadmapVersion)
         .join(Goal, Goal.id == RoadmapVersion.goal_id)
         .where(RoadmapVersion.id == roadmap_id, Goal.user_id == user.id)
-        .options(
-            selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps)
-        )
+        .options(selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps))
     )
     if roadmap is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Roadmap not found")

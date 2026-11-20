@@ -22,12 +22,7 @@ def is_premium(user: User) -> bool:
 
 
 def goal_count(db: Session, user: User) -> int:
-    return int(
-        db.scalar(
-            select(func.count(Goal.id)).where(Goal.user_id == user.id)
-        )
-        or 0
-    )
+    return int(db.scalar(select(func.count(Goal.id)).where(Goal.user_id == user.id)) or 0)
 
 
 def can_create_goal(db: Session, user: User) -> bool:

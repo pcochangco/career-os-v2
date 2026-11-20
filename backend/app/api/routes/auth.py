@@ -155,9 +155,7 @@ def sign_in_with_email_test_access(
 
 def session_for_verified_email(db: DbSession, email: str) -> AnonymousSessionRead:
     """Sign in the account that owns this (already verified) email, creating it if new."""
-    identity = db.scalar(
-        select(AuthIdentity).where(func.lower(AuthIdentity.email) == email)
-    )
+    identity = db.scalar(select(AuthIdentity).where(func.lower(AuthIdentity.email) == email))
     if identity is None:
         user = User()
         db.add(user)

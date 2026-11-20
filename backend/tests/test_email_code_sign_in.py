@@ -38,9 +38,7 @@ def test_switched_off_by_default(client: TestClient) -> None:
 
 
 def test_log_sender_is_never_ready_in_production() -> None:
-    settings = Settings(
-        email_code_login_enabled=True, email_sender="log", environment="production"
-    )
+    settings = Settings(email_code_login_enabled=True, email_sender="log", environment="production")
     assert settings.email_code_login_ready is False
     assert Settings(
         email_code_login_enabled=True,

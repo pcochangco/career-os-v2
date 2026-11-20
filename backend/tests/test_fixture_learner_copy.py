@@ -67,18 +67,22 @@ def test_adaptive_fallback_hides_model_instructions(goal_title, answers):
 
 
 def test_adaptive_fallback_uses_the_learners_own_answers():
-    draft = FixtureRoadmapProvider().generate(
-        adaptive_input("Become a product designer", ANSWERED)
-    ).value
+    draft = (
+        FixtureRoadmapProvider()
+        .generate(adaptive_input("Become a product designer", ANSWERED))
+        .value
+    )
 
     assert "I sketch interfaces as a hobby" in draft.starting_state_summary
     assert draft.goal_outcome == "Become a product designer"
 
 
 def test_adaptive_fallback_explains_skipped_discovery():
-    draft = FixtureRoadmapProvider().generate(
-        adaptive_input("Become a product designer", SKIPPED)
-    ).value
+    draft = (
+        FixtureRoadmapProvider()
+        .generate(adaptive_input("Become a product designer", SKIPPED))
+        .value
+    )
 
     assert "skipped the starting questions" in draft.starting_state_summary
 
@@ -168,9 +172,11 @@ def test_answers_shape_the_roadmap_steps() -> None:
         said("time", "How much time can you give it?", "30 minutes on my commute"),
         said("proof", "What would prove you made it?", "Lead a team of 5 by next year"),
     ]
-    draft = FixtureRoadmapProvider().generate(
-        adaptive_input("Get promoted to engineering manager", answers)
-    ).value
+    draft = (
+        FixtureRoadmapProvider()
+        .generate(adaptive_input("Get promoted to engineering manager", answers))
+        .value
+    )
     steps = [step for milestone in draft.milestones for step in milestone.steps]
 
     assert "quick review" in draft.summary.casefold()
@@ -183,9 +189,11 @@ def test_answers_shape_the_roadmap_steps() -> None:
 
 def test_beginner_roadmap_starts_from_the_basics_without_echoing_the_level() -> None:
     answers = [said("start", "Where are you starting from?", "Complete beginner, never painted")]
-    draft = FixtureRoadmapProvider().generate(
-        adaptive_input("Learn to paint with watercolors", answers)
-    ).value
+    draft = (
+        FixtureRoadmapProvider()
+        .generate(adaptive_input("Learn to paint with watercolors", answers))
+        .value
+    )
     steps = [step for milestone in draft.milestones for step in milestone.steps]
     assert "starts from the basics" in draft.summary
     assert "Complete beginner" not in steps[1].action

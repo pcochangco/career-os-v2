@@ -134,11 +134,7 @@ class ResourceResolver:
     @staticmethod
     def normalized_tokens(value: str) -> set[str]:
         tokens = set(re.findall(r"[a-z0-9+#.]+", value.lower()))
-        return tokens | {
-            token[:-1]
-            for token in tokens
-            if token.endswith("s") and len(token) > 4
-        }
+        return tokens | {token[:-1] for token in tokens if token.endswith("s") and len(token) > 4}
 
     def is_safe(self, candidate: ResourceCandidate) -> bool:
         parsed = urlparse(candidate.url)
