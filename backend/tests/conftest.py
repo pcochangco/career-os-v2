@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.rate_limit import get_auth_rate_limiter
 from app.db.base import Base
-from app.db.session import get_db
+from app.db.session import get_db, get_session_factory
 from app.main import app
 
 
@@ -34,6 +34,7 @@ def client() -> Iterator[TestClient]:
             yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_session_factory] = lambda: testing_session
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

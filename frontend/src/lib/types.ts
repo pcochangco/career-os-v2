@@ -15,6 +15,18 @@ export type Goal = {
   last_activity_at: string | null;
 };
 
+/** Background roadmap generation, polled while the waiting screen is shown. */
+export type GenerationStatus = {
+  state: "idle" | "running" | "ready" | "failed";
+  /** e.g. "Writing milestone 3 of 7"; empty until the server reports a stage. */
+  stage: string;
+  done: number;
+  /** 0 while the roadmap's size isn't known yet. */
+  total: number;
+  roadmap_id: string | null;
+  roadmap_status: "draft" | "accepted" | null;
+};
+
 export type RoadmapStep = {
   id: string;
   position: number;

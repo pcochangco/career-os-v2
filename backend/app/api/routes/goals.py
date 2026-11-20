@@ -1,8 +1,11 @@
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from time import perf_counter
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -20,6 +23,7 @@ from app.ai.schema import (
     DiscoveryContextAnswer,
     RoadmapGenerationInput,
 )
+from app.ai.service import ProgressCallback, generate_with_progress
 from app.api.dependencies import CurrentUser, DbSession
 from app.api.schemas import (
     DiscoveryAnswerWrite,
@@ -28,12 +32,14 @@ from app.api.schemas import (
     DiscoveryQuestionRead,
     DiscoveryStateRead,
     DiscoveryWrite,
+    GenerationStatusRead,
     GoalCreate,
     GoalRead,
     RoadmapRead,
 )
 from app.core.config import get_settings
 from app.db.models import (
+    AIUsageEvent,
     Goal,
     GoalDiscoveryAnswer,
     GoalDiscoveryQuestion,
@@ -46,6 +52,7 @@ from app.db.models import (
     RoadmapVersion,
     User,
 )
+from app.db.session import get_session_factory
 from app.discovery.service import (
     MAX_DISCOVERY_QUESTIONS,
     MIN_DISCOVERY_QUESTIONS,
@@ -63,6 +70,9 @@ from app.services.entitlements import FREE_GOAL_LIMIT, can_create_goal, goal_cou
 from app.services.progress import RoadmapProgressSnapshot, calculate_roadmap_progress
 
 router = APIRouter(prefix="/goals", tags=["goals"])
+
+
+logger = logging.getLogger(__name__)
 
 
 def service_provider_metadata(service: object) -> tuple[str, str]:
@@ -786,14 +796,8 @@ def finish_generation_attempt(
     db.commit()
 
 
-@router.post("/{goal_id}/roadmaps", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
-def generate_roadmap(
-    goal_id: UUID,
-    user: CurrentUser,
-    db: DbSession,
-    generation_service: GenerationService,
-) -> RoadmapVersion:
-    goal = get_owned_goal(db, user, goal_id)
+def existing_roadmap_or_conflict(db: Session, goal: Goal) -> RoadmapVersion | None:
+    """409 when the goal already has an active roadmap; the latest draft when one exists."""
     accepted_roadmap = db.scalar(
         select(RoadmapVersion.id).where(
             RoadmapVersion.goal_id == goal.id,
@@ -805,7 +809,7 @@ def generate_roadmap(
             status_code=status.HTTP_409_CONFLICT,
             detail="This goal already has an active roadmap.",
         )
-    existing_draft = db.scalar(
+    return db.scalar(
         select(RoadmapVersion)
         .where(
             RoadmapVersion.goal_id == goal.id,
@@ -815,8 +819,12 @@ def generate_roadmap(
         .limit(1)
         .options(selectinload(RoadmapVersion.milestones).selectinload(RoadmapMilestone.steps))
     )
-    if existing_draft is not None:
-        return existing_draft
+
+
+def begin_generation(
+    db: Session, user: User, goal: Goal, generation_service: object
+) -> tuple[RoadmapGenerationAttempt, AIUsageEvent, object, RoadmapGenerationInput, bool]:
+    """Claim the goal's single in-flight slot and the usage quota, before any AI call."""
     generation_input = latest_discovery(db, goal)
     release_abandoned_generation(db, goal)
     if generation_in_progress(db, goal):
@@ -836,10 +844,28 @@ def generate_roadmap(
     effective_generation_service = (
         fixture_service(settings) if use_quota_fallback else generation_service
     )
+    return attempt, usage_event, effective_generation_service, generation_input, use_quota_fallback
+
+
+def complete_generation(
+    db: Session,
+    user: User,
+    goal: Goal,
+    attempt: RoadmapGenerationAttempt,
+    usage_event: AIUsageEvent,
+    effective_generation_service: object,
+    generation_input: RoadmapGenerationInput,
+    use_quota_fallback: bool,
+    on_progress: ProgressCallback | None = None,
+) -> RoadmapVersion:
+    """Generate and save the roadmap; a failure marks the attempt failed and re-raises."""
+    settings = get_settings()
     provider_source, provider_model = service_provider_metadata(effective_generation_service)
     usage_started = perf_counter()
     try:
-        generated = effective_generation_service.generate(generation_input)
+        generated = generate_with_progress(
+            effective_generation_service, generation_input, on_progress
+        )
     except Exception as error:
         finish_generation_attempt(db, attempt, outcome="failed")
         finish_ai_usage_event(
@@ -968,3 +994,142 @@ def generate_roadmap(
         provider_model=generated.model,
     )
     return db.get(RoadmapVersion, roadmap.id)
+
+
+@router.post("/{goal_id}/roadmaps", response_model=RoadmapRead, status_code=status.HTTP_201_CREATED)
+def generate_roadmap(
+    goal_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+    generation_service: GenerationService,
+) -> RoadmapVersion:
+    """Generate within this request (kept for older clients; the app uses the background path)."""
+    goal = get_owned_goal(db, user, goal_id)
+    existing_draft = existing_roadmap_or_conflict(db, goal)
+    if existing_draft is not None:
+        return existing_draft
+    return complete_generation(
+        db, user, goal, *begin_generation(db, user, goal, generation_service)
+    )
+
+
+def generation_status(db: Session, goal: Goal) -> GenerationStatusRead:
+    for roadmap_status in ("accepted", "draft"):
+        roadmap_id = db.scalar(
+            select(RoadmapVersion.id)
+            .where(RoadmapVersion.goal_id == goal.id, RoadmapVersion.status == roadmap_status)
+            .order_by(RoadmapVersion.version.desc())
+            .limit(1)
+        )
+        if roadmap_id is not None:
+            return GenerationStatusRead(
+                state="ready", roadmap_id=roadmap_id, roadmap_status=roadmap_status
+            )
+    cutoff = datetime.now(UTC) - GENERATION_IN_FLIGHT_TTL
+    attempt = db.scalar(
+        select(RoadmapGenerationAttempt)
+        .where(RoadmapGenerationAttempt.goal_id == goal.id)
+        .order_by(RoadmapGenerationAttempt.created_at.desc())
+        .limit(1)
+    )
+    if attempt is None:
+        return GenerationStatusRead(state="idle")
+    running = db.scalar(
+        select(RoadmapGenerationAttempt.id).where(
+            RoadmapGenerationAttempt.id == attempt.id,
+            RoadmapGenerationAttempt.outcome == "started",
+            RoadmapGenerationAttempt.created_at >= cutoff,
+        )
+    )
+    if running is not None:
+        return GenerationStatusRead(
+            state="running",
+            stage=attempt.progress_stage,
+            done=attempt.progress_done,
+            total=attempt.progress_total,
+        )
+    if attempt.outcome in {"failed", "abandoned"} or attempt.outcome == "started":
+        return GenerationStatusRead(state="failed")
+    return GenerationStatusRead(state="idle")
+
+
+def run_generation_job(
+    session_factory: Callable[[], Session],
+    user_id: UUID,
+    goal_id: UUID,
+    attempt_id: UUID,
+    usage_event_id: UUID,
+    effective_generation_service: object,
+    generation_input: RoadmapGenerationInput,
+    use_quota_fallback: bool,
+) -> None:
+    """Build the roadmap after the response is sent, recording progress as it goes."""
+    with session_factory() as db:
+        user = db.get(User, user_id)
+        goal = db.get(Goal, goal_id)
+        attempt = db.get(RoadmapGenerationAttempt, attempt_id)
+        usage_event = db.get(AIUsageEvent, usage_event_id)
+        if user is None or goal is None or attempt is None or usage_event is None:
+            return
+
+        def on_progress(stage: str, done: int, total: int) -> None:
+            attempt.progress_stage = stage[:120]
+            attempt.progress_done = done
+            attempt.progress_total = total
+            db.commit()
+
+        try:
+            complete_generation(
+                db,
+                user,
+                goal,
+                attempt,
+                usage_event,
+                effective_generation_service,
+                generation_input,
+                use_quota_fallback,
+                on_progress,
+            )
+        except Exception as error:  # already recorded as failed; the app shows a retry
+            logger.warning(
+                "Background roadmap generation failed failure_type=%s", type(error).__name__
+            )
+
+
+@router.post(
+    "/{goal_id}/roadmaps/generation",
+    response_model=GenerationStatusRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def start_roadmap_generation(
+    goal_id: UUID,
+    user: CurrentUser,
+    db: DbSession,
+    generation_service: GenerationService,
+    background_tasks: BackgroundTasks,
+    session_factory: Annotated[Callable[[], Session], Depends(get_session_factory)],
+) -> GenerationStatusRead:
+    """Start building the roadmap and return at once; poll GET for progress."""
+    goal = get_owned_goal(db, user, goal_id)
+    if existing_roadmap_or_conflict(db, goal) is not None:
+        return generation_status(db, goal)
+    attempt, usage_event, service, generation_input, use_quota_fallback = begin_generation(
+        db, user, goal, generation_service
+    )
+    background_tasks.add_task(
+        run_generation_job,
+        session_factory,
+        user.id,
+        goal.id,
+        attempt.id,
+        usage_event.id,
+        service,
+        generation_input,
+        use_quota_fallback,
+    )
+    return GenerationStatusRead(state="running", stage="Starting")
+
+
+@router.get("/{goal_id}/roadmaps/generation", response_model=GenerationStatusRead)
+def get_roadmap_generation(goal_id: UUID, user: CurrentUser, db: DbSession) -> GenerationStatusRead:
+    return generation_status(db, get_owned_goal(db, user, goal_id))

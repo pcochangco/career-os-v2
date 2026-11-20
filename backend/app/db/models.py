@@ -223,6 +223,10 @@ class RoadmapGenerationAttempt(Base):
     outcome: Mapped[str] = mapped_column(String(24), default="started", index=True)
     resulting_source: Mapped[str] = mapped_column(String(40), default="")
     provider_model: Mapped[str] = mapped_column(String(120), default="")
+    # Shown while the roadmap is built in the background, e.g. "Writing milestone 3 of 7".
+    progress_stage: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    progress_done: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    progress_total: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, index=True
     )
