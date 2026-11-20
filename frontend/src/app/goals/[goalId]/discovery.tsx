@@ -23,10 +23,10 @@ import {
 import { ApiError, apiRequest } from "@/lib/api";
 import { clearDraft, readDraft, writeDraft } from "@/lib/drafts";
 import { useSession } from "@/lib/session";
-import { DiscoveryState, Goal, Roadmap } from "@/lib/types";
+import { DiscoveryState, GenerationStatus, Goal } from "@/lib/types";
 import { ThemeColors, useTheme } from "@/lib/theme";
 
-const GENERATION_POLL_MS = 4000;
+const GENERATION_POLL_MS = 2500;
 const GENERATION_WAIT_LIMIT_MS = 9 * 60 * 1000;
 
 export default function DiscoveryRoute() {
@@ -42,6 +42,7 @@ export default function DiscoveryRoute() {
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generationStage, setGenerationStage] = useState(0);
+  const [progress, setProgress] = useState<GenerationStatus | null>(null);
   const [reduceMotion, setReduceMotion] = useState(false);
   const answerRequestRef = useRef(false);
   const generationRequestRef = useRef(false);
@@ -67,22 +68,32 @@ export default function DiscoveryRoute() {
     return false;
   }, [goalId, router]);
 
-  // A roadmap is being built by an earlier request (another tab, a refresh, or a lost
-  // response). Watch the goal instead of starting a second, paid generation.
+  // The roadmap is built in the background (started here, in another tab, or before a
+  // refresh). Poll its status for progress instead of starting a second, paid generation.
   const waitForGeneration = useCallback(() => {
     if (!token || !goalId) return;
     setGenerating(true);
     setError(null);
+    if (pollRef.current) clearTimeout(pollRef.current);
     const startedAt = Date.now();
     const check = async () => {
       try {
-        const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
-        if (routeToRoadmap(goal)) return;
-        if (!goal.roadmap_generation_in_progress) {
+        const status = await apiRequest<GenerationStatus>(
+          `/goals/${goalId}/roadmaps/generation`,
+          { token },
+        );
+        if (status.state === "ready" && status.roadmap_id) {
+          const page = status.roadmap_status === "accepted" ? "roadmap" : "review";
+          router.replace(`/goals/${goalId}/${page}?roadmapId=${status.roadmap_id}` as never);
+          return;
+        }
+        if (status.state !== "running") {
           setGenerating(false);
+          setProgress(null);
           setError("Your roadmap couldn’t be finished. Please try again.");
           return;
         }
+        setProgress(status);
       } catch {
         // A brief network drop while waiting is fine; keep checking.
       }
@@ -94,7 +105,7 @@ export default function DiscoveryRoute() {
       pollRef.current = setTimeout(() => void check(), GENERATION_POLL_MS);
     };
     pollRef.current = setTimeout(() => void check(), GENERATION_POLL_MS);
-  }, [goalId, routeToRoadmap, token]);
+  }, [goalId, router, token]);
 
   useEffect(() => () => {
     if (pollRef.current) clearTimeout(pollRef.current);
@@ -200,15 +211,23 @@ export default function DiscoveryRoute() {
     if (!token || !goalId || generationRequestRef.current) return;
     generationRequestRef.current = true;
     setGenerationStage(0);
+    setProgress(null);
     setGenerating(true);
     setError(null);
     try {
-      const roadmap = await apiRequest<Roadmap>(`/goals/${goalId}/roadmaps`, {
+      // Returns at once; the roadmap is built in the background while this screen polls.
+      const status = await apiRequest<GenerationStatus>(`/goals/${goalId}/roadmaps/generation`, {
         method: "POST",
         token,
       });
-      router.replace(`/goals/${goalId}/review?roadmapId=${roadmap.id}` as never);
-      setGenerating(false);
+      if (status.state === "ready" && status.roadmap_id) {
+        const page = status.roadmap_status === "accepted" ? "roadmap" : "review";
+        router.replace(`/goals/${goalId}/${page}?roadmapId=${status.roadmap_id}` as never);
+        setGenerating(false);
+        return;
+      }
+      setProgress(status);
+      waitForGeneration();
     } catch (caught) {
       // 409: a generation for this goal is already running. A lost response or timeout:
       // the server may still be working, or may already have saved the draft. In both
@@ -251,6 +270,11 @@ export default function DiscoveryRoute() {
   }
 
   if (generating) {
+    const serverStage = progress?.stage && progress.stage !== "Starting" ? progress.stage : "";
+    const stageText = serverStage
+      ? `${serverStage}…`
+      : reduceMotion ? generationStages[0] : generationStages[generationStage];
+    const fraction = progress && progress.total > 0 ? progress.done / progress.total : null;
     return (
       <Screen width="narrow">
         <Brand />
@@ -258,6 +282,11 @@ export default function DiscoveryRoute() {
           accessibilityLabel="Building your roadmap"
           accessibilityLiveRegion="polite"
           accessibilityRole="progressbar"
+          accessibilityValue={
+            progress && progress.total > 0
+              ? { min: 0, max: progress.total, now: progress.done, text: stageText }
+              : { text: stageText }
+          }
           style={styles.generating}
         >
           <View style={styles.generatingIndicator}>
@@ -265,12 +294,15 @@ export default function DiscoveryRoute() {
           </View>
           <Text style={styles.eyebrow}>Creating {state.goal_title || "your roadmap"}</Text>
           <Heading>Building your roadmap…</Heading>
-          <Text style={styles.generationStage}>
-            {reduceMotion ? generationStages[0] : generationStages[generationStage]}
-          </Text>
+          <Text style={styles.generationStage}>{stageText}</Text>
+          {fraction !== null ? (
+            <View style={[styles.progressTrack, styles.generationProgress]}>
+              <View style={[styles.progressFill, { width: `${Math.max(6, fraction * 100)}%` }]} />
+            </View>
+          ) : null}
           <Text style={styles.generationNote}>
-            This usually takes under a minute. If you leave, your roadmap keeps building and
-            will be waiting when you come back.
+            Most roadmaps take about a minute; bigger goals can take a few minutes. You can leave
+            this screen: your roadmap keeps building and will be waiting when you come back.
           </Text>
         </View>
       </Screen>
@@ -448,4 +480,5 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   generatingIndicator: { alignItems: "center", backgroundColor: colors.forestSoft, borderRadius: 40, height: 80, justifyContent: "center", marginBottom: 24, width: 80 },
   generationStage: { color: colors.forestDark, fontSize: 17, fontWeight: "800", lineHeight: 25, marginBottom: 10 },
   generationNote: { color: colors.muted, fontSize: 14, lineHeight: 21 },
+  generationProgress: { marginBottom: 16 },
 });

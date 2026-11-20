@@ -159,6 +159,15 @@ report, token totals, and generation duration. Explicit step dependencies are
 stored as relationships in addition to the ordered path. Resource queries are
 stored with each step; model-generated URLs are rejected.
 
+The app builds roadmaps in the background: `POST /goals/{id}/roadmaps/generation` claims the
+goal's single in-flight slot and the usage quota, returns `202` at once, and runs generation
+after the response with its own database session. `GET /goals/{id}/roadmaps/generation`
+returns `idle`, `running` (with `stage`, `done`, `total`, e.g. "Writing milestone 3 of 7"),
+`ready` (with the roadmap id and whether it's a draft or accepted), or `failed`. The waiting
+screen polls it every 2.5 seconds, so closing the tab or losing signal doesn't waste the run.
+Progress is stored on the generation attempt (migration `20261121_0020`). The older
+synchronous `POST /goals/{id}/roadmaps` still works and shares the same code.
+
 Live roadmaps are generated in stages by default (`CAREEROS_AI_GENERATION_STRATEGY=staged`)
 so no single answer hits a free-tier output cap: an outline call lists every milestone and
 step (key, kind, title, one-line objective), which is checked and reviewed and repaired once

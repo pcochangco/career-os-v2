@@ -32,6 +32,28 @@ class GenerationOutcome:
     duration_ms: int
 
 
+# Called as (stage text, completed, total); total is 0 while the size isn't known yet.
+ProgressCallback = Callable[[str, int, int], None]
+
+
+def notify_progress(
+    on_progress: ProgressCallback | None, stage: str, done: int = 0, total: int = 0
+) -> None:
+    if on_progress is not None:
+        on_progress(stage, done, total)
+
+
+def generate_with_progress(
+    service: object,
+    generation_input: RoadmapGenerationInput,
+    on_progress: ProgressCallback | None,
+) -> "GenerationOutcome":
+    """Pass the progress callback only when there is one, so simple services stay valid."""
+    if on_progress is None:
+        return service.generate(generation_input)  # type: ignore[attr-defined]
+    return service.generate(generation_input, on_progress)  # type: ignore[attr-defined]
+
+
 class RoadmapQualityError(RuntimeError):
     def __init__(self, report: QualityReport) -> None:
         super().__init__("The generated roadmap did not pass the quality contract")
@@ -49,7 +71,12 @@ class RoadmapGenerationService:
         self.quality_threshold = quality_threshold
         self.max_repair_attempts = max_repair_attempts
 
-    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+    def generate(
+        self,
+        generation_input: RoadmapGenerationInput,
+        on_progress: ProgressCallback | None = None,
+    ) -> GenerationOutcome:
+        notify_progress(on_progress, "Building your roadmap")
         started = perf_counter()
         response_ids: list[str] = []
         input_tokens = 0
@@ -138,10 +165,14 @@ class RetryingRoadmapGenerationService:
     def provider(self) -> RoadmapProvider:
         return self.primary.provider
 
-    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+    def generate(
+        self,
+        generation_input: RoadmapGenerationInput,
+        on_progress: ProgressCallback | None = None,
+    ) -> GenerationOutcome:
         for attempt in range(self.max_transient_retries + 1):
             try:
-                return self.primary.generate(generation_input)
+                return generate_with_progress(self.primary, generation_input, on_progress)
             except RoadmapProviderError as error:
                 if (
                     not self._is_transient_capacity_error(error)
@@ -191,9 +222,13 @@ class FallbackRoadmapGenerationService:
         self.primary = primary
         self.fallback = fallback
 
-    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+    def generate(
+        self,
+        generation_input: RoadmapGenerationInput,
+        on_progress: ProgressCallback | None = None,
+    ) -> GenerationOutcome:
         try:
-            return self.primary.generate(generation_input)
+            return generate_with_progress(self.primary, generation_input, on_progress)
         except (RoadmapProviderError, RoadmapQualityError) as error:
             diagnostic_code = getattr(error, "diagnostic_code", type(error).__name__)
             logger.warning(
@@ -202,6 +237,7 @@ class FallbackRoadmapGenerationService:
                 type(error).__name__,
                 diagnostic_code,
             )
+            notify_progress(on_progress, "Finishing your roadmap")
             try:
                 return self.fallback.generate(generation_input)
             except Exception as fallback_error:
@@ -379,8 +415,13 @@ class StagedRoadmapGenerationService:
         self.time_budget_seconds = time_budget_seconds
         self.clock = clock
 
-    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+    def generate(
+        self,
+        generation_input: RoadmapGenerationInput,
+        on_progress: ProgressCallback | None = None,
+    ) -> GenerationOutcome:
         started = perf_counter()
+        self._on_progress = on_progress
         self._response_ids: list[str] = []
         self._tokens = [0, 0]
         self.provider.deadline = self.clock() + self.time_budget_seconds
@@ -421,6 +462,7 @@ class StagedRoadmapGenerationService:
     def _accepted_outline(
         self, generation_input: RoadmapGenerationInput
     ) -> tuple[RoadmapOutline, ProviderCritique, int]:
+        notify_progress(self._on_progress, "Planning your roadmap")
         outline = self._record(self.provider.generate_outline(generation_input))
         for attempt in range(self.max_repair_attempts + 1):
             score, issues = evaluate_outline(outline, generation_input)
@@ -506,10 +548,14 @@ class StagedRoadmapGenerationService:
         critique: ProviderCritique,
         repairs: int,
     ) -> tuple[RoadmapDraft, int]:
-        details = {
-            index: self._expand_fitting(generation_input, outline, index, [])
-            for index in range(len(outline.milestones))
-        }
+        total = len(outline.milestones)
+        details = {}
+        for index in range(total):
+            notify_progress(
+                self._on_progress, f"Writing milestone {index + 1} of {total}", index, total
+            )
+            details[index] = self._expand_fitting(generation_input, outline, index, [])
+        notify_progress(self._on_progress, "Checking quality", total, total)
         draft = assemble_draft(outline, details)
         _, issues = evaluate_detailed_draft(draft, generation_input)
         by_milestone: dict[int, list[QualityIssue]] = {}

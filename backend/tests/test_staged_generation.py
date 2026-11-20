@@ -406,3 +406,16 @@ def test_outline_repair_asks_for_a_fresh_outline_without_resending_the_old_one()
     payload = json.loads(content[content.index("{") :])
     assert set(payload) == {"input", "quality_issues"}
     assert (request["model"], request["max_completion_tokens"]) == ("openai/gpt-oss-120b", 5000)
+
+
+def test_staged_generation_reports_progress_for_the_waiting_screen() -> None:
+    provider = FakeStagedProvider()
+    events: list[tuple[str, int, int]] = []
+    staged(provider).generate(learner_input(), on_progress=lambda *event: events.append(event))
+
+    total = len(provider.outline.milestones)
+    assert events == [
+        ("Planning your roadmap", 0, 0),
+        *[(f"Writing milestone {i + 1} of {total}", i, total) for i in range(total)],
+        ("Checking quality", total, total),
+    ]

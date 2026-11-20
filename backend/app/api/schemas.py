@@ -247,6 +247,17 @@ class LearningResourceRead(BaseModel):
         return " ".join(html.unescape(re.sub(r"<[^>]+>", "", value)).split())
 
 
+class GenerationStatusRead(BaseModel):
+    """Background roadmap generation: idle, running (with progress), ready, or failed."""
+
+    state: Literal["idle", "running", "ready", "failed"]
+    stage: str = ""
+    done: int = 0
+    total: int = 0
+    roadmap_id: UUID | None = None
+    roadmap_status: Literal["draft", "accepted"] | None = None
+
+
 class StepResourcesRead(BaseModel):
     step_id: UUID
     resources: list[LearningResourceRead]
