@@ -228,13 +228,27 @@ def test_critic_issue_can_drive_repair() -> None:
         ("Become a data engineer", "technical"),
         ("Learn conversational Japanese", "language"),
         ("Become a better parent", "general"),
+        ("Pass the bar exam", "exams"),
+        ("Pass the IELTS English test", "exams"),  # exam prep, not language
+        ("Learn Italian cooking", "cooking"),  # cooking, not language
+        ("Open a bakery", "business"),
+        ("Get better at chess", "games"),
     ],
 )
 def test_fixture_domain_matches_whole_words(goal_title: str, domain: str) -> None:
     assert FixtureRoadmapProvider._domain(goal_title) == domain
 
 
-@pytest.mark.parametrize("goal_title", ["Learn to paint with watercolors", "Run my first marathon"])
+@pytest.mark.parametrize(
+    "goal_title",
+    [
+        "Learn to paint with watercolors",
+        "Run my first marathon",
+        "Pass the bar exam",
+        "Learn to cook Thai food",
+        "Get better at chess",
+    ],
+)
 def test_new_domains_pass_the_quality_gate(goal_title: str) -> None:
     generation_input = base_input().model_copy(
         update={"goal_title": goal_title, "desired_outcome": f"Achieve: {goal_title}"}
@@ -254,6 +268,9 @@ def test_new_domains_pass_the_quality_gate(goal_title: str) -> None:
         ("Become a data engineer", "data engineer"),
         ("Learn to paint with watercolors", "paint with watercolors"),
         ("Run my first marathon", "Run my first marathon"),
+        ("Pass the bar exam", "bar exam"),
+        ("Learn to cook Thai food", "cook Thai food"),
+        ("Get better at chess", "chess"),
     ],
 )
 def test_fallback_resource_searches_read_like_real_searches(goal_title: str, topic: str) -> None:
@@ -273,3 +290,10 @@ def test_fallback_resource_searches_read_like_real_searches(goal_title: str, top
         assert topic.casefold() in query.casefold(), query
         assert not query.casefold().startswith(("become", "learn ")), query
         assert not any(word in query.casefold() for word in jargon), query
+
+
+def test_every_topic_has_discovery_options() -> None:
+    from app.ai.providers.fixture import DOMAIN_PATTERNS
+    from app.discovery.service import FALLBACK_OPTIONS
+
+    assert {domain for domain, _ in DOMAIN_PATTERNS} | {"general"} == set(FALLBACK_OPTIONS)

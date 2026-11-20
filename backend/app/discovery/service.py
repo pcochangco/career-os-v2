@@ -350,6 +350,66 @@ FALLBACK_OPTIONS: dict[str, dict[str, list[str]]] = {
             "Finding the time",
         ],
     },
+    "exams": {
+        "focus-area": [
+            "Pass on the first try",
+            "Reach a target score",
+            "Retake and do better",
+            "Study efficiently around work",
+        ],
+        "starting-point": [
+            "Looked at the syllabus",
+            "Taken a practice test",
+            "Studied this subject for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing what to study",
+            "Remembering what I learn",
+            "Running out of time in the exam",
+            "Staying consistent",
+        ],
+    },
+    "cooking": {
+        "focus-area": [
+            "Cook everyday meals",
+            "Master a dish or cuisine",
+            "Cook for friends or family",
+            "Eat healthier",
+        ],
+        "starting-point": [
+            "Can follow a simple recipe",
+            "Cook a few dishes regularly",
+            "Cooked for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Knowing what to cook",
+            "Basic techniques",
+            "Getting a whole meal ready together",
+            "Finding the time",
+        ],
+    },
+    "games": {
+        "focus-area": [
+            "Reach a rating or level",
+            "Beat the people I play with",
+            "Play in a tournament",
+            "Understand the game deeply",
+        ],
+        "starting-point": [
+            "Know the rules",
+            "Play casually now and then",
+            "Played competitively for years",
+            "I am starting fresh",
+        ],
+        "biggest-gap": [
+            "Spotting patterns and tactics",
+            "Planning ahead",
+            "Learning from my games",
+            "Staying focused in long games",
+        ],
+    },
     # Anything else, including leadership goals.
     "general": {
         "focus-area": [
