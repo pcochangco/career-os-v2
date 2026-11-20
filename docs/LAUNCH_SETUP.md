@@ -90,7 +90,7 @@ Shown = "on Render" means it's normally set on the Environment page; "hidden" me
 | `CAREEROS_AI_MODEL` | Main model: writes the outline and milestone details | `gpt-5.6-terra` | on Render |
 | `CAREEROS_AI_CRITIC_MODEL` | Reviews the roadmap outline; also takes turns writing milestone details (staged) | same as main | on Render |
 | `CAREEROS_AI_REPAIR_MODEL` | Fixes the whole roadmap (single strategy only). In staged mode, a failed outline is fixed by the main model | same as main | on Render |
-| `CAREEROS_AI_DISCOVERY_MODEL` | Asks the discovery questions and checks goal titles | same as main | on Render |
+| `CAREEROS_AI_DISCOVERY_MODEL` | Asks the discovery questions and checks goal titles. If it fails (e.g. the provider retires the model), `auto` mode uses the built-in check and questions, and a retired model is retried with the main model; check logs for `Live discovery failed` / `AI model not found` | same as main | on Render (`openai/gpt-oss-20b`) |
 | `CAREEROS_AI_RESPONSE_FORMAT` | `json_schema` (strict) or `json_object` (wider provider support) | `json_schema` | on Render |
 | `CAREEROS_AI_REASONING_EFFORT` | `low`/`medium`/`high` thinking, for models that support it | off | on Render |
 | `CAREEROS_AI_GENERATION_STRATEGY` | `staged` = outline, then one small call per milestone (fits free-tier caps); `single` = whole roadmap in one call (big paid models) | `staged` | hidden |

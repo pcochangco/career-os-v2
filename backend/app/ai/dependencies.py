@@ -12,7 +12,11 @@ from app.ai.service import (
 )
 from app.ai.skills import load_skill
 from app.core.config import Settings, get_settings
-from app.discovery.service import AdaptiveDiscoveryService, FixtureDiscoveryProvider
+from app.discovery.service import (
+    AdaptiveDiscoveryService,
+    FallbackDiscoveryService,
+    FixtureDiscoveryProvider,
+)
 
 
 def fixture_service(settings: Settings) -> RoadmapGenerationService:
@@ -98,7 +102,7 @@ def get_generation_service() -> RoadmapGenerationService | FallbackRoadmapGenera
     return create_generation_service(settings)
 
 
-def get_discovery_service() -> AdaptiveDiscoveryService:
+def get_discovery_service() -> AdaptiveDiscoveryService | FallbackDiscoveryService:
     settings = get_settings()
     if settings.ai_mode == "fixture":
         return AdaptiveDiscoveryService(FixtureDiscoveryProvider())
@@ -129,14 +133,17 @@ def get_discovery_service() -> AdaptiveDiscoveryService:
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
         skill=load_skill(settings.roadmap_skill),
     )
-    return AdaptiveDiscoveryService(provider)
+    live = AdaptiveDiscoveryService(provider)
+    if settings.ai_mode == "auto":
+        return FallbackDiscoveryService(live, fixture_discovery_service())
+    return live
 
 
 def fixture_discovery_service() -> AdaptiveDiscoveryService:
     return AdaptiveDiscoveryService(FixtureDiscoveryProvider())
 
 
-def get_goal_intent_service() -> AdaptiveDiscoveryService:
+def get_goal_intent_service() -> AdaptiveDiscoveryService | FallbackDiscoveryService:
     return get_discovery_service()
 
 

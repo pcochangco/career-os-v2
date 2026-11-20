@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from collections.abc import Callable, Sequence
 from time import monotonic, sleep
@@ -21,6 +22,7 @@ from app.ai.schema import (
 )
 from app.ai.skills import Skill, load_skill, roadmap_system_prompt
 
+logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
@@ -382,6 +384,20 @@ class OpenAICompatibleRoadmapProvider:
                 if attempt == 0 and is_token_capacity_error(error):
                     current_limit = int(request["max_completion_tokens"])
                     request["max_completion_tokens"] = max(1200, round(current_limit * 0.65))
+                    continue
+                if (
+                    attempt == 0
+                    and getattr(error, "code", None) == "model_not_found"
+                    and request["model"] != self.model
+                ):
+                    # A configured stage model was retired by the provider: use the main model
+                    # so the app keeps working, and log it so the setting gets fixed.
+                    logger.warning(
+                        "AI model not found; retrying with the main model stage=%s model=%s",
+                        stage,
+                        request["model"],
+                    )
+                    request["model"] = self.model
                     continue
                 if attempt == 0 and getattr(error, "code", None) == "json_validate_failed":
                     request["temperature"] = 0

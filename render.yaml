@@ -36,8 +36,9 @@ services:
         value: openai/gpt-oss-20b
       - key: CAREEROS_AI_REPAIR_MODEL
         value: qwen/qwen3.8-27b
+      # qwen/qwen3.6-27b was retired by Groq (Nov 2026); gpt-oss-20b is fast and reliable here.
       - key: CAREEROS_AI_DISCOVERY_MODEL
-        value: qwen/qwen3.6-27b
+        value: openai/gpt-oss-20b
       - key: CAREEROS_AI_RESPONSE_FORMAT
         value: json_object
       - key: CAREEROS_AI_REASONING_EFFORT
