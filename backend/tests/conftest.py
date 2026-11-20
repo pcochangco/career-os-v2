@@ -1,3 +1,9 @@
+# Tests must never read a developer's backend/.env: it may hold a live AI key, and settings
+# loaded from it would send test traffic to the real provider. This runs before app imports.
+from app.core.config import Settings
+
+Settings.model_config["env_file"] = None
+
 from collections.abc import Iterator
 
 import pytest

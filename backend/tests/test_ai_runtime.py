@@ -120,7 +120,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         "discovery": "qwen/qwen3.6-27b",
         "outline": "openai/gpt-oss-120b",
         "outline_critique": "openai/gpt-oss-20b",
-        "outline_repair": "qwen/qwen3.8-27b",
+        "outline_repair": "openai/gpt-oss-120b",
         "expand": "openai/gpt-oss-120b",
     }
     assert provider.expand_models == ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
@@ -131,7 +131,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         "discovery": 700,
         "outline": 5000,
         "outline_critique": 1600,
-        "outline_repair": 4800,
+        "outline_repair": 5000,
         "expand": 2500,
     }
     assert provider.response_format_mode == "json_object"

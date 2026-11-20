@@ -182,7 +182,7 @@ class RoadmapDraft(StrictModel):
     goal_outcome: str = Field(min_length=12, max_length=1000)
     starting_state_summary: str = Field(min_length=12, max_length=1000)
     assumptions: list[str] = Field(max_length=8)
-    milestones: list[RoadmapDraftMilestone] = Field(min_length=3, max_length=8)
+    milestones: list[RoadmapDraftMilestone] = Field(min_length=3, max_length=10)
 
 
 class RoadmapOutlineStep(StrictModel):
@@ -196,13 +196,14 @@ class RoadmapOutlineStep(StrictModel):
 
 
 class RoadmapOutlineMilestone(StrictModel):
+    """Planning fields only, so a 40-step outline fits one free-tier answer. Rationale, focus
+    areas, and success signal are written with the milestone's step details."""
+
     title: str = Field(min_length=5, max_length=180)
     outcome: str = Field(min_length=12, max_length=800)
-    rationale: str = Field(min_length=12, max_length=800)
-    focus_areas: list[str] = Field(min_length=2, max_length=6)
     proof_target: str = Field(min_length=12, max_length=600)
-    success_signal: str = Field(min_length=12, max_length=600)
-    steps: list[RoadmapOutlineStep] = Field(min_length=2, max_length=8)
+    # At most six steps keeps each milestone's detail call well under its output cap.
+    steps: list[RoadmapOutlineStep] = Field(min_length=2, max_length=6)
 
 
 class RoadmapOutline(StrictModel):
@@ -215,7 +216,7 @@ class RoadmapOutline(StrictModel):
     goal_outcome: str = Field(min_length=12, max_length=1000)
     starting_state_summary: str = Field(min_length=12, max_length=1000)
     assumptions: list[str] = Field(max_length=8)
-    milestones: list[RoadmapOutlineMilestone] = Field(min_length=3, max_length=8)
+    milestones: list[RoadmapOutlineMilestone] = Field(min_length=3, max_length=10)
 
 
 class RoadmapStepDetail(StrictModel):
@@ -236,6 +237,9 @@ class RoadmapStepDetail(StrictModel):
 
 
 class MilestoneStepDetails(StrictModel):
+    rationale: str = Field(min_length=12, max_length=800)
+    focus_areas: list[str] = Field(min_length=2, max_length=6)
+    success_signal: str = Field(min_length=12, max_length=600)
     steps: list[RoadmapStepDetail] = Field(min_length=1, max_length=8)
 
 
