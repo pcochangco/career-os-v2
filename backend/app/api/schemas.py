@@ -1,3 +1,4 @@
+import html
 import re
 from datetime import datetime
 from typing import Any, Literal
@@ -238,6 +239,12 @@ class LearningResourceRead(BaseModel):
     why_relevant: str
     thumbnail_url: str
     verified_at: datetime
+
+    @field_validator("title", "source_name", "description")
+    @classmethod
+    def plain_text(cls, value: str) -> str:
+        """Search APIs send highlight tags (<strong>) and entities (&#39;); show plain text."""
+        return " ".join(html.unescape(re.sub(r"<[^>]+>", "", value)).split())
 
 
 class StepResourcesRead(BaseModel):

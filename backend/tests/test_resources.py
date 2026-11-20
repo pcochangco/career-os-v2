@@ -654,3 +654,24 @@ def test_brave_provider_excludes_wikipedia_and_preserves_source_metadata(
     assert resources[0].source_name == "freeCodeCamp"
     assert resources[0].resource_type == "article"
     assert resources[0].quality_score == 0.9
+
+
+def test_resource_text_reaches_the_app_without_html() -> None:
+    from uuid import uuid4
+
+    from app.api.schemas import LearningResourceRead
+
+    resource = LearningResourceRead(
+        id=uuid4(),
+        resource_type="article",
+        title="Barista basics &amp; latte art",
+        url="https://coffeestudies.example/barista",
+        source_name="Coffee&#39;s Studies",
+        description="Most new baristas reach <strong>taking orders</strong>,\n making drinks.",
+        why_relevant="A current web result.",
+        thumbnail_url="",
+        verified_at=datetime.now(UTC),
+    )
+    assert resource.title == "Barista basics & latte art"
+    assert resource.source_name == "Coffee's Studies"
+    assert resource.description == "Most new baristas reach taking orders, making drinks."
