@@ -1,6 +1,7 @@
+import logging
 import re
 
-from app.ai.providers.base import DiscoveryProvider, ProviderResult
+from app.ai.providers.base import DiscoveryProvider, ProviderResult, RoadmapProviderError
 from app.ai.providers.fixture import domain_of
 from app.ai.schema import (
     DiscoveryContextAnswer,
@@ -157,6 +158,41 @@ class AdaptiveDiscoveryService:
             raise DiscoveryValidationError("Discovery question options must have unique keys")
         if any(not option.label.strip() for option in question.options):
             raise DiscoveryValidationError("Discovery question options must have labels")
+
+
+logger = logging.getLogger(__name__)
+
+
+class FallbackDiscoveryService:
+    """Live discovery first; if the AI call fails (retired model, outage, rate limit), use the
+    built-in goal check and questions so creating a goal never fails because of the AI."""
+
+    def __init__(self, primary: AdaptiveDiscoveryService, fallback: AdaptiveDiscoveryService):
+        self.primary = primary
+        self.fallback = fallback
+        self.provider = primary.provider
+
+    def assess_goal(self, *, goal_title: str) -> ProviderResult[GoalIntentAssessment]:
+        try:
+            return self.primary.assess_goal(goal_title=goal_title)
+        except RoadmapProviderError as error:
+            self._log("assess_goal", error)
+            return self.fallback.assess_goal(goal_title=goal_title)
+
+    def next_question(self, **kwargs) -> ProviderResult[DiscoveryQuestionDraft]:
+        try:
+            return self.primary.next_question(**kwargs)
+        except (RoadmapProviderError, DiscoveryValidationError) as error:
+            self._log("next_question", error)
+            return self.fallback.next_question(**kwargs)
+
+    @staticmethod
+    def _log(operation: str, error: Exception) -> None:
+        logger.warning(
+            "Live discovery failed; using built-in fallback operation=%s failure_code=%s",
+            operation,
+            getattr(error, "diagnostic_code", type(error).__name__),
+        )
 
 
 class FixtureDiscoveryProvider:
