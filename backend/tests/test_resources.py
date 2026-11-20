@@ -721,3 +721,37 @@ def test_youtube_provider_skips_shorts_and_clips(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr("app.resources.providers.httpx.get", fake_get)
     resources = YouTubeResourceProvider("test-key", 2).search("barista", 3)
     assert [resource.title for resource in resources] == ["Barista training course"]
+
+
+def test_steps_without_a_video_search_again_once_a_day_not_every_load(
+    client: TestClient,
+) -> None:
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.db.models import RoadmapStepResource
+    from app.db.session import get_db
+
+    token = create_session(client)
+    _, roadmap = create_accepted_roadmap(client, token)
+    step_id = steps_in(roadmap)[0]["id"]
+    articles = RecordingProvider([candidate(provider="brave-web")], name="brave-web")
+    videos = RecordingProvider([], name="youtube")  # YouTube finds nothing relevant.
+    app.dependency_overrides[get_resource_resolver] = lambda: ResourceResolver([articles, videos])
+
+    def load() -> dict:
+        url = f"/api/v1/roadmap-steps/{step_id}/resources/resolve"
+        return client.post(url, headers=auth(token)).json()
+
+    assert load()["cached"] is False
+    assert load()["cached"] is True  # same day: no new search
+    assert videos.calls == 1
+
+    db = next(app.dependency_overrides[get_db]())
+    db.execute(
+        update(RoadmapStepResource).values(created_at=datetime.now(UTC) - timedelta(hours=25))
+    )
+    db.commit()
+    assert load()["cached"] is False  # a day later: try for a video again
+    assert videos.calls == 2
