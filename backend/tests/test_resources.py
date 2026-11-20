@@ -755,3 +755,23 @@ def test_steps_without_a_video_search_again_once_a_day_not_every_load(
     db.commit()
     assert load()["cached"] is False  # a day later: try for a video again
     assert videos.calls == 2
+
+
+def test_programming_tutorials_are_off_topic_for_non_programming_steps() -> None:
+    query = "chess annotated game explained"
+    coding = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=engine",
+        title="Coding a Chess Engine in Python",
+        resource_type="video",
+    )
+    playing = candidate(
+        provider="youtube",
+        url="https://www.youtube.com/watch?v=game",
+        title="Chess Game Analysis for Beginners",
+        resource_type="video",
+    )
+    assert not ResourceResolver.is_relevant(coding, query)
+    assert ResourceResolver.is_relevant(playing, query)
+    # When the step is about programming, programming resources are exactly right.
+    assert ResourceResolver.is_relevant(coding, "build a chess engine in python tutorial")
