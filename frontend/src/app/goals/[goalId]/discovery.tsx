@@ -46,6 +46,8 @@ export default function DiscoveryRoute() {
   const [reduceMotion, setReduceMotion] = useState(false);
   const answerRequestRef = useRef(false);
   const generationRequestRef = useRef(false);
+  // One load at a time: overlapping loads each asked the server for the first question.
+  const loadRef = useRef(false);
 
   const generationStages = [
     "Understanding your goal and starting point…",
@@ -112,7 +114,8 @@ export default function DiscoveryRoute() {
   }, []);
 
   const loadDiscovery = useCallback(async () => {
-    if (!token || !goalId) return;
+    if (!token || !goalId || loadRef.current) return;
+    loadRef.current = true;
     try {
       setError(null);
       const goal = await apiRequest<Goal>(`/goals/${goalId}`, { token });
@@ -125,6 +128,8 @@ export default function DiscoveryRoute() {
       if (goal.roadmap_generation_in_progress) waitForGeneration();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "We could not tailor your questions.");
+    } finally {
+      loadRef.current = false;
     }
   }, [goalId, routeToRoadmap, token, waitForGeneration]);
 
