@@ -45,7 +45,7 @@ def split(draft: RoadmapDraft) -> tuple[RoadmapOutline, list[MilestoneStepDetail
         **draft.model_dump(exclude={"milestones"}),
         milestones=[
             RoadmapOutlineMilestone(
-                **milestone.model_dump(exclude={"steps"}),
+                **milestone.model_dump(include={"title", "outcome", "proof_target"}),
                 steps=[
                     RoadmapOutlineStep(
                         stable_key=step.stable_key,
@@ -62,7 +62,8 @@ def split(draft: RoadmapDraft) -> tuple[RoadmapOutline, list[MilestoneStepDetail
     )
     details = [
         MilestoneStepDetails(
-            steps=[RoadmapStepDetail(**step.model_dump(include=DETAIL_FIELDS)) for step in m.steps]
+            **m.model_dump(include={"rationale", "focus_areas", "success_signal"}),
+            steps=[RoadmapStepDetail(**step.model_dump(include=DETAIL_FIELDS)) for step in m.steps],
         )
         for m in draft.milestones
     ]
@@ -152,7 +153,7 @@ def test_an_outline_that_still_fails_stops_before_spending_on_details() -> None:
 def test_a_milestone_that_skips_a_step_is_asked_again_for_it() -> None:
     provider = FakeStagedProvider()
     complete = provider.details[0]
-    provider.expansions[0] = [MilestoneStepDetails(steps=complete.steps[:-1]), complete]
+    provider.expansions[0] = [complete.model_copy(update={"steps": complete.steps[:-1]}), complete]
 
     outcome = staged(provider).generate(learner_input())
 
@@ -167,7 +168,7 @@ def test_a_step_problem_rewrites_only_its_own_milestone() -> None:
     bad_step = good.steps[0].model_copy(
         update={"action": f"{good.steps[0].action} See https://example.com/guide."}
     )
-    provider.expansions[1] = [MilestoneStepDetails(steps=[bad_step, *good.steps[1:]]), good]
+    provider.expansions[1] = [good.model_copy(update={"steps": [bad_step, *good.steps[1:]]}), good]
 
     outcome = staged(provider).generate(learner_input())
 
@@ -250,7 +251,8 @@ def test_milestones_alternate_models_with_a_small_output_cap() -> None:
         ("openai/gpt-oss-120b", 2500),
         ("qwen/qwen3.8-27b", 2500),
     ]
-    payload = json.loads(requests[0]["messages"][-1]["content"].split("\n", 5)[-1])
+    content = requests[0]["messages"][-1]["content"]
+    payload = json.loads(content[content.index("{") :])
     assert payload["milestone_to_detail"]["title"] == fake.outline.milestones[0].title
     assert "objective" not in json.dumps(payload["roadmap_outline"])  # other milestones in brief
 
@@ -295,3 +297,32 @@ def test_staged_is_the_default_and_single_stays_available() -> None:
 
     single = create_generation_service(live_settings(ai_generation_strategy="single"))
     assert isinstance(single.primary, RetryingRoadmapGenerationService)
+
+
+def test_a_ten_milestone_forty_step_outline_is_allowed() -> None:
+    kinds = ["learn", "practice", "practice", "prove"]
+    milestones = [
+        RoadmapOutlineMilestone(
+            title=f"Phase {m + 1}: automation capability {m + 1}",
+            outcome=f"Build and evaluate automation capability {m + 1} end to end.",
+            proof_target=f"An evaluated automation artifact for capability {m + 1}.",
+            steps=[
+                RoadmapOutlineStep(
+                    stable_key=f"m{m + 1}-s{s + 1}",
+                    kind=kinds[s],
+                    title=f"Automation step {s + 1} of phase {m + 1}",
+                    objective=f"Produce the phase {m + 1} automation artifact, part {s + 1}.",
+                    prerequisite_step_keys=[f"m{m + 1}-s{s}"] if s else [],
+                )
+                for s in range(4)
+            ],
+        )
+        for m in range(10)
+    ]
+    outline = FakeStagedProvider().outline.model_copy(update={"milestones": milestones})
+    RoadmapOutline.model_validate(outline.model_dump())  # schema accepts 10 milestones
+
+    from app.ai.service import evaluate_outline
+
+    _, issues = evaluate_outline(outline, learner_input())
+    assert "too_many_steps" not in {item.code for item in issues}

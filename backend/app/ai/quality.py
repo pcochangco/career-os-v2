@@ -78,7 +78,7 @@ def evaluate_structure(
 
     curriculum = generation_input.curriculum
     minimum_step_count = curriculum.capability_count if curriculum is not None else 10
-    maximum_step_count = max(24, curriculum.capability_count * 3) if curriculum is not None else 24
+    maximum_step_count = max(40, curriculum.capability_count * 3) if curriculum is not None else 40
 
     if len(flattened) < minimum_step_count:
         issues.append(

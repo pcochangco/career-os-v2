@@ -270,6 +270,9 @@ def outline_as_draft(outline: RoadmapOutline) -> RoadmapDraft:
         milestones=[
             RoadmapDraftMilestone(
                 **milestone.model_dump(exclude={"steps"}),
+                rationale=milestone.outcome,
+                focus_areas=[milestone.title, milestone.proof_target],
+                success_signal=milestone.proof_target,
                 steps=[
                     RoadmapDraftStep(
                         **step.model_dump(),
@@ -306,6 +309,9 @@ def assemble_draft(
         milestones.append(
             RoadmapDraftMilestone(
                 **milestone.model_dump(exclude={"steps"}),
+                rationale=details[index].rationale,
+                focus_areas=details[index].focus_areas,
+                success_signal=details[index].success_signal,
                 steps=[
                     RoadmapDraftStep(
                         stable_key=step.stable_key,

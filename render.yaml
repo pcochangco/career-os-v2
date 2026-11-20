@@ -10,6 +10,8 @@ services:
     dockerContext: .
     healthCheckPath: /api/v1/health
     autoDeployTrigger: checksPass
+    # Reference only: the live service is configured in the Render dashboard, which wins over
+    # this file. See docs/LAUNCH_SETUP.md "Environment variables" for every setting and default.
     envVars:
       - key: CAREEROS_APP_VERSION
         value: 0.1.0
@@ -21,8 +23,9 @@ services:
       # dashboard only.
       - key: CAREEROS_DATABASE_URL
         sync: false
+      # auto = live AI with the deterministic roadmap as fallback (what production runs).
       - key: CAREEROS_AI_MODE
-        value: live
+        value: auto
       - key: CAREEROS_AI_PROVIDER
         value: groq
       - key: CAREEROS_AI_BASE_URL
@@ -49,6 +52,14 @@ services:
         value: 4800
       - key: CAREEROS_AI_DISCOVERY_MAX_COMPLETION_TOKENS
         value: 700
+      - key: CAREEROS_AI_GENERATION_STRATEGY
+        value: staged
+      - key: CAREEROS_AI_EXPAND_MAX_COMPLETION_TOKENS
+        value: 2500
+      - key: CAREEROS_AI_GENERATION_TIME_BUDGET_SECONDS
+        value: 240
+      - key: CAREEROS_ROADMAP_SKILL
+        value: roadmap-mentor
       - key: CAREEROS_AI_TRANSIENT_RETRY_ATTEMPTS
         value: 1
       - key: CAREEROS_AI_TRANSIENT_RETRY_DELAY_SECONDS
@@ -86,6 +97,15 @@ services:
       - key: CAREEROS_EMAIL_TEST_LOGIN_EMAILS
         sync: false
       - key: CAREEROS_EMAIL_TEST_ACCESS_CODE
+        sync: false
+      # Email-code sign-in (off until a sending domain exists; see docs/LAUNCH_SETUP.md).
+      - key: CAREEROS_EMAIL_CODE_LOGIN_ENABLED
+        value: false
+      - key: CAREEROS_EMAIL_SENDER
+        value: resend
+      - key: CAREEROS_EMAIL_FROM
+        sync: false
+      - key: CAREEROS_RESEND_API_KEY
         sync: false
       - key: CAREEROS_ALLOW_GUEST_ACCESS
         value: false

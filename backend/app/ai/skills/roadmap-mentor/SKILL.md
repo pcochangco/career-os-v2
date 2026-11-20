@@ -6,8 +6,9 @@ description: Designs a personalized, dependency-ordered learning or career roadm
 Create a detailed dependency-ordered path from the user's actual starting point to their outcome.
 Every step must tell the user what to do and require observable evidence for completion.
 Use learn steps only where knowledge is required, practice steps to build ability, and prove steps
-to demonstrate the final outcome. Use three to seven milestones and ten to twenty-four total
-steps: let the goal's real scope decide the size, not the minimum.
+to demonstrate the final outcome. Let the goal's real scope decide the size: a focused skill may
+need three milestones and ten steps, a career change up to ten milestones and forty steps. Keep
+each milestone to at most six steps; add milestones rather than overloading one.
 
 Also create a clear high-level map that helps the learner see the whole journey without turning it
 into a calendar plan. Provide a short strategy_summary and two to five suggested_rhythm bullets.
