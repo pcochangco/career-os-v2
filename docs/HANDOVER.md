@@ -96,6 +96,13 @@ A topic-agnostic, mobile-first roadmap app: user goal → adaptive discovery →
 6. Domain + Resend → replace temporary access-code login with real email verification.
 7. ~~UI/mobile polish~~ Done in the journey pass (section 12). Roadmap-quality work still waits on stable auth.
 
+## 10b. Running the iOS app locally (checked 2026-11-20, Xcode 27.2, iOS 27.2 simulator)
+- `frontend/ios/` is generated (gitignored): `cd frontend && npx expo prebuild --platform ios && (cd ios && pod install)`. Needs full Xcode and CocoaPods (`brew install cocoapods`).
+- iOS 27 refuses apps without the scene life cycle; `frontend/plugins/with-ios-scene-lifecycle.js` adds SDK 58's setup to this SDK 57 app. Delete it when upgrading to SDK 58.
+- Google Sign-In pods need modular headers; `app.config.js` adds them even without `GOOGLE_IOS_CLIENT_ID`.
+- `expo run:ios` currently mistakes the iOS 27 simulator for a physical device. Build directly instead, with local ad-hoc signing (an unsigned build loses keychain access, so SecureStore fails):
+  `xcodebuild -workspace ios/CareerOS.xcworkspace -scheme CareerOS -sdk iphonesimulator -destination 'name=iPhone 18 Pro' -derivedDataPath ios/build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build`, install `ios/build/Build/Products/Debug-iphonesimulator/CareerOS.app`, and run `EXPO_PUBLIC_API_URL=http://localhost:8000/api/v1 npx expo start --dev-client`.
+
 ## 11. Working conventions
 - Inspect relevant files and behavior before editing. Targeted changes; don't rewrite working architecture.
 - Alembic migrations for any schema change. Preserve user data. Never run destructive DB or Git commands unless the owner explicitly asks.

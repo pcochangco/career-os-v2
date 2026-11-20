@@ -235,8 +235,11 @@ export const createRoadmapStyles = (colors: ThemeColors) => StyleSheet.create({
   resources: { gap: 10, marginTop: 18 },
   resourceHeading: {
     alignItems: "center",
+    columnGap: 12,
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
+    rowGap: 2,
   },
   resourceLabel: {
     color: colors.ink,
