@@ -8,6 +8,7 @@ from app.ai.service import (
     FallbackRoadmapGenerationService,
     RetryingRoadmapGenerationService,
     RoadmapGenerationService,
+    StagedRoadmapGenerationService,
 )
 from app.ai.skills import load_skill
 from app.core.config import Settings, get_settings
@@ -22,7 +23,9 @@ def fixture_service(settings: Settings) -> RoadmapGenerationService:
     )
 
 
-def live_service(settings: Settings) -> RetryingRoadmapGenerationService:
+def live_service(
+    settings: Settings,
+) -> RetryingRoadmapGenerationService | StagedRoadmapGenerationService:
     api_key = settings.ai_api_key
     if api_key is None or not api_key.get_secret_value().strip():
         raise RoadmapProviderError("Live AI is selected but no API key is configured")
@@ -44,8 +47,17 @@ def live_service(settings: Settings) -> RetryingRoadmapGenerationService:
         critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
         repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
         discovery_max_completion_tokens=settings.ai_discovery_max_completion_tokens,
+        expand_max_completion_tokens=settings.ai_expand_max_completion_tokens,
         skill=load_skill(settings.roadmap_skill),
     )
+    if settings.ai_generation_strategy == "staged":
+        # Rate limits are waited out per call inside the time budget, so no whole-run retry.
+        return StagedRoadmapGenerationService(
+            provider=provider,
+            quality_threshold=settings.ai_quality_threshold,
+            max_repair_attempts=settings.ai_max_repair_attempts,
+            time_budget_seconds=settings.ai_generation_time_budget_seconds,
+        )
     return RetryingRoadmapGenerationService(
         RoadmapGenerationService(
             provider=provider,
@@ -59,7 +71,12 @@ def live_service(settings: Settings) -> RetryingRoadmapGenerationService:
 
 def create_generation_service(
     settings: Settings,
-) -> RoadmapGenerationService | RetryingRoadmapGenerationService | FallbackRoadmapGenerationService:
+) -> (
+    RoadmapGenerationService
+    | RetryingRoadmapGenerationService
+    | StagedRoadmapGenerationService
+    | FallbackRoadmapGenerationService
+):
     fallback = fixture_service(settings)
     if settings.ai_mode == "fixture":
         return fallback

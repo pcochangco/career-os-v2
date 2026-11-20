@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 from app.ai.curriculum import apply_matching_curriculum
+from app.ai.dependencies import live_service as build_live_service
 from app.ai.evaluation import outcome_metrics, quality_delta
-from app.ai.providers.compatible import OpenAICompatibleRoadmapProvider
 from app.ai.providers.fixture import FixtureRoadmapProvider
 from app.ai.schema import RoadmapGenerationInput
 from app.ai.service import RoadmapGenerationService
@@ -16,6 +16,11 @@ from app.core.config import get_settings
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=1)
+    parser.add_argument(
+        "--strategy",
+        choices=["staged", "single"],
+        help="Override CAREEROS_AI_GENERATION_STRATEGY for this run.",
+    )
     parser.add_argument(
         "--confirm-live",
         action="store_true",
@@ -38,25 +43,10 @@ def main() -> int:
     if api_key is None or not api_key.get_secret_value().strip():
         raise SystemExit("CAREEROS_AI_API_KEY must be configured outside source control")
 
-    provider = OpenAICompatibleRoadmapProvider(
-        provider_name=settings.ai_provider,
-        api_key=api_key.get_secret_value(),
-        base_url=settings.ai_base_url,
-        model=settings.ai_model,
-        critic_model=settings.resolved_ai_critic_model,
-        repair_model=settings.resolved_ai_repair_model,
-        response_format_mode=settings.ai_response_format,
-        reasoning_effort=settings.ai_reasoning_effort,
-        timeout_seconds=settings.ai_request_timeout_seconds,
-        max_completion_tokens=settings.ai_max_completion_tokens,
-        critic_max_completion_tokens=settings.ai_critic_max_completion_tokens,
-        repair_max_completion_tokens=settings.ai_repair_max_completion_tokens,
-    )
-    live_service = RoadmapGenerationService(
-        provider,
-        quality_threshold=settings.ai_quality_threshold,
-        max_repair_attempts=settings.ai_max_repair_attempts,
-    )
+    if args.strategy:
+        settings = settings.model_copy(update={"ai_generation_strategy": args.strategy})
+    # Same service production builds, so this tests the configured strategy end to end.
+    live_service = build_live_service(settings)
     fixture_service = RoadmapGenerationService(FixtureRoadmapProvider())
     cases_path = Path(__file__).with_name("cases.json")
     cases = json.loads(cases_path.read_text())[: args.limit]
@@ -86,12 +76,14 @@ def main() -> int:
                     "tags": case.get("tags", []),
                     "status": "failed",
                     "error_type": type(error).__name__,
+                    "diagnostic_code": getattr(error, "diagnostic_code", ""),
                     "fixture": fixture,
                 }
             )
 
     report = {
         "model": settings.ai_model,
+        "strategy": settings.ai_generation_strategy,
         "cases": results,
         "passed": sum(result["status"] == "passed" for result in results),
         "failed": sum(result["status"] == "failed" for result in results),

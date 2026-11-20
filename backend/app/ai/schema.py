@@ -185,6 +185,60 @@ class RoadmapDraft(StrictModel):
     milestones: list[RoadmapDraftMilestone] = Field(min_length=3, max_length=8)
 
 
+class RoadmapOutlineStep(StrictModel):
+    """Stage 1: what the step is and where it sits. Details are written per milestone later."""
+
+    stable_key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    kind: Literal["learn", "practice", "prove"]
+    title: str = Field(min_length=5, max_length=180)
+    objective: str = Field(min_length=12, max_length=400)
+    prerequisite_step_keys: list[str] = Field(max_length=6)
+
+
+class RoadmapOutlineMilestone(StrictModel):
+    title: str = Field(min_length=5, max_length=180)
+    outcome: str = Field(min_length=12, max_length=800)
+    rationale: str = Field(min_length=12, max_length=800)
+    focus_areas: list[str] = Field(min_length=2, max_length=6)
+    proof_target: str = Field(min_length=12, max_length=600)
+    success_signal: str = Field(min_length=12, max_length=600)
+    steps: list[RoadmapOutlineStep] = Field(min_length=2, max_length=8)
+
+
+class RoadmapOutline(StrictModel):
+    schema_version: Literal["1.2"]
+    title: str = Field(min_length=5, max_length=180)
+    summary: str = Field(min_length=20, max_length=1200)
+    strategy_summary: str = Field(min_length=20, max_length=800)
+    suggested_rhythm: list[str] = Field(min_length=2, max_length=5)
+    practice_tasks: list[RoadmapPracticeTask] = Field(min_length=4, max_length=7)
+    goal_outcome: str = Field(min_length=12, max_length=1000)
+    starting_state_summary: str = Field(min_length=12, max_length=1000)
+    assumptions: list[str] = Field(max_length=8)
+    milestones: list[RoadmapOutlineMilestone] = Field(min_length=3, max_length=8)
+
+
+class RoadmapStepDetail(StrictModel):
+    """Stage 2: the full instructions for one outlined step, matched by stable_key."""
+
+    stable_key: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9-]+$")
+    objective: str = Field(min_length=12, max_length=600)
+    rationale: str = Field(min_length=12, max_length=600)
+    action: str = Field(min_length=20, max_length=1600)
+    completion_condition: str = Field(min_length=12, max_length=800)
+    effort_label: Literal[
+        "Short focused session",
+        "Several focused sessions",
+        "Multi-session project",
+    ]
+    evidence_suggestion: str = Field(min_length=3, max_length=500)
+    resource_queries: list[str] = Field(max_length=4)
+
+
+class MilestoneStepDetails(StrictModel):
+    steps: list[RoadmapStepDetail] = Field(min_length=1, max_length=8)
+
+
 class QualityIssue(StrictModel):
     severity: Literal["warning", "error"]
     code: str

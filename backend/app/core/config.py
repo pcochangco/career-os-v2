@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     ai_critic_max_completion_tokens: int = Field(default=1600, ge=256, le=32768)
     ai_repair_max_completion_tokens: int = Field(default=4800, ge=512, le=131072)
     ai_discovery_max_completion_tokens: int = Field(default=700, ge=256, le=8192)
+    # "staged": outline first, then one small call per milestone (fits free-tier output caps).
+    # "single": the whole roadmap in one call (for models with large output limits).
+    ai_generation_strategy: Literal["staged", "single"] = "staged"
+    ai_expand_max_completion_tokens: int = Field(default=2500, ge=512, le=32768)
+    ai_generation_time_budget_seconds: float = Field(default=150.0, ge=30.0, le=600.0)
     ai_transient_retry_attempts: int = Field(default=1, ge=0, le=2)
     ai_transient_retry_delay_seconds: float = Field(default=3.0, ge=1.0, le=60.0)
     ai_max_repair_attempts: int = Field(default=1, ge=0, le=3)

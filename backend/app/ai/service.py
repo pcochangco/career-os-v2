@@ -1,11 +1,22 @@
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from time import perf_counter, sleep
+from time import monotonic, perf_counter, sleep
+from typing import Protocol
 
 from app.ai.providers.base import ProviderResult, RoadmapProvider, RoadmapProviderError
 from app.ai.quality import combine_quality, evaluate_structure
-from app.ai.schema import QualityReport, RoadmapDraft, RoadmapGenerationInput
+from app.ai.schema import (
+    MilestoneStepDetails,
+    ProviderCritique,
+    QualityIssue,
+    QualityReport,
+    RoadmapDraft,
+    RoadmapDraftMilestone,
+    RoadmapDraftStep,
+    RoadmapGenerationInput,
+    RoadmapOutline,
+)
 
 
 @dataclass(frozen=True)
@@ -174,7 +185,7 @@ class FallbackRoadmapGenerationService:
 
     def __init__(
         self,
-        primary: RoadmapGenerationService | RetryingRoadmapGenerationService,
+        primary: "RoadmapGenerationService | RetryingRoadmapGenerationService | StagedRoadmapGenerationService",  # noqa: E501
         fallback: RoadmapGenerationService,
     ) -> None:
         self.primary = primary
@@ -204,3 +215,263 @@ class FallbackRoadmapGenerationService:
                     "Deterministic fallback failed",
                     diagnostic_code=f"stage=fallback;{type(fallback_error).__name__}",
                 ) from fallback_error
+
+
+class StagedRoadmapProvider(Protocol):
+    source: str
+    model: str
+    prompt_version: str
+    deadline: float | None
+
+    def generate_outline(self, generation_input: RoadmapGenerationInput) -> ProviderResult: ...
+
+    def critique_outline(
+        self, generation_input: RoadmapGenerationInput, outline: RoadmapOutline
+    ) -> ProviderResult: ...
+
+    def repair_outline(
+        self,
+        generation_input: RoadmapGenerationInput,
+        outline: RoadmapOutline,
+        issues: list[QualityIssue],
+    ) -> ProviderResult: ...
+
+    def expand_milestone(
+        self,
+        generation_input: RoadmapGenerationInput,
+        outline: RoadmapOutline,
+        milestone_index: int,
+        issues: list[QualityIssue] = ...,
+    ) -> ProviderResult: ...
+
+
+# Checks that only need the path's shape, so they can run on the outline before any details.
+OUTLINE_CHECK_CODES = {
+    "too_few_steps",
+    "too_many_steps",
+    "too_few_capability_phases",
+    "thin_milestone",
+    "duplicate_step_key",
+    "duplicate_step_title",
+    "missing_practice",
+    "missing_prove",
+    "unknown_prerequisite",
+    "forward_prerequisite",
+    "weak_personalization",
+    "missing_curriculum_capability",
+    "curriculum_prerequisite_order",
+}
+
+
+def outline_as_draft(outline: RoadmapOutline) -> RoadmapDraft:
+    """A placeholder draft (objective stands in for every text field) for shape checks."""
+    return RoadmapDraft(
+        **outline.model_dump(exclude={"milestones"}),
+        milestones=[
+            RoadmapDraftMilestone(
+                **milestone.model_dump(exclude={"steps"}),
+                steps=[
+                    RoadmapDraftStep(
+                        **step.model_dump(),
+                        rationale=step.objective,
+                        action=f"Work toward this: {step.objective}",
+                        completion_condition=step.objective,
+                        effort_label="Several focused sessions",
+                        evidence_suggestion=step.title,
+                        resource_queries=[],
+                    )
+                    for step in milestone.steps
+                ],
+            )
+            for milestone in outline.milestones
+        ],
+    )
+
+
+def evaluate_outline(
+    outline: RoadmapOutline, generation_input: RoadmapGenerationInput
+) -> tuple[int, list[QualityIssue]]:
+    _, issues = evaluate_structure(outline_as_draft(outline), generation_input)
+    kept = [item for item in issues if item.code in OUTLINE_CHECK_CODES]
+    return max(0, 100 - sum(14 if i.severity == "error" else 5 for i in kept)), kept
+
+
+def assemble_draft(
+    outline: RoadmapOutline, details: dict[int, MilestoneStepDetails]
+) -> RoadmapDraft:
+    """Outline decides each step's key, kind, title and order; expansion supplies the rest."""
+    milestones = []
+    for index, milestone in enumerate(outline.milestones):
+        by_key = {detail.stable_key: detail for detail in details[index].steps}
+        milestones.append(
+            RoadmapDraftMilestone(
+                **milestone.model_dump(exclude={"steps"}),
+                steps=[
+                    RoadmapDraftStep(
+                        stable_key=step.stable_key,
+                        kind=step.kind,
+                        title=step.title,
+                        prerequisite_step_keys=step.prerequisite_step_keys,
+                        **by_key[step.stable_key].model_dump(exclude={"stable_key"}),
+                    )
+                    for step in milestone.steps
+                ],
+            )
+        )
+    return RoadmapDraft(**outline.model_dump(exclude={"milestones"}), milestones=milestones)
+
+
+def milestone_of_issue(issue: QualityIssue, outline: RoadmapOutline) -> int | None:
+    """Map a step- or milestone-level issue to its milestone; None for whole-roadmap issues."""
+    path = issue.path
+    if path.startswith("steps."):
+        key = path.split(".")[1]
+        for index, milestone in enumerate(outline.milestones):
+            if any(step.stable_key == key for step in milestone.steps):
+                return index
+    if path.startswith("milestones.") and path.split(".")[1].isdigit():
+        index = int(path.split(".")[1]) - 1
+        return index if 0 <= index < len(outline.milestones) else None
+    return None
+
+
+class StagedRoadmapGenerationService:
+    """Build a roadmap in small calls so no single answer hits a free-tier output cap.
+
+    1. Outline the whole path (milestones + step titles), check and critique it, repair once.
+    2. Write full step details one milestone at a time.
+    3. Check the assembled roadmap; regenerate only the milestones with problems.
+    Every call shares one time budget; running out raises, and the caller falls back.
+    """
+
+    def __init__(
+        self,
+        provider: StagedRoadmapProvider,
+        quality_threshold: int = 80,
+        max_repair_attempts: int = 1,
+        time_budget_seconds: float = 150.0,
+        clock: Callable[[], float] = monotonic,
+    ) -> None:
+        self.provider = provider
+        self.quality_threshold = quality_threshold
+        self.max_repair_attempts = max_repair_attempts
+        self.time_budget_seconds = time_budget_seconds
+        self.clock = clock
+
+    def generate(self, generation_input: RoadmapGenerationInput) -> GenerationOutcome:
+        started = perf_counter()
+        self._response_ids: list[str] = []
+        self._tokens = [0, 0]
+        self.provider.deadline = self.clock() + self.time_budget_seconds
+        try:
+            outline, critique, repairs = self._accepted_outline(generation_input)
+            draft, repairs = self._detailed_draft(generation_input, outline, critique, repairs)
+        finally:
+            self.provider.deadline = None
+        score, issues = evaluate_structure(draft, generation_input)
+        report = combine_quality(
+            structural_score=score,
+            structural_issues=issues,
+            critique=critique,
+            repair_attempts=repairs,
+            threshold=self.quality_threshold,
+        )
+        if not report.passed:
+            raise RoadmapQualityError(report)
+        return GenerationOutcome(
+            draft=draft,
+            quality=report,
+            provider=self.provider.source,
+            model=self.provider.model,
+            prompt_version=f"{self.provider.prompt_version}+staged",
+            response_ids=tuple(self._response_ids),
+            input_tokens=self._tokens[0],
+            output_tokens=self._tokens[1],
+            duration_ms=round((perf_counter() - started) * 1000),
+        )
+
+    def _record(self, result: ProviderResult):
+        if result.response_id:
+            self._response_ids.append(result.response_id)
+        self._tokens[0] += result.input_tokens
+        self._tokens[1] += result.output_tokens
+        return result.value
+
+    def _accepted_outline(
+        self, generation_input: RoadmapGenerationInput
+    ) -> tuple[RoadmapOutline, ProviderCritique, int]:
+        outline = self._record(self.provider.generate_outline(generation_input))
+        for attempt in range(self.max_repair_attempts + 1):
+            score, issues = evaluate_outline(outline, generation_input)
+            critique = self._record(self.provider.critique_outline(generation_input, outline))
+            report = combine_quality(
+                structural_score=score,
+                structural_issues=issues,
+                critique=critique,
+                repair_attempts=attempt,
+                threshold=self.quality_threshold,
+            )
+            if report.passed:
+                return outline, critique, attempt
+            if attempt >= self.max_repair_attempts:
+                raise RoadmapQualityError(report)
+            outline = self._record(
+                self.provider.repair_outline(generation_input, outline, report.issues)
+            )
+        raise AssertionError("Outline loop exited unexpectedly")
+
+    def _expand(
+        self,
+        generation_input: RoadmapGenerationInput,
+        outline: RoadmapOutline,
+        index: int,
+        issues: list[QualityIssue],
+    ) -> MilestoneStepDetails:
+        expected = [step.stable_key for step in outline.milestones[index].steps]
+        for _attempt in range(2):
+            details = self._record(
+                self.provider.expand_milestone(generation_input, outline, index, issues)
+            )
+            missing = [key for key in expected if key not in {d.stable_key for d in details.steps}]
+            if not missing:
+                return details
+            issues = [
+                *issues,
+                QualityIssue(
+                    severity="error",
+                    code="missing_step_details",
+                    message=f"No details were returned for: {', '.join(missing)}.",
+                    path=f"milestones.{index + 1}.steps",
+                    repair_instruction="Return one entry for every listed stable_key.",
+                ),
+            ]
+        raise RoadmapProviderError(
+            "The roadmap provider skipped outlined steps",
+            diagnostic_code=f"stage=expand;milestone={index + 1};missing_step_details",
+        )
+
+    def _detailed_draft(
+        self,
+        generation_input: RoadmapGenerationInput,
+        outline: RoadmapOutline,
+        critique: ProviderCritique,
+        repairs: int,
+    ) -> tuple[RoadmapDraft, int]:
+        details = {
+            index: self._expand(generation_input, outline, index, [])
+            for index in range(len(outline.milestones))
+        }
+        draft = assemble_draft(outline, details)
+        _, issues = evaluate_structure(draft, generation_input)
+        by_milestone: dict[int, list[QualityIssue]] = {}
+        for item in issues:
+            index = milestone_of_issue(item, outline)
+            if item.severity == "error" and index is not None:
+                by_milestone.setdefault(index, []).append(item)
+        # One targeted round: only milestones with step-level errors are rewritten.
+        if by_milestone and self.max_repair_attempts > 0:
+            for index, milestone_issues in by_milestone.items():
+                details[index] = self._expand(generation_input, outline, index, milestone_issues)
+            draft = assemble_draft(outline, details)
+            repairs += 1
+        return draft, repairs
