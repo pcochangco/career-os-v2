@@ -41,6 +41,8 @@ export function Screen({
     <SafeAreaView edges={edges} style={[styles.safeArea, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={[styles.scrollContent, wide ? styles.scrollContentWide : null]}
+        // iOS: keep the focused field above the keyboard instead of hidden behind it.
+        automaticallyAdjustKeyboardInsets
         keyboardShouldPersistTaps="handled"
         ref={scrollViewRef}
       >

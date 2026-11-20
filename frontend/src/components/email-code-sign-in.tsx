@@ -53,6 +53,8 @@ export function EmailCodeSignIn({
           <TextInput
             accessibilityLabel="6-digit sign-in code"
             autoComplete="one-time-code"
+            autoCorrect={false}
+            spellCheck={false}
             editable={!busy}
             inputMode="numeric"
             maxLength={6}
@@ -92,6 +94,8 @@ export function EmailCodeSignIn({
             accessibilityLabel="Email address"
             autoCapitalize="none"
             autoComplete="email"
+            autoCorrect={false}
+            spellCheck={false}
             editable={!busy}
             inputMode="email"
             keyboardType="email-address"

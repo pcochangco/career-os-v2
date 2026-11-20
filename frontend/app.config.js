@@ -1,4 +1,28 @@
+const { withPodfile } = require("expo/config-plugins");
+
 const baseConfig = require("./app.json").expo;
+
+// The Google Sign-In pods need modular headers to build. The library's plugin adds them, but it
+// only runs with a Google iOS client ID; the native module is linked either way, so builds
+// without an ID (local, simulator) add the same lines here.
+const GOOGLE_SIGN_IN_PODS = [
+  "  pod 'AppCheckCore', :modular_headers => true",
+  "  pod 'GoogleUtilities', :modular_headers => true",
+  "  pod 'RecaptchaInterop', :modular_headers => true",
+].join("\n");
+
+function withGoogleSignInPods(config) {
+  return withPodfile(config, (podConfig) => {
+    const podfile = podConfig.modResults.contents;
+    if (!podfile.includes("pod 'AppCheckCore'")) {
+      podConfig.modResults.contents = podfile.replace(
+        /^(\s*config = use_native_modules)/m,
+        `${GOOGLE_SIGN_IN_PODS}\n$1`,
+      );
+    }
+    return podConfig;
+  });
+}
 
 function googleIosUrlScheme(clientId) {
   const suffix = ".apps.googleusercontent.com";
@@ -14,13 +38,19 @@ function googleIosUrlScheme(clientId) {
 
 module.exports = () => {
   const googleIosClientId = (process.env.GOOGLE_IOS_CLIENT_ID || "").trim();
-  const plugins = [...(baseConfig.plugins || []), "expo-apple-authentication"];
+  const plugins = [
+    ...(baseConfig.plugins || []),
+    "expo-apple-authentication",
+    "./plugins/with-ios-scene-lifecycle",
+  ];
 
   if (googleIosClientId) {
     plugins.push([
       "react-native-nitro-google-signin",
       { iosUrlScheme: googleIosUrlScheme(googleIosClientId) },
     ]);
+  } else {
+    plugins.push(withGoogleSignInPods);
   }
 
   return {

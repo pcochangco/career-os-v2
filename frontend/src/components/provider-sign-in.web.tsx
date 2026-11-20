@@ -129,6 +129,8 @@ export function ProviderSignIn({
           <TextInput
             autoCapitalize="none"
             autoComplete="email"
+            autoCorrect={false}
+            spellCheck={false}
             editable={!disabled}
             keyboardType="email-address"
             onChangeText={setEmail}
