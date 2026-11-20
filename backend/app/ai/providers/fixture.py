@@ -15,6 +15,18 @@ from app.ai.schema import (
 
 # Checked in order; whole words only, so "ai" never matches "paint" and "api" never "capital".
 DOMAIN_PATTERNS: list[tuple[str, str]] = [
+    # Exam goals before language/technical: "Pass the IELTS English test" is exam prep.
+    (
+        "exams",
+        r"\b(exams?|test prep|ielts|toefl|sat|gre|gmat|lsat|mcat|nclex|cpa|bar exam|"
+        r"board exams?|certification|certified|licen[cs]ing exam|driving test)\b",
+    ),
+    # Before language: "Learn Italian cooking" is about cooking.
+    (
+        "cooking",
+        r"\b(cook\w*|bak(e|ing)|bread|sourdough|pastry|recipes?|meal prep|chef|cuisine|"
+        r"kitchen|grill\w*|barbecue|bbq)\b",
+    ),
     (
         "language",
         r"\b(spanish|language|english|french|japanese|german|korean|mandarin|chinese|italian|"
@@ -43,6 +55,11 @@ DOMAIN_PATTERNS: list[tuple[str, str]] = [
         r"\b(paint\w*|watercolou?rs?|draw\w*|sketch\w*|illustrat\w*|art|artist|music\w*|guitar|"
         r"piano|violin|drums?|sing\w*|songs?|songwriting|photograph\w*|novel|poe\w+|writ\w*|"
         r"film\w*|animation|pottery|ceramics|knit\w*|crochet)\b",
+    ),
+    (
+        "games",
+        r"\b(chess|checkers|go player|sudoku|scrabble|crosswords?|rubik'?s|speedcub\w*|"
+        r"backgammon|mahjong|board games?)\b",
     ),
 ]
 
@@ -102,7 +119,8 @@ def read_answers(context: list[DiscoveryContextAnswer]) -> dict[str, str]:
 
 
 GOAL_LEAD_IN = re.compile(
-    r"^(become|becoming|learn( how)?( to)?|get better at|improve( my)?|master)\s+(an?\s+)?",
+    r"^(become|becoming|learn( how)?( to)?|get better at|improve( my)?|master|"
+    r"pass( the| my)?)\s+(an?\s+)?",
     re.IGNORECASE,
 )
 
@@ -265,6 +283,27 @@ class FixtureRoadmapProvider:
                 "Train consistently",
                 "Build fitness week by week and adjust based on how training actually goes.",
                 "Reach the target",
+            ),
+            "exams": (
+                "Know the exam and your gaps",
+                "Understand the exam's format and scoring, and where you stand today.",
+                "Study and practise steadily",
+                "Cover each topic, practise under exam conditions, and fix weak areas.",
+                "Be ready on exam day",
+            ),
+            "cooking": (
+                "Set up your cooking basics",
+                "Know the dishes you're aiming for and the core techniques they rely on.",
+                "Cook regularly",
+                "Turn techniques into complete meals, needing the recipe less each time.",
+                "Cook it for real",
+            ),
+            "games": (
+                "Learn how strong players think",
+                "Know the rules well and the core patterns and principles that decide games.",
+                "Play and review regularly",
+                "Play real games, review mistakes, and turn them into patterns you recognize.",
+                "Prove your progress",
             ),
             "general": (
                 "Set the foundation",
@@ -520,6 +559,47 @@ class FixtureRoadmapProvider:
                     "Practise form for five minutes",
                     "Spend five minutes on the form or warm-up from your current step.",
                     "Note one thing that improved.",
+                ),
+            ],
+            "exams": [
+                (
+                    "Do ten practice questions",
+                    "Answer ten exam-style questions on the topic from your current step, "
+                    "without notes.",
+                    "Mark them and note why you missed each wrong one.",
+                ),
+                (
+                    "Explain one topic from memory",
+                    "Write or say a short explanation of one topic without looking at your "
+                    "notes, then check it.",
+                    "Note the gaps you found.",
+                ),
+            ],
+            "cooking": [
+                (
+                    "Practise one technique on its own",
+                    "Practise the technique from your current step on a single ingredient, "
+                    "such as dicing an onion or searing one piece of meat.",
+                    "Note what went right and one thing to change.",
+                ),
+                (
+                    "Taste and adjust",
+                    "Cook a simple dish and adjust the seasoning in small steps, tasting after "
+                    "each change.",
+                    "Write down what you added and how it changed the taste.",
+                ),
+            ],
+            "games": [
+                (
+                    "Solve five puzzles",
+                    "Solve five puzzles at your level on the pattern from your current step. "
+                    "Work each one out fully before checking.",
+                    "Record how many you solved and the one you missed.",
+                ),
+                (
+                    "Review one game",
+                    "Go back through one recent game and find the moment where it turned.",
+                    "Write down the turning point and what you would do instead.",
                 ),
             ],
             "general": [
@@ -962,6 +1042,196 @@ class FixtureRoadmapProvider:
                     "A before-and-after comparison and a next target.",
                     "Progress review and next target",
                     f"{goal_title} next level training plan",
+                ),
+            ],
+            "exams": [
+                (
+                    "Learn the exam format and take a baseline",
+                    "Know how the exam works and where you stand now.",
+                    "A baseline shows which topics need most of your time.",
+                    f"Write down the target ({outcome}). Find the official format, sections, and "
+                    "scoring, then take one practice test or section to set a baseline.",
+                    "The exam format is summarized and a baseline score is recorded.",
+                    "Exam summary and baseline score",
+                    f"{goal_title} format explained",
+                ),
+                (
+                    "Plan your study by topic",
+                    "Break the syllabus into topics and plan when you will cover each.",
+                    "A topic plan makes sure nothing is left until the last week.",
+                    "List every topic in the syllabus and mark each one strong or weak, using what "
+                    f"you already know ({existing_experience}). Schedule weak topics first, "
+                    f"within your time ({constraints}).",
+                    "A topic list with strengths marked and a study schedule.",
+                    "Topic list and study plan",
+                    f"{goal_title} study plan",
+                ),
+                (
+                    "Study your weakest topic properly",
+                    "Learn your weakest topic well enough to answer exam questions on it.",
+                    "Fixing the weakest topic usually raises the score the most.",
+                    "Study the weakest topic from one reliable source, then answer practice "
+                    "questions on it until you get most of them right.",
+                    "Practice questions on the weakest topic are mostly correct.",
+                    "Topic practice results",
+                    f"{goal_title} study tips",
+                ),
+                (
+                    "Take a timed practice section",
+                    "Do one section under real exam timing.",
+                    "Timing problems only show up under real conditions.",
+                    "Take one full section under exam timing without notes. Mark it and sort your "
+                    "mistakes into knowledge gaps, misreadings, and running out of time.",
+                    "A timed section is marked and mistakes are sorted by cause.",
+                    "Timed section results",
+                    f"{goal_title} practice questions",
+                ),
+                (
+                    "Take a full practice exam",
+                    "Sit a complete practice exam under real conditions.",
+                    "A full practice exam is the best prediction of the real result.",
+                    "Take a full practice exam in exam conditions and compare the score with your "
+                    f"target ({proof}). List the three areas that lost the most marks.",
+                    "A full practice exam is scored, with the three weakest areas listed.",
+                    "Practice exam score and review",
+                    f"{goal_title} full practice test",
+                ),
+                (
+                    "Final review and exam-day plan",
+                    "Close the last gaps and plan the day itself.",
+                    "A calm, planned exam day protects the score you have earned.",
+                    "Review your three weakest areas once more. Write an exam-day plan: what to "
+                    "bring, timing per section, and what to do if you get stuck.",
+                    "Weak areas are reviewed and an exam-day plan is written.",
+                    "Exam-day plan",
+                    f"{goal_title} exam day tips",
+                ),
+            ],
+            "cooking": [
+                (
+                    "Choose the dishes you want to cook",
+                    "Turn the goal into a few specific dishes or meals.",
+                    "Specific dishes tell you which techniques and ingredients matter.",
+                    f"Write down the target ({outcome}) and pick three dishes that represent it. "
+                    "For each, list the main techniques and ingredients.",
+                    "Three chosen dishes, each with its key techniques listed.",
+                    "Dish list with techniques",
+                    f"{goal_title} for beginners",
+                ),
+                (
+                    "Learn the core techniques",
+                    "Learn the few techniques your dishes depend on.",
+                    "A handful of techniques, like knife skills, heat control, and seasoning, "
+                    "cover most cooking.",
+                    "Pick the two or three techniques your dishes use most and practise each on "
+                    f"its own, building on what you already do ({existing_experience}).",
+                    "Each core technique is practised once, with a note on how it went.",
+                    "Technique practice notes",
+                    f"{goal_title} basic techniques",
+                ),
+                (
+                    "Follow one recipe closely",
+                    "Cook one complete dish exactly as written to see how the pieces fit.",
+                    "Following a good recipe once shows order, timing, and quantities in practice.",
+                    "Choose a reliable recipe for one of your dishes. Prepare everything before "
+                    "you start, cook it as written, and note where timing or quantities "
+                    "surprised you.",
+                    "One dish is cooked from a recipe, with notes on what surprised you.",
+                    "Cooked dish and recipe notes",
+                    f"{goal_title} step by step recipe",
+                ),
+                (
+                    "Cook a dish with less help",
+                    "Cook a dish you have made before, checking the recipe as little as possible.",
+                    "Cooking from memory shows which steps you really know.",
+                    f"Cook one of your dishes again within your constraints ({constraints}). Check "
+                    "the recipe only when stuck, and taste and adjust as you go.",
+                    "A second attempt is cooked mostly from memory, with one improvement noted.",
+                    "Second attempt notes",
+                    f"{goal_title} cooking tips",
+                ),
+                (
+                    "Cook a full meal on your own",
+                    "Plan and cook a complete meal without a recipe in front of you.",
+                    "A full meal tests timing and planning, not just single dishes.",
+                    f"Plan and cook a meal that meets your target ({proof}). Time it so "
+                    "everything is ready together, then note what worked.",
+                    "A complete meal is cooked and served, with notes on timing and taste.",
+                    "Meal plan and results",
+                    f"{goal_title} meal ideas",
+                ),
+                (
+                    "Write your own recipes and next steps",
+                    "Turn what you cooked into recipes you can repeat and a plan for what's next.",
+                    "Your own written recipes make the skill repeatable.",
+                    "Write your best dish as your own recipe, with the changes you made. List the "
+                    "next two dishes or techniques to try.",
+                    "One personal recipe is written and two next dishes are chosen.",
+                    "Personal recipe and next steps",
+                    f"{goal_title} recipes to try next",
+                ),
+            ],
+            "games": [
+                (
+                    "Set your target and starting level",
+                    "Know where you are now and what level you are aiming for.",
+                    "A measured starting point shows what to study first.",
+                    f"Write down the target ({outcome}). Record your current level: a rating, a "
+                    "score, or results from a few games.",
+                    "A written target and a recorded starting level.",
+                    "Target and starting level",
+                    f"{goal_title} for beginners",
+                ),
+                (
+                    "Learn the key principles and patterns",
+                    "Learn the few principles and patterns that decide most games at your level.",
+                    "Most games are won by recognizing common patterns, not by memorizing "
+                    "everything.",
+                    "List five core principles or patterns for your level and study each with an "
+                    f"example, building on what you know ({existing_experience}).",
+                    "Five principles or patterns are studied, each with one example.",
+                    "Pattern notes",
+                    f"{goal_title} basic strategy",
+                ),
+                (
+                    "Study one game in depth",
+                    "Follow one strong player's game move by move.",
+                    "Seeing ideas used in a real game connects them to decisions.",
+                    "Pick one well-explained game. Before each key move, guess what you would "
+                    "play, then compare it with what happened.",
+                    "One game is studied, with your guesses and the differences noted.",
+                    "Annotated study game",
+                    f"{goal_title} annotated game explained",
+                ),
+                (
+                    "Play and review practice games",
+                    "Play a few games and review each one afterwards.",
+                    "Reviewing your own games shows your real weaknesses.",
+                    f"Play three games that fit your schedule ({constraints}). After each, find "
+                    "your biggest mistake and the pattern it relates to.",
+                    "Three games are played and reviewed, with mistakes linked to patterns.",
+                    "Game reviews",
+                    f"{goal_title} how to analyze your games",
+                ),
+                (
+                    "Play toward your target",
+                    "Play under real conditions that test your target.",
+                    "Real conditions show whether your study holds up.",
+                    f"Play games or an event that tests your target ({proof}). Track results and "
+                    "the decisions that cost you the most.",
+                    "Results are recorded against the target, with key mistakes noted.",
+                    "Results log",
+                    f"{goal_title} tournament tips",
+                ),
+                (
+                    "Review progress and plan your study",
+                    "Compare where you started with where you are, and decide what to study next.",
+                    "A clear review turns results into the next study plan.",
+                    "Compare your starting level with your latest results. Note what improved, "
+                    "the weakness that cost the most, and what to study next.",
+                    "A before-and-after comparison and a next study focus.",
+                    "Progress review and study plan",
+                    f"{goal_title} training plan",
                 ),
             ],
             "general": [

@@ -347,8 +347,11 @@ def test_skipping_every_question_is_explained_honestly(client: TestClient) -> No
         ("Speak conversational Spanish", "Hold everyday conversations", "career"),
         ("Learn watercolour painting", "Find my own style", "career"),
         ("Open a coffee shop", "Win my first customers", "career"),
-        ("Learn to cook", "Learn the basics properly", "career"),
+        ("Become a better parent", "Learn the basics properly", "career"),
         ("Become a Python developer", "Prepare for a career move", "race"),
+        ("Pass the bar exam", "Reach a target score", "career"),
+        ("Learn to cook Thai food", "Cook everyday meals", "career"),
+        ("Get better at chess", "Reach a rating or level", "career"),
     ],
 )
 def test_fallback_questions_match_the_goal_topic(
