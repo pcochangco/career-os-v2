@@ -23,6 +23,12 @@ from app.services.progress import calculate_roadmap_progress
 
 router = APIRouter(prefix="/roadmap-steps", tags=["resources"])
 Resolver = Annotated[ResourceResolver, Depends(get_resource_resolver)]
+VIDEO_RETRY_AFTER = timedelta(hours=24)
+
+
+def oldest_saved(resources: list[RoadmapStepResource]) -> datetime:
+    oldest = min(resource.created_at for resource in resources)
+    return oldest if oldest.tzinfo else oldest.replace(tzinfo=UTC)
 
 
 def read_cached_resources(db: DbSession, step_id: UUID) -> list[RoadmapStepResource]:
@@ -178,10 +184,15 @@ def resolve_step_resources(
     excluded_urls = set(rejected_urls)
     if refresh:
         excluded_urls.update(resource.url for resource in cached)
-    # Refresh pre-video-first caches once. This makes the new recommendation policy
-    # useful immediately instead of waiting for the old seven-day cache window.
+    # Put a video first when there is one. When the last search found no video at all, try
+    # again only once a day: retrying on every load spends YouTube quota (100 units a search).
+    has_video = any(resource.resource_type == "video" for resource in cached)
     needs_primary_video = resolver.has_video_provider and (
-        not cached or cached[0].resource_type != "video"
+        not cached
+        or (
+            cached[0].resource_type != "video"
+            and (has_video or oldest_saved(cached) < datetime.now(UTC) - VIDEO_RETRY_AFTER)
+        )
     )
     if cached and not cache_changed and not needs_primary_video and not refresh:
         return to_resource_response(step.id, cached, cached=True)
