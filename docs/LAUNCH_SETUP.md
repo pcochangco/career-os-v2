@@ -88,8 +88,8 @@ Shown = "on Render" means it's normally set on the Environment page; "hidden" me
 | `CAREEROS_AI_BASE_URL` | Provider's OpenAI-compatible API address | OpenAI | on Render |
 | `CAREEROS_AI_API_KEY` 🔒 | Provider key; without it, `auto` uses the built-in roadmap | none | on Render |
 | `CAREEROS_AI_MODEL` | Main model: writes the outline and milestone details | `gpt-5.6-terra` | on Render |
-| `CAREEROS_AI_CRITIC_MODEL` | Reviews the roadmap outline | same as main | on Render |
-| `CAREEROS_AI_REPAIR_MODEL` | Shares milestone writing with the main model (staged); fixes the whole roadmap (single). A failed outline is fixed by the main model | same as main | on Render |
+| `CAREEROS_AI_CRITIC_MODEL` | Reviews the roadmap outline; also takes turns writing milestone details (staged) | same as main | on Render |
+| `CAREEROS_AI_REPAIR_MODEL` | Fixes the whole roadmap (single strategy only). In staged mode, a failed outline is fixed by the main model | same as main | on Render |
 | `CAREEROS_AI_DISCOVERY_MODEL` | Asks the discovery questions and checks goal titles | same as main | on Render |
 | `CAREEROS_AI_RESPONSE_FORMAT` | `json_schema` (strict) or `json_object` (wider provider support) | `json_schema` | on Render |
 | `CAREEROS_AI_REASONING_EFFORT` | `low`/`medium`/`high` thinking, for models that support it | off | on Render |
@@ -98,6 +98,7 @@ Shown = "on Render" means it's normally set on the Environment page; "hidden" me
 | `CAREEROS_AI_GENERATION_TIME_BUDGET_SECONDS` | Total time for one roadmap; past it, the built-in roadmap is used | `240` | hidden |
 | `CAREEROS_AI_MAX_COMPLETION_TOKENS` | Output cap for the outline and its repair (staged) or whole roadmap (single). On free tiers, raising it causes rate-limit errors | `5000` | on Render |
 | `CAREEROS_AI_EXPAND_MAX_COMPLETION_TOKENS` | Output cap for each milestone's details (staged) | `2500` | hidden |
+| `CAREEROS_AI_EXPAND_MODELS` | Comma-separated models that write milestone details in turn (staged). Avoid models whose hidden reasoning eats the answer budget (Qwen did, in Nov 2026 tests) | main + critic model | hidden |
 | `CAREEROS_AI_CRITIC_MAX_COMPLETION_TOKENS` | Output cap for the review | `1600` | on Render |
 | `CAREEROS_AI_REPAIR_MAX_COMPLETION_TOKENS` | Output cap for a whole-roadmap repair (single strategy) | `4800` | on Render |
 | `CAREEROS_AI_DISCOVERY_MAX_COMPLETION_TOKENS` | Output cap for each discovery question | `700` | on Render |

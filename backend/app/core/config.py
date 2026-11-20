@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     # "single": the whole roadmap in one call (for models with large output limits).
     ai_generation_strategy: Literal["staged", "single"] = "staged"
     ai_expand_max_completion_tokens: int = Field(default=2500, ge=512, le=32768)
+    # Comma-separated models that write milestone details in turn; empty = main + critic.
+    ai_expand_models: str = ""
     # Free-tier rate limits make big roadmaps slow; past this, the backup roadmap is used.
     ai_generation_time_budget_seconds: float = Field(default=240.0, ge=30.0, le=600.0)
     ai_transient_retry_attempts: int = Field(default=1, ge=0, le=2)

@@ -262,7 +262,7 @@ def test_milestones_alternate_models_with_a_small_output_cap() -> None:
 
     assert [(r["model"], r["max_completion_tokens"]) for r in requests] == [
         ("openai/gpt-oss-120b", 2500),
-        ("qwen/qwen3.8-27b", 2500),
+        ("openai/gpt-oss-20b", 2500),
     ]
     content = requests[0]["messages"][-1]["content"]
     payload = json.loads(content[content.index("{") :])
@@ -419,3 +419,25 @@ def test_staged_generation_reports_progress_for_the_waiting_screen() -> None:
         *[(f"Writing milestone {i + 1} of {total}", i, total) for i in range(total)],
         ("Checking quality", total, total),
     ]
+
+
+def test_wait_time_comes_from_header_then_groq_message_then_a_minute_friendly_default() -> None:
+    from app.ai.providers.compatible import retry_after_seconds
+
+    class WithHeader(ValueError):
+        class response:  # noqa: N801
+            headers = {"retry-after": "7"}
+
+    assert retry_after_seconds(WithHeader("x")) == 7.0
+    assert retry_after_seconds(ValueError("Rate limit reached. Please try again in 12.5s.")) == 12.5
+    assert retry_after_seconds(ValueError("Please try again in 1m3s")) == 63.0
+    assert retry_after_seconds(ValueError("rate limited")) == 15.0
+
+
+def test_expand_models_can_be_chosen_by_setting() -> None:
+    service = create_generation_service(
+        live_settings(
+            ai_expand_models=" openai/gpt-oss-120b , openai/gpt-oss-20b,openai/gpt-oss-120b"
+        )
+    )
+    assert service.primary.provider.expand_models == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]

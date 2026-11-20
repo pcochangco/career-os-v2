@@ -123,7 +123,7 @@ def test_provider_endpoint_and_model_are_configuration_only(
         "outline_repair": "openai/gpt-oss-120b",
         "expand": "openai/gpt-oss-120b",
     }
-    assert provider.expand_models == ["openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
+    assert provider.expand_models == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
     assert provider.stage_max_completion_tokens == {
         "generate": 5000,
         "critique": 1600,
