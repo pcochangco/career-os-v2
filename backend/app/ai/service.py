@@ -328,11 +328,21 @@ def outline_as_draft(outline: RoadmapOutline) -> RoadmapDraft:
     )
 
 
+ADVISORY_CODES = {"curriculum_prerequisite_order"}
+
+
 def evaluate_outline(
     outline: RoadmapOutline, generation_input: RoadmapGenerationInput
 ) -> tuple[int, list[QualityIssue]]:
     _, issues = evaluate_structure(outline_as_draft(outline), generation_input)
-    kept = [item for item in issues if item.code in OUTLINE_CHECK_CODES]
+    kept = [
+        # The topic-order check matches keywords, so a step that merely mentions a later topic
+        # trips it. Live runs on broad technical goals kept failing on it alone; the outline
+        # review model judges real ordering, so here it only warns.
+        item.model_copy(update={"severity": "warning"}) if item.code in ADVISORY_CODES else item
+        for item in issues
+        if item.code in OUTLINE_CHECK_CODES
+    ]
     return max(0, 100 - sum(14 if i.severity == "error" else 5 for i in kept)), kept
 
 

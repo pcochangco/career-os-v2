@@ -441,3 +441,20 @@ def test_expand_models_can_be_chosen_by_setting() -> None:
         )
     )
     assert service.primary.provider.expand_models == ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+
+
+def test_outline_topic_order_check_only_warns(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.ai import service
+    from app.ai.quality import issue
+
+    order = issue("curriculum_prerequisite_order", "order", "milestones", "fix order")
+    missing = issue("missing_prove", "no proof", "milestones", "add proof")
+    monkeypatch.setattr(service, "evaluate_structure", lambda draft, gi: (72, [order, missing]))
+
+    score, issues = service.evaluate_outline(FakeStagedProvider().outline, learner_input())
+
+    assert [(i.code, i.severity) for i in issues] == [
+        ("curriculum_prerequisite_order", "warning"),
+        ("missing_prove", "error"),
+    ]
+    assert score == 81  # 100 - 5 (warning) - 14 (error)
