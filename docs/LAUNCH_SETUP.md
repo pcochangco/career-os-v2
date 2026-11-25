@@ -41,8 +41,17 @@ Set in Render → Environment, then let it redeploy:
 ## 6. Database backups (before inviting real users)
 Pick one:
 - [ ] **Supabase Pro**: daily automatic backups, restore from the dashboard (paid). Confirm under Database → Backups.
-- [ ] **Free**: ask Claude to add the nightly `pg_dump` GitHub Action, then add the database URL as a GitHub secret.
-- [ ] Do one test restore into a throwaway database so you know it works.
+- [ ] **Free (built in)**: the nightly GitHub Action `.github/workflows/backup.yml` is already in the repo and does nothing until you turn it on:
+  1. Make a long random passphrase and save it in your password manager. **Without it, backups cannot be restored.**
+  2. GitHub → `career-os-v2` → Settings → Secrets and variables → Actions → **New repository secret**:
+     - `BACKUP_DATABASE_URL` = the same Supabase **Session pooler** URI as Render's `CAREEROS_DATABASE_URL`
+     - `BACKUP_PASSPHRASE` = the passphrase from step 1
+  3. Actions → **Nightly database backup** → **Run workflow** once by hand; it should finish green with an artifact named `careeros-db-<date>`.
+  - It then runs every night at 03:17 UTC and keeps each backup for 30 days. The repository is public, so every backup is encrypted before it is stored; GitHub emails you if a run fails.
+- [ ] Do one test restore into a throwaway database so you know it works:
+  1. Download the newest `careeros-db-…` artifact from the workflow run and unzip it.
+  2. `gpg --decrypt careeros-<date>.dump.gpg > careeros.dump` (enter the passphrase).
+  3. `pg_restore --no-owner --dbname "<throwaway database URL>" careeros.dump`. Never point this at production.
 
 ## 7. AI provider decision
 - [ ] Decide whether Groq's free tier is enough. Staged generation (Nov 2026) fits its output caps, but its per-minute limits make big roadmaps slow (about a minute for a typical goal, several for a large career change). Options: a paid Groq tier, or a different provider via `CAREEROS_AI_*` variables. No code change needed either way.
