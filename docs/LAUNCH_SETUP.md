@@ -21,6 +21,11 @@ Never paste keys or passwords into chat. Put them straight into Render → `care
 - [ ] Open `https://your-domain/api/v1/health` → must return 200.
 - [ ] If CareerOS is ever called from another site or a native build, add the domain to `CAREEROS_CORS_ORIGINS` (the web app is same-origin and doesn't need it).
 
+## 3b. Faster first load (recommended before launch)
+Render's free tier puts the server to sleep after ~15 minutes without visitors; the next visitor waits ~30 seconds (measured 33 s) for it to wake. It also restarts on each deploy.
+- [ ] Render → `career-os` → Settings → Instance type → **Starter** (about $7/month). The server then stays awake.
+- [ ] Check: after 20+ minutes idle, `https://your-domain/api/v1/health` answers in under a second.
+
 ## 4. Turn on email-code sign-in
 Set in Render → Environment, then let it redeploy:
 - [ ] `CAREEROS_EMAIL_CODE_LOGIN_ENABLED` = `true`

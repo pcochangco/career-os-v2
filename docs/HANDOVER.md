@@ -1,6 +1,6 @@
 # CareerOS handover brief
 
-_Originally written 2026-11-16 as the onboarding brief for a new working session. Sections 1, 9 and 12 updated 2026-11-19 after the user-journey production pass (PRs #6–#17)._
+_Originally written 2026-11-16 as the onboarding brief for a new working session. Sections 1, 9 and 12 updated 2026-11-19 after the user-journey production pass (PRs #6–#17). Sections 1, 6, 8, 9 and 10 updated 2026-11-25 after the roadmap-generation and reliability work (PRs #26–#43)._
 
 You are taking over CareerOS, an ongoing production project — not a fresh build. Read this whole brief, then inspect the repository before doing anything. Do not start coding until I give you a task; first confirm the repo state and run the baseline checks (section 11), then report back briefly.
 
@@ -15,14 +15,21 @@ GitHub is the truth for current code. This brief is the truth for intent and dec
 | Item | Value |
 |---|---|
 | GitHub repo | `pcochangco/career-os-v2`, branch `main` |
-| Latest commit | see `git log`; journey pass ended at `54904aa` (PR #17) |
+| Latest commit | see `git log`; tag `v1.0.0` on `5b24d74`; reliability work through PR #43 (2026-11-25) |
 | Production URL | https://career-os-41i5.onrender.com |
 | Web host | Render free Docker web service `career-os` (serves API + exported frontend from one container) |
 | Database | **Supabase Postgres** (via the Session pooler, IPv4). Set in Render env var `CAREEROS_DATABASE_URL`. |
 | Health endpoint | `/api/v1/health` (must return 200) |
 | Deploys | Render GitHub app installed 2026-11-19; auto-deploy runs after CI passes on `main`. Before that, every deploy was triggered by hand. |
 
-**What changed recently (not yet reflected in the repo docs):**
+**State as of 2026-11-25:**
+- Live AI works end to end on Groq's free tier: owner-verified on 2026-11-20 (goal created, discovery, roadmap built in the background in about 90 s on live AI). Broad technical goals also pass since PR #42 (score 96, 17 steps, 92 s).
+- Production setting changed through the Render API on 2026-11-20 (owner approved): `CAREEROS_AI_DISCOVERY_MODEL=openai/gpt-oss-20b`, because Groq retired `qwen/qwen3.6-27b` and goal creation broke. A failing discovery AI now falls back (PR #39).
+- `/api/v1/health` shows the live AI mode, provider, model, generation strategy and roadmap skill. `render.yaml` is reference only; the Render dashboard is what runs.
+- Render free tier sleeps after ~15 min idle: the first request then takes ~30 s (measured 33 s). Fix is a paid instance (LAUNCH_SETUP step 3b).
+- Backups: nightly encrypted GitHub Action exists (PR #43) but stays off until the owner adds two secrets (LAUNCH_SETUP step 6).
+
+**Earlier notes (2026-11-19):**
 - Render's free PostgreSQL expired and was **deleted with no backup** — all previous data (beta test data only) is gone.
 - Production now points at a new Supabase project. Alembic migrations ran fresh on container startup and the app works again. The owner's beta account was recreated.
 - Render cannot reach Supabase's direct connection (IPv6-only). The **Session pooler** URI (`postgres.<ref>@...pooler.supabase.com:5432`) must be used while hosted on Render. Do not switch it to the transaction pooler for the container.
@@ -57,11 +64,13 @@ A topic-agnostic, mobile-first roadmap app: user goal → adaptive discovery →
 - Prerequisite graph validation must stay enforced.
 
 ## 6. AI pipeline & cost controls (implemented)
-- generate → structural quality check → critic → one repair attempt → deterministic fallback.
-- AI usage events recorded in the DB (operation, provider/model, tokens, timing, failures).
-- Per-user and global quotas (DB-backed) for goal intent, discovery, roadmap generation; on exhaustion, fall back deterministically.
-- Offline eval cases cover technical, nontechnical, language, business, creative, beginner, experienced, prompt-injection.
-- Live eval requires `--confirm-live`, defaults to one case, is capped. Don't run it against production casually.
+- **Roadmaps are built in stages** (`CAREEROS_AI_GENERATION_STRATEGY=staged`, PRs #34–#36): an outline call (milestones + step titles), a structural check and an outline review, one outline repair if needed, then one small call per milestone for full step details, alternating `gpt-oss-120b` / `gpt-oss-20b` (`CAREEROS_AI_EXPAND_MODELS`). A milestone too long for one answer is split in halves. Up to 10 milestones / 40 steps. All calls share a 240 s budget; rate limits (429) are waited out using Groq's retry hints. `single` keeps the one-call path for large paid models.
+- **Built in the background** (PR #37): `POST /goals/{id}/roadmaps/generation` returns 202 and the app polls `GET …/generation` for progress ("Writing milestone 3 of 7"). The older synchronous `POST /goals/{id}/roadmaps` still works.
+- **Prompt guidance is a skill folder** (PR #33): `backend/app/ai/skills/roadmap-mentor/SKILL.md`, picked by `CAREEROS_ROADMAP_SKILL`. The app contract (untrusted input, no URLs, no schedules, effort labels) stays in code around it. Each roadmap's `prompt_version` records skill + hash.
+- **Fallbacks:** any roadmap failure → the deterministic roadmap (topics: language, business, technical, creative, fitness, cooking, games, exams, general). Discovery/goal-check failure → built-in questions (PR #39). A retired model is retried once with the main model.
+- **Resources:** YouTube + Brave, re-checked for relevance on every load; Shorts, filler-word matches, raw HTML and off-topic programming tutorials are filtered (PRs #27–#29, #41). A step without a video searches again at most daily.
+- AI usage events recorded in the DB (operation, provider/model, tokens, timing, failures). Per-user and global quotas (DB-backed); on exhaustion, fall back deterministically.
+- **Live evals:** `uv run python evals/run_live.py --limit 1 --confirm-live [--case NAME] [--strategy staged|single]` with a key in your local `backend/.env` (tests ignore `.env`). It spends Groq quota; don't loop it.
 
 ## 7. Authentication
 - **Google OAuth: blocked.** Project `careeros-production-508315` is under a Terms of Service review; appeal pending. Do NOT create a new Google project/client to work around it. After resolution, add Authorized JavaScript Origin `https://career-os-41i5.onrender.com` (or the new host if we move).
@@ -76,24 +85,24 @@ A topic-agnostic, mobile-first roadmap app: user goal → adaptive discovery →
 | Database | Supabase project (Session pooler connection) |
 | Google OAuth client | Google Cloud project `careeros-production-508315` |
 | Code | GitHub `pcochangco/career-os-v2` |
+| Backup secrets (`BACKUP_DATABASE_URL`, `BACKUP_PASSPHRASE`) | GitHub → Settings → Secrets and variables → Actions |
+
+Every `CAREEROS_*` variable, its meaning, default, and whether it is set on Render or a hidden default: `docs/LAUNCH_SETUP.md`, "Environment variables (reference)".
 
 ## 9. Known gaps / open issues
-- ~~`.env.example` and `backend/.env.example` are missing `CAREEROS_EMAIL_TEST_LOGIN_EMAILS` and `CAREEROS_EMAIL_TEST_ACCESS_CODE`.~~ Fixed (2026-11-17), along with `CAREEROS_MANUAL_PREMIUM_EMAILS`.
-- ~~Docs/README still describe Render PostgreSQL.~~ Fixed (2026-11-17): README, `docs/TECHNICAL.md` and `render.yaml` now describe Supabase + the Session pooler; the Blueprint no longer declares a Render database.
-- No database backups exist. Not urgent while Supabase holds only test data; set up before real users (Supabase Pro daily backups, or a nightly `pg_dump` GitHub Action).
-- The repo does not track a `uv.lock`; `uv sync` creates `backend/uv.lock` — don't commit it unless the owner decides to pin dependencies.
-- Google sign-in unavailable; real email verification not implemented. The native app has no beta email sign-in form (web only).
-- Groq free tier hits token-length limits and 429s, so production often serves the deterministic fallback roadmap.
-- Existing roadmaps keep stored titles like "Your path to …"; new fallback roadmaps say "Your roadmap to …".
+- **No backups yet:** the workflow exists but is off until the owner adds its two secrets (LAUNCH_SETUP step 6).
+- **Cold start:** Render free tier sleeps; first visit after ~15 min idle waits ~30 s (LAUNCH_SETUP step 3b).
+- **Sign-in:** Google sign-in waits on the Cloud appeal; real email verification (emailed codes) is built but off until a sending domain exists (LAUNCH_SETUP steps 1–4). The native app has no beta email sign-in form (web only).
+- **Free-tier AI:** works, but large goals take 1.5–4 min and very broad ones can still fall back. Groq can retire models without notice (it did on 2026-11-20); watch logs for `AI model not found` / `Live discovery failed`.
+- **Native:** iOS checked on the iOS 27 simulator (SDK 58); Android, release builds and real devices not checked. `frontend/ios/` is generated and was deleted locally on 2026-11-21 to free space; regenerate per section 10b.
+- The repo does not track a `uv.lock`; `uv sync` creates `backend/uv.lock`. Don't commit it unless the owner decides to pin dependencies.
+- Existing roadmaps keep stored text and search phrases from when they were generated.
 
 ## 10. Next steps (priority order)
-1. ~~Repo hygiene~~ Done (PR #8).
-2. Test the live core path with email beta sign-in (owner does the sign-in; agent helps review results).
-3. Submit/track the Google Cloud appeal (owner; don't work around it).
-4. Tag `v0.1-beta` once live testing passes.
-5. Decide hosting (stay on Render web + Supabase, or move to Vercel) and plan the migration.
-6. Domain + Resend → replace temporary access-code login with real email verification.
-7. ~~UI/mobile polish~~ Done in the journey pass (section 12). Roadmap-quality work still waits on stable auth.
+1. **Owner launch setup** (`docs/LAUNCH_SETUP.md`): domain → Resend → custom domain → turn on email codes and retire the beta code → backups secrets (or Supabase Pro) → decide on a paid Render instance → Google sign-in when the appeal clears.
+2. Run `docs/RELEASE_CHECKLIST.md` on the new domain, then tag the launch release.
+3. Optional, if staying on Groq's free tier: generate later milestones only when the learner reaches them (fast, cheap big roadmaps; changes how roadmaps are stored).
+4. Native store release (Android check, release builds, store forms) when wanted.
 
 ## 10b. Running the iOS app locally (checked 2026-11-20, Xcode 27.2, iOS 27.2 simulator)
 - `frontend/ios/` is generated (gitignored): `cd frontend && npx expo prebuild --platform ios && (cd ios && pod install)`. Needs full Xcode and CocoaPods (`brew install cocoapods`).
